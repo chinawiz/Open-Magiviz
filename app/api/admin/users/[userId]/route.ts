@@ -5,6 +5,7 @@ import { eq, desc, sql } from 'drizzle-orm'
 import { isAdmin } from '@/lib/auth-utils'
 import { v4 as uuidv4 } from 'uuid'
 import { getSubscriptionGiftedPoints } from '@/lib/points'
+import type { NewUser } from '@/lib/types'
 
 export async function GET(
   request: NextRequest,
@@ -226,7 +227,7 @@ export async function PUT(
       }
 
       // 构建更新数据
-      const updateData: any = {
+      const updateData: Partial<NewUser> = {
         updatedAt: new Date()
       }
 

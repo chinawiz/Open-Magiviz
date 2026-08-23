@@ -35,11 +35,12 @@ import {
 } from "lucide-react"
 import { useCharacterLibrary, useStoryboardLibrary, useVideoLibrary, useUnifiedLibrary } from "@/hooks/useLibrary"
 import { useUserAssets } from "@/hooks/useUserAssets"
+import type { LibraryMaterialItem } from "@/lib/types"
 
 interface LibrarySelectorProps {
   open?: boolean
   onOpenChange?: (open: boolean) => void
-  onSelect: (url: string, item: any) => void
+  onSelect: (url: string, item: LibraryMaterialItem) => void
 }
 
 type TabKey = 'all' | 'characters' | 'storyboards' | 'videos' | 'my-uploads'
@@ -133,7 +134,7 @@ export function LibrarySelectorContent({
     setSelectedItem(null)
   }, [activeTab])
 
-  const handleSelect = (item: any) => {
+  const handleSelect = (item: LibraryMaterialItem) => {
     if (selectedItem?.id === item.id) {
       setSelectedItem(null)
     } else {
@@ -150,14 +151,14 @@ export function LibrarySelectorContent({
     }
   }
 
-  const formatTime = (date: string | Date | null) => {
+  const formatTime = (date: string | Date | null | undefined) => {
     if (!date) return ""
     const d = new Date(date)
     return d.toLocaleDateString("zh-CN")
   }
 
   // 当前显示的数据
-  const displayItems = activeTab === 'my-uploads' ? userAssets.assets : items
+  const displayItems: LibraryMaterialItem[] = activeTab === 'my-uploads' ? userAssets.assets : items
   const isLoading = activeTab === 'my-uploads' ? userAssets.loading : loading
 
   // 布局判断
@@ -165,11 +166,11 @@ export function LibrarySelectorContent({
   const isThreeColumn = activeTab === 'characters' || activeTab === 'storyboards' || activeTab === 'videos'
   const isVideoCard = activeTab === 'storyboards' || activeTab === 'videos'
 
-  const getImageUrl = (item: any) => {
+  const getImageUrl = (item: LibraryMaterialItem): string => {
     if (activeTab === 'my-uploads') {
-      return item.url
+      return item.url || ''
     }
-    return item.imageUrl || item.thumbnailUrl || item.videoUrl
+    return item.imageUrl || item.thumbnailUrl || item.videoUrl || ''
   }
 
   return (
@@ -285,7 +286,7 @@ export function LibrarySelectorContent({
                     : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
                 }`
             }>
-              {displayItems.map((item: any, index: number) => {
+              {displayItems.map((item: LibraryMaterialItem, index: number) => {
                 const uniqueKey = `${item.type || activeTab}-${item.projectId}-${item.id || index}`
                 const isVideo = item.type === 'video' || activeTab === 'videos'
                 const isStoryboard = item.type === 'storyboard' || activeTab === 'storyboards'
@@ -346,7 +347,7 @@ function PreviewDialog({
   onOpenChange,
   onConfirm,
 }: {
-  item: any
+  item: LibraryMaterialItem
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
@@ -429,7 +430,7 @@ function AssetCard({
   isAudio: boolean
   isSelected: boolean
   imageUrl: string
-  onSelect: (item: any) => void
+  onSelect: (item: LibraryMaterialItem) => void
 }) {
   const t = useTranslations("library")
   const IconComponent = isVideo ? Film : isStoryboard ? ImageIcon : isAudio ? Music : User

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { db } from '@/lib/db'
 import { videoProjects, projectData } from '@/lib/schema'
 import { eq, desc, sql } from 'drizzle-orm'
@@ -9,11 +8,11 @@ import { nanoid } from 'nanoid'
 // GET: 获取项目列表
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
     
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+473}
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
@@ -90,11 +89,11 @@ export async function GET(request: Request) {
 // POST: 创建新项目
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
     
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+2915}
 
     const body = await request.json()
     const { title, originalPrompt, aspectRatio, duration, videoStyle, videoModel, generationMode } = body

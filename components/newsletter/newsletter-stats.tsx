@@ -10,6 +10,8 @@ import { Users, Mail, Globe, Calendar, RefreshCw, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { useTranslations, useLocale } from 'next-intl'
 
+type TFunction = ReturnType<typeof useTranslations>
+
 interface Subscription {
   id: string
   email: string
@@ -226,7 +228,7 @@ function SubscriptionTable({
   locale 
 }: { 
   subscriptions: Subscription[]
-  t: any
+  t: TFunction
   locale: string
 }) {
   if (subscriptions.length === 0) {

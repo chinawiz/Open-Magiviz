@@ -13,6 +13,9 @@ import {
   triggerStoryboardImageMigration,
 } from '@/trigger/migrate-assets'
 import { resolveTargetVersion } from '@/lib/versionMapper'
+import type { KieApiResponse } from '@/lib/ai-types'
+import { safeJsonCopy } from '@/lib/ai-types'
+import type { CharacterItem, StoryboardItem, SceneVideoItem } from '@/lib/types'
 
 // Webhook HMAC Key - 从环境变量获取
 const WEBHOOK_HMAC_KEY = process.env.KIE_WEBHOOK_HMAC_KEY!
@@ -65,7 +68,7 @@ export async function POST(request: NextRequest) {
     
     // 2. 获取原始请求体用于验证
     const rawBody = await getRawBody(request)
-    let bodyData: any
+    let bodyData: KieApiResponse
     
     try {
       bodyData = JSON.parse(rawBody)
@@ -130,24 +133,16 @@ export async function POST(request: NextRequest) {
               .limit(1)
 
             if (latestData) {
-              const safeJsonCopy = (value: any): any => {
-                if (value === null || value === undefined) return null
-                if (typeof value === 'string') {
-                  try { return JSON.parse(value) } catch { return null }
-                }
-                return JSON.parse(JSON.stringify(value))
-              }
-
               if (failedRecord.taskType === 'generate_character') {
-                const characters: any[] = safeJsonCopy(latestData.characterData) || []
-                const charIdx = characters.findIndex((c: any) => String(c.id) === String(failedRecord.itemId))
+                const characters: CharacterItem[] = safeJsonCopy<CharacterItem[]>(latestData.characterData) || []
+                const charIdx = characters.findIndex((c: CharacterItem) => String(c.id) === String(failedRecord.itemId))
                 if (charIdx >= 0) {
                   characters[charIdx] = { ...characters[charIdx], imageUrl: '', generationError: failMsg }
                 }
                 await db.update(projectData).set({ characterData: characters, updatedAt: new Date() }).where(eq(projectData.id, latestData.id))
               } else if (failedRecord.taskType === 'generate_storyboard') {
-                const storyboards: any[] = safeJsonCopy(latestData.storyboardData) || []
-                let sbIdx = storyboards.findIndex((s: any) => String(s.id) === String(failedRecord.itemId) || String(s.sceneId) === String(failedRecord.itemId))
+                const storyboards: StoryboardItem[] = safeJsonCopy<StoryboardItem[]>(latestData.storyboardData) || []
+                let sbIdx = storyboards.findIndex((s: StoryboardItem) => String(s.id) === String(failedRecord.itemId) || String(s.sceneId) === String(failedRecord.itemId))
                 if (sbIdx < 0) {
                   const itemIdNum = parseInt(String(failedRecord.itemId), 10)
                   if (!isNaN(itemIdNum) && itemIdNum >= 0 && itemIdNum < storyboards.length) {
@@ -163,15 +158,15 @@ export async function POST(request: NextRequest) {
                 const originalItemId = failedRecord.itemId?.replace(/_first$|_last$/, '') || null
                 const isFirstFrame = failedRecord.itemId?.endsWith('_first')
                 const isLastFrame = failedRecord.itemId?.endsWith('_last')
-                const storyboards: any[] = safeJsonCopy(latestData.storyboardData) || []
+                const storyboards: StoryboardItem[] = safeJsonCopy<StoryboardItem[]>(latestData.storyboardData) || []
                 
                 // 新格式：itemId 直接作为 id 匹配
-                let sbIdx = storyboards.findIndex((s: any) => String(s.id) === String(failedRecord.itemId))
+                let sbIdx = storyboards.findIndex((s: StoryboardItem) => String(s.id) === String(failedRecord.itemId))
                 
                 if (sbIdx < 0) {
                   // 降级：尝试旧格式的匹配方式
                   const originalItemId = failedRecord.itemId?.replace(/_first$|_last$/, '')
-                  sbIdx = storyboards.findIndex((s: any) => String(s.id) === String(originalItemId) || String(s.sceneId) === String(originalItemId))
+                  sbIdx = storyboards.findIndex((s: StoryboardItem) => String(s.id) === String(originalItemId) || String(s.sceneId) === String(originalItemId))
                   if (sbIdx < 0) {
                     const itemIdNum = parseInt(String(originalItemId), 10)
                     if (!isNaN(itemIdNum) && itemIdNum >= 0 && itemIdNum < storyboards.length) {
@@ -225,7 +220,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Empty result' }, { status: 400 })
     }
 
-    let resultData: any
+    let resultData: KieApiResponse
     try {
       resultData = JSON.parse(resultJson)
     } catch (parseError) {
@@ -288,8 +283,8 @@ export async function POST(request: NextRequest) {
 
     // 7.2 直接写入 projectData（关键：前端关闭也不丢失数据）
     let newRecordIdForMigration: string | undefined
-    let charactersForMigration: any[] | undefined
-    let storyboardsForMigration: any[] | undefined
+    let charactersForMigration: CharacterItem[] | undefined
+    let storyboardsForMigration: StoryboardItem[] | undefined
     if (projectId) {
       try {
         const [targetRecord] = await db
@@ -299,17 +294,9 @@ export async function POST(request: NextRequest) {
           .limit(1)
 
         if (targetRecord) {
-          const safeJsonCopy = (value: any): any => {
-            if (value === null || value === undefined) return null
-            if (typeof value === 'string') {
-              try { return JSON.parse(value) } catch { return null }
-            }
-            return JSON.parse(JSON.stringify(value))
-          }
-
           if (taskType === 'generate_character' && itemId) {
-            const characters: any[] = safeJsonCopy(targetRecord.characterData) || []
-            const charIdx = characters.findIndex((c: any) => String(c.id) === String(itemId))
+            const characters: CharacterItem[] = safeJsonCopy<CharacterItem[]>(targetRecord.characterData) || []
+            const charIdx = characters.findIndex((c: CharacterItem) => String(c.id) === String(itemId))
             if (charIdx >= 0) {
               characters[charIdx] = { ...characters[charIdx], imageUrl }
               console.log(`[Webhook] 主角 ${itemId} 写入索引 ${charIdx}:`, { id: characters[charIdx].id })
@@ -330,10 +317,10 @@ export async function POST(request: NextRequest) {
               .where(eq(videoProjects.id, projectId))
           } else if (taskType === 'generate_storyboard' && itemId) {
             // 普通分镜图模式：单个请求，无竞态问题
-            const storyboards: any[] = safeJsonCopy(targetRecord.storyboardData) || []
+            const storyboards: StoryboardItem[] = safeJsonCopy<StoryboardItem[]>(targetRecord.storyboardData) || []
 
             // 查找匹配的索引
-            let sbIdx = storyboards.findIndex((s: any) => String(s.id) === String(itemId) || String(s.sceneId) === String(itemId))
+            let sbIdx = storyboards.findIndex((s: StoryboardItem) => String(s.id) === String(itemId) || String(s.sceneId) === String(itemId))
 
             // 如果没找到，尝试用数字索引
             if (sbIdx < 0) {
@@ -359,10 +346,10 @@ export async function POST(request: NextRequest) {
               .where(eq(videoProjects.id, projectId))
           } else if (taskType === 'generate_character' && !itemId) {
             // 无 itemId 时写入所有 characterData（兼容旧逻辑：主角可能不关联具体 ID）
-            const characters: any[] = safeJsonCopy(targetRecord.characterData) || []
+            const characters: CharacterItem[] = safeJsonCopy<CharacterItem[]>(targetRecord.characterData) || []
             if (characters.length > 0) {
               // 尝试找到第一个没有 imageUrl 的主角写入
-              const emptyCharIdx = characters.findIndex((c: any) => !c.imageUrl)
+              const emptyCharIdx = characters.findIndex((c: CharacterItem) => !c.imageUrl)
               const writeIdx = emptyCharIdx >= 0 ? emptyCharIdx : 0
               characters[writeIdx] = { ...characters[writeIdx], imageUrl }
               newRecordIdForMigration = targetRecord.id
@@ -379,9 +366,9 @@ export async function POST(request: NextRequest) {
             }
           } else if (taskType === 'generate_storyboard' && !itemId) {
             // 无 itemId 时写入所有 storyboardData（兼容旧逻辑：分镜图可能不关联具体 ID）
-            const storyboards: any[] = safeJsonCopy(targetRecord.storyboardData) || []
+            const storyboards: StoryboardItem[] = safeJsonCopy<StoryboardItem[]>(targetRecord.storyboardData) || []
             if (storyboards.length > 0) {
-              const emptySbIdx = storyboards.findIndex((s: any) => !s.imageUrl)
+              const emptySbIdx = storyboards.findIndex((s: StoryboardItem) => !s.imageUrl)
               const writeIdx = emptySbIdx >= 0 ? emptySbIdx : 0
               storyboards[writeIdx] = { ...storyboards[writeIdx], imageUrl }
               newRecordIdForMigration = targetRecord.id
@@ -399,10 +386,10 @@ export async function POST(request: NextRequest) {
           } else if (taskType === 'generate_storyboard_frame' && itemId) {
             // 首尾帧模式：itemId 格式为 "1_first" 或 "1_last"
             // 直接将这个 itemId 作为独立分镜图写入（无竞态问题）
-            const storyboards: any[] = safeJsonCopy(targetRecord.storyboardData) || []
+            const storyboards: StoryboardItem[] = safeJsonCopy<StoryboardItem[]>(targetRecord.storyboardData) || []
 
             // 查找是否已有相同 id 的记录
-            let sbIdx = storyboards.findIndex((s: any) => String(s.id) === String(itemId))
+            let sbIdx = storyboards.findIndex((s: StoryboardItem) => String(s.id) === String(itemId))
 
             if (sbIdx >= 0) {
               // 已存在，更新 imageUrl
@@ -426,7 +413,7 @@ export async function POST(request: NextRequest) {
             }
 
             newRecordIdForMigration = targetRecord.id
-            storyboardsForMigration = storyboards.filter((s: any) => s.id === itemId)
+            storyboardsForMigration = storyboards.filter((s: StoryboardItem) => s.id === itemId)
             await db.update(projectData).set({ storyboardData: storyboards, updatedAt: new Date() }).where(eq(projectData.id, targetRecord.id))
 
             console.log(`[Webhook] 首尾帧 ${itemId} 已写入:`, { imageUrl: imageUrl.substring(0, 50) + '...' })

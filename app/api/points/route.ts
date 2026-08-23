@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { getUserPoints, addPoints, deductPoints, PointsAction } from '@/lib/points'
 import { isAdmin } from '@/lib/auth-utils'
 
 // 获取当前用户积分
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
     
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: '未登录' },
-        { status: 401 }
-      )
+    if (!session) {
+      return jsonError(401, '未登录')
     }
 
     const points = await getUserPoints(session.user.id)

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { db } from '@/lib/db'
 import { projectData } from '@/lib/schema'
 import { eq, desc } from 'drizzle-orm'
+import { ZENMUX_API_URL } from '@/lib/llm'
+import type { StoryGenerationResult, SceneDataItem } from '@/lib/ai-types'
 
 /**
  * POST /api/ai/generate-story-details
@@ -17,7 +18,7 @@ import { eq, desc } from 'drizzle-orm'
  *   userImages?: string[]      // 可选：用户上传的图片 URL 列表（每张会被 Gemini 视觉识别为角色图或场景图）
  * }
  *
- * 使用 ZenMux 调用 google/gemini-3-flash-preview 生成剧情详情（情节、场景、角色要点等）。
+ * 使用 ZenMux 调用 google/gemini-3.5-flash 生成剧情详情（情节、场景、角色要点等）。
  * 请在环境变量中设置 ZENMUX_API_KEY=<your_key>
  *
  * Gemini 3.5 Flash 支持最大输出 65,536 tokens。
@@ -46,7 +47,7 @@ async function analyzeUserImages(
   apiKey: string,
   model: string
 ): Promise<Array<{ index: number; url: string; type: string; desc: string }>> {
-  const zenMuxUrl = 'https://zenmux.ai/api/v1/chat/completions'
+  const zenMuxUrl = ZENMUX_API_URL
   const results: Array<{ index: number; url: string; type: string; desc: string }> = []
 
   // 并行调用 Gemini 视觉模型识别每张图片
@@ -85,7 +86,7 @@ async function analyzeUserImages(
         j?.choices?.[0]?.text ??
         ''
       const cleaned = String(text).trim().replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
-      let parsed: any = { type: 'unknown', desc: '' }
+      let parsed: { type?: string; desc?: string } = { type: 'unknown', desc: '' }
       try {
         parsed = JSON.parse(cleaned)
       } catch {
@@ -116,10 +117,10 @@ async function analyzeUserImages(
 export async function POST(request: NextRequest) {
   try {
     // 验证用户登录状态
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: '用户未登录' }, { status: 401 })
-    }
+    const session = await getAuthedSession()
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+4109}
 
     const body: GenerateRequestBody = await request.json()
 
@@ -146,6 +147,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ZenMux API key not configured (ZENMUX_API_KEY)' }, { status: 500 })
     }
 
+    // 保持重构前行为：本路由使用专属模型，不随 lib/llm.ts 的 DEFAULT_MODEL 变更
     const model = 'google/gemini-3.5-flash'
     const maxTokens = typeof body.maxTokens === 'number'
       ? body.maxTokens
@@ -154,7 +156,7 @@ export async function POST(request: NextRequest) {
 
     // 用户上传的图片（每张将被 Gemini 视觉模型识别为 character 或 scene）
     const userImages: string[] = Array.isArray(body.userImages)
-      ? body.userImages.filter((u: any) => typeof u === 'string' && u.trim().length > 0)
+      ? body.userImages.filter((u: unknown) => typeof u === 'string' && u.trim().length > 0)
       : []
 
     // 识别结果：[{ index, url, type: 'character' | 'scene' | 'unknown', desc }]
@@ -532,7 +534,7 @@ Output format: include "userImageUrl" field at the top level of each character o
     }
 
     // Use ZenMux API - OpenAI-compatible endpoint
-    const zenMuxUrl = 'https://zenmux.ai/api/v1/chat/completions'
+    const zenMuxUrl = ZENMUX_API_URL
 
     // 直接使用 ZenMux HTTP 接口
     const headers = {
@@ -576,19 +578,19 @@ Output format: include "userImageUrl" field at the top level of each character o
       generatedText = respJson.output
     }
 
-    let parsedData: any = null
+    let parsedData: StoryGenerationResult = null as unknown as StoryGenerationResult
     if (generatedText) {
       // 尝试解析为严格 JSON（去掉 ``` 包裹）
       const cleaned = generatedText.trim().replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
       try {
         parsedData = JSON.parse(cleaned)
       } catch (e) {
-        // 解析失败，回退为原始文本
-        parsedData = cleaned
+        // 解析失败，回退为原始文本（后续会再次尝试解析）
+        parsedData = cleaned as unknown as StoryGenerationResult
       }
     } else {
       // 如果没有文本输出，直接使用 respJson（可能已经为对象）
-      parsedData = respJson
+      parsedData = respJson as unknown as StoryGenerationResult
     }
 
     // 如果 parsedData 是字符串（未成功解析为对象），尝试从 raw 中挑选对象
@@ -607,12 +609,12 @@ Output format: include "userImageUrl" field at the top level of each character o
     // - Seedance 风格：裁剪到 4-15s
     // - Gemini Omni 风格：只能是 4/6/8/10s
     // - Kling/Wan/HappyHorse 风格：裁剪到 3-15s
-    const applyDurationConstraint = (scenes: any[]): any[] => {
+    const applyDurationConstraint = (scenes: SceneDataItem[]): SceneDataItem[] => {
       if (!Array.isArray(scenes) || scenes.length === 0) return scenes
 
       if (isVeoStyle) {
         // Veo 风格：强制 8s
-        return scenes.map((s: any) => ({
+        return scenes.map((s: SceneDataItem) => ({
           ...s,
           duration: 8
         }))
@@ -626,7 +628,7 @@ Output format: include "userImageUrl" field at the top level of each character o
           )
           return nearest
         }
-        return scenes.map((s: any) => {
+        return scenes.map((s: SceneDataItem) => {
           const rawDuration = Number(s.duration) || 8
           return {
             ...s,
@@ -640,7 +642,7 @@ Output format: include "userImageUrl" field at the top level of each character o
           if (seconds > 15) return 15
           return seconds
         }
-        return scenes.map((s: any) => {
+        return scenes.map((s: SceneDataItem) => {
           const rawDuration = Number(s.duration) || 8
           return {
             ...s,
@@ -654,7 +656,7 @@ Output format: include "userImageUrl" field at the top level of each character o
           if (seconds > 15) return 15
           return seconds
         }
-        return scenes.map((s: any) => {
+        return scenes.map((s: SceneDataItem) => {
           const rawDuration = Number(s.duration) || 6
           return {
             ...s,
@@ -668,7 +670,7 @@ Output format: include "userImageUrl" field at the top level of each character o
           if (seconds > 15) return 15
           return seconds
         }
-        return scenes.map((s: any) => {
+        return scenes.map((s: SceneDataItem) => {
           const rawDuration = Number(s.duration) || 5
           return {
             ...s,
@@ -682,7 +684,7 @@ Output format: include "userImageUrl" field at the top level of each character o
           if (seconds > 15) return 15
           return seconds
         }
-        return scenes.map((s: any) => {
+        return scenes.map((s: SceneDataItem) => {
           const rawDuration = Number(s.duration) || 5
           return {
             ...s,
@@ -749,7 +751,7 @@ Output format: include "userImageUrl" field at the top level of each character o
             const newVersionNum = currentMaxVersion + 1
 
             // 初始化 storyboardData：从 scriptScenes 构建，确保 webhook 回调时能匹配
-            const initialStoryboardData = (parsedData.scenes || []).map((scene: any, idx: number) => ({
+            const initialStoryboardData = (parsedData.scenes || []).map((scene: SceneDataItem, idx: number) => ({
               id: scene.id || String(idx + 1),
               sceneId: scene.id,
               imageUrl: '',
@@ -786,14 +788,14 @@ Output format: include "userImageUrl" field at the top level of each character o
 
             if (record) {
               // 初始化 storyboardData（从 scriptScenes 构建或更新现有）
-              let existingStoryboardData: any[] = []
+              let existingStoryboardData: SceneDataItem[] = []
               try {
                 existingStoryboardData = typeof record.storyboardData === 'string'
                   ? JSON.parse(record.storyboardData)
-                  : (record.storyboardData || [])
+                  : (record.storyboardData || []) as SceneDataItem[]
               } catch {}
-              const initialStoryboardData = (parsedData.scenes || []).map((scene: any, idx: number) => {
-                const existing = existingStoryboardData.find((s: any) => String(s.sceneId) === String(scene.id) || String(s.id) === String(scene.id))
+              const initialStoryboardData = (parsedData.scenes || []).map((scene: SceneDataItem, idx: number) => {
+                const existing = existingStoryboardData.find((s: SceneDataItem) => String(s.sceneId) === String(scene.id) || String(s.id) === String(scene.id))
                 return existing || {
                   id: scene.id || String(idx + 1),
                   sceneId: scene.id,

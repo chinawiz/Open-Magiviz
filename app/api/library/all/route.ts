@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { db } from '@/lib/db'
 import { videoProjects, projectData, userAssets } from '@/lib/schema'
 import { eq, sql, desc } from 'drizzle-orm'
+import type { LibraryMaterialItem } from '@/lib/types'
 
 // GET: 获取用户所有素材（主角、分镜图、剧情视频）
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+464}
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
       .where(eq(videoProjects.userId, session.user.id))
 
     // 收集所有素材
-    const allItems: any[] = []
+    const allItems: LibraryMaterialItem[] = []
 
     for (const row of rawData) {
       // 提取主角
@@ -188,7 +188,7 @@ export async function GET(request: Request) {
     }
 
     // 按时间倒序排序
-    allItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    allItems.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
 
     // 分页
     const total = allItems.length

@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { db } from '@/lib/db'
 import { videoProjects, projectData } from '@/lib/schema'
 import { eq, desc, sql } from 'drizzle-orm'
+import type { LibraryMaterialItem } from '@/lib/types'
 
 // GET: 获取用户所有主角库
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+440}
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
       .where(eq(videoProjects.userId, session.user.id))
 
     // 提取并整理主角数据
-    const allCharacters: any[] = []
+    const allCharacters: LibraryMaterialItem[] = []
 
     for (const row of rawData) {
       if (row.characterData && Array.isArray(row.characterData)) {
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
     }
 
     // 按时间倒序排序
-    allCharacters.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    allCharacters.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
 
     // 分页
     const total = allCharacters.length

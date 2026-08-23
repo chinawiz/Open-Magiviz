@@ -40,6 +40,7 @@ import { format } from 'date-fns'
 import { useTranslations, useLocale } from 'next-intl'
 import { zhCN, enUS } from 'date-fns/locale'
 import { toast } from 'sonner'
+import type { AdminAffiliateProfile, AdminAffiliateRelation, AdminAffiliateEarning, AdminAffiliateWithdrawal } from '@/lib/types'
 
 interface AffiliateStats {
   totalProfiles: number
@@ -53,10 +54,10 @@ export function AffiliateManagement() {
   const t = useTranslations('admin.affiliate')
   const locale = useLocale()
   const [stats, setStats] = useState<AffiliateStats | null>(null)
-  const [profiles, setProfiles] = useState<any[]>([])
-  const [relations, setRelations] = useState<any[]>([])
-  const [earnings, setEarnings] = useState<any[]>([])
-  const [withdrawals, setWithdrawals] = useState<any[]>([])
+  const [profiles, setProfiles] = useState<AdminAffiliateProfile[]>([])
+  const [relations, setRelations] = useState<AdminAffiliateRelation[]>([])
+  const [earnings, setEarnings] = useState<AdminAffiliateEarning[]>([])
+  const [withdrawals, setWithdrawals] = useState<AdminAffiliateWithdrawal[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingProfiles, setLoadingProfiles] = useState(false)
   const [loadingRelations, setLoadingRelations] = useState(false)
@@ -71,13 +72,14 @@ export function AffiliateManagement() {
   
   // 处理提现相关状态
   const [showProcessDialog, setShowProcessDialog] = useState(false)
-  const [selectedWithdrawal, setSelectedWithdrawal] = useState<any>(null)
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState<(AdminAffiliateWithdrawal & { userName?: string; userEmail?: string }) | null>(null)
   const [processStatus, setProcessStatus] = useState<string>('')
   const [transactionId, setTransactionId] = useState<string>('')
   const [failureReason, setFailureReason] = useState<string>('')
   const [isProcessing, setIsProcessing] = useState(false)
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | Date | null) => {
+    if (!dateString) return '-'
     const date = new Date(dateString)
     if (locale === 'zh') {
       return format(date, 'yyyy年MM月dd日 HH:mm', { locale: zhCN })

@@ -41,15 +41,32 @@ export function getPusherClient(): PusherClient {
 
 /**
  * 订阅任务频道
- * 
+ *
  * @param taskId - Kie.ai 返回的任务 ID
  * @param callbacks - 事件回调
  * @returns unsubscribe 函数
  */
+interface PusherTaskPayload {
+  status?: string
+  data?: {
+    taskId?: string
+    imageUrl?: string
+    videoUrl?: string
+    resultUrls?: string[]
+    characterId?: string
+    sceneId?: string
+    sceneIndex?: number
+    type?: string
+    progress?: number
+    error?: string
+    errorCode?: string
+  }
+}
+
 export function subscribeToTask(params: {
   taskId: string
   onSuccess?: (data: {
-    taskId: string
+    taskId?: string
     imageUrl?: string
     videoUrl?: string
     resultUrls?: string[]
@@ -59,16 +76,16 @@ export function subscribeToTask(params: {
     type?: string
   }) => void
   onFail?: (data: {
-    taskId: string
+    taskId?: string
     error: string
     errorCode?: string
   }) => void
   onProgress?: (data: {
-    taskId: string
+    taskId?: string
     progress: number
     message?: string
   }) => void
-  onError?: (error: any) => void
+  onError?: (error: unknown) => void
 }): () => void {
   const { taskId, onSuccess, onFail, onProgress, onError } = params
 
@@ -90,13 +107,14 @@ export function subscribeToTask(params: {
 
     // 绑定成功事件 - 支持所有类型 (image, storyboard, video)
     if (onSuccess) {
-      channel.bind('status', (data: any) => {
+      channel.bind('status', (data: unknown) => {
+        const payload = data as PusherTaskPayload
         console.log('[Pusher] 收到事件:', JSON.stringify(data))
-        if (data.status === 'success' && data.data) {
+        if (payload.status === 'success' && payload.data) {
           const validTypes = ['image', 'storyboard', 'video', 'compose']
-          if (validTypes.includes(data.data.type)) {
-            console.log('[Pusher] 收到成功事件:', data.data.type, data.data)
-            onSuccess(data.data)
+          if (validTypes.includes(payload.data.type ?? '')) {
+            console.log('[Pusher] 收到成功事件:', payload.data.type, payload.data)
+            onSuccess(payload.data)
           }
         }
       })
@@ -104,26 +122,28 @@ export function subscribeToTask(params: {
 
     // 绑定失败事件
     if (onFail) {
-      channel.bind('status', (data: any) => {
-        if (data.status === 'fail') {
+      channel.bind('status', (data: unknown) => {
+        const payload = data as PusherTaskPayload
+        if (payload.status === 'fail') {
           console.log('[Pusher] 收到失败事件:', data)
-          onFail(data.data)
+          onFail(payload.data as { taskId: string; error: string; errorCode?: string })
         }
       })
     }
 
     // 绑定进度事件
     if (onProgress) {
-      channel.bind('status', (data: any) => {
-        if (data.status === 'pending' && data.data?.progress !== undefined) {
-          onProgress(data.data)
+      channel.bind('status', (data: unknown) => {
+        const payload = data as PusherTaskPayload
+        if (payload.status === 'pending' && payload.data?.progress !== undefined) {
+          onProgress(payload.data as { taskId: string; progress: number; message?: string })
         }
       })
     }
 
     // 绑定错误事件
     if (onError) {
-      channel.bind('pusher:error', (error: any) => {
+      channel.bind('pusher:error', (error: unknown) => {
         console.error('[Pusher] Pusher 错误:', error)
         onError(error)
       })
@@ -135,7 +155,7 @@ export function subscribeToTask(params: {
     })
 
     // 订阅失败
-    channel.bind('pusher:subscription_error', (error: any) => {
+    channel.bind('pusher:subscription_error', (error: unknown) => {
       console.error('[Pusher] 订阅失败:', error)
       if (onError) {
         onError(error)

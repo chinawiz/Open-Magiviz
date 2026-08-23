@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { getAuthedSession } from "@/lib/api"
 import { db } from "@/lib/db"
 import { userAssets } from "@/lib/schema"
 import { sql } from "drizzle-orm"
@@ -32,13 +31,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing file data" }, { status: 400 })
     }
 
-    // 获取当前用户 session
-    const session = await getServerSession(authOptions)
+    // 获取当前用户 session（未登录也允许匿名上传，仅不保存素材库）
+    const session = await getAuthedSession()
     const userId = session?.user?.id
 
     // 如果有用户，保存到素材库
     if (userId) {
-      const userPlan = (session.user as any).subscriptionPlan || "free"
+      const userPlan = session!.user.subscriptionPlan || "free"
       const storageLimit = STORAGE_LIMITS[userPlan] ?? STORAGE_LIMITS.free
 
       // 如果不是无限制计划，检查存储空间

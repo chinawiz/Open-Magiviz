@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,10 +9,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 })
     }
 
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
     
     if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return jsonError(401, 'Unauthorized')
     }
 
     const { points, amount, priceId } = await request.json()

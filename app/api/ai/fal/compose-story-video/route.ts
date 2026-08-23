@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { fal } from "@fal-ai/client"
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
+import type { KieRequestBody } from '@/lib/ai-types'
 
 // 配置 FAL API Key（支持两个环境变量）
 const falApiKey = process.env.FAL_KEY || process.env.FAL_API_KEY!
@@ -63,7 +63,18 @@ const DEFAULT_OUTPUT_FORMAT = {
 /**
  * 验证 tracks 数据格式
  */
-function validateTracks(tracks: any[]): { valid: boolean; error?: string } {
+interface ComposeTrack {
+  id: string
+  type: 'video' | 'audio'
+  keyframes: { timestamp: number; duration: number; url: string }[]
+}
+interface ComposeOutputFormat {
+  width?: number
+  height?: number
+  fps?: number
+}
+
+function validateTracks(tracks: ComposeTrack[]): { valid: boolean; error?: string } {
   if (!tracks || !Array.isArray(tracks) || tracks.length === 0) {
     return { valid: false, error: "Tracks must be a non-empty array" }
   }
@@ -107,12 +118,12 @@ function validateTracks(tracks: any[]): { valid: boolean; error?: string } {
  * 计算视频总时长（毫秒）
  * 根据所有 keyframes 的 timestamp + duration 计算
  */
-function calculateTotalDuration(tracks: any[]): number {
+function calculateTotalDuration(tracks: ComposeTrack[]): number {
   let maxEndTime = 0
 
   tracks.forEach((track) => {
     if (track.type === 'video' || track.type === 'audio') {
-      track.keyframes.forEach((kf: any) => {
+      track.keyframes.forEach((kf: { timestamp: number; duration: number; url: string }) => {
         const endTime = kf.timestamp + kf.duration
         if (endTime > maxEndTime) {
           maxEndTime = endTime
@@ -170,20 +181,20 @@ function formatFileSize(bytes: number | null): string {
  * 注意：FAL API 只支持一个视频轨道和一个音频轨道
  * 需要将所有视频合并到一个轨道中
  */
-function buildFfmpegInput(tracks: any[], outputFormat: any) {
+function buildFfmpegInput(tracks: ComposeTrack[], outputFormat: ComposeOutputFormat) {
   // 分离视频和音频轨道
-  const videoKeyframes: any[] = []
-  const audioKeyframes: any[] = []
+  const videoKeyframes: { timestamp: number; duration: number; url: string }[] = []
+  const audioKeyframes: { timestamp: number; duration: number; url: string }[] = []
 
   tracks.forEach((track) => {
     if (track.type === 'video') {
-      videoKeyframes.push(...track.keyframes.map((kf: any) => ({
+      videoKeyframes.push(...track.keyframes.map((kf: { timestamp: number; duration: number; url: string }) => ({
         timestamp: kf.timestamp,
         duration: kf.duration,
         url: kf.url
       })))
     } else if (track.type === 'audio') {
-      audioKeyframes.push(...track.keyframes.map((kf: any) => ({
+      audioKeyframes.push(...track.keyframes.map((kf: { timestamp: number; duration: number; url: string }) => ({
         timestamp: kf.timestamp,
         duration: kf.duration,
         url: kf.url
@@ -195,7 +206,7 @@ function buildFfmpegInput(tracks: any[], outputFormat: any) {
   videoKeyframes.sort((a, b) => a.timestamp - b.timestamp)
   audioKeyframes.sort((a, b) => a.timestamp - b.timestamp)
 
-  const ffTracks: any[] = []
+  const ffTracks: { id: string; type: 'video' | 'audio'; keyframes: { timestamp: number; duration: number; url: string }[] }[] = []
 
   // 添加视频轨道（只支持一个）
   if (videoKeyframes.length > 0) {
@@ -221,10 +232,10 @@ function buildFfmpegInput(tracks: any[], outputFormat: any) {
 export async function POST(request: NextRequest) {
   try {
     // 验证用户登录
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const session = await getAuthedSession()
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+5886}
 
     const body = await request.json()
     const { tracks, outputFormat, projectId, versionId } = body
@@ -300,16 +311,17 @@ export async function POST(request: NextRequest) {
         success: true,
         requestId: request_id,
       })
-    } catch (apiError: any) {
+    } catch (apiError: unknown) {
+      const err = apiError as { status?: number; body?: { message?: string }; message?: string; requestId?: string }
       console.error('[compose-story-video] FAL API 错误:', {
-        status: apiError.status,
-        body: apiError.body,
-        message: apiError.message,
-        requestId: apiError.requestId
+        status: err.status,
+        body: err.body,
+        message: err.message,
+        requestId: err.requestId
       })
       return NextResponse.json(
-        { error: apiError.body?.message || apiError.message || 'FAL API error' },
-        { status: apiError.status || 500 }
+        { error: err.body?.message || err.message || 'FAL API error' },
+        { status: err.status || 500 }
       )
     }
 

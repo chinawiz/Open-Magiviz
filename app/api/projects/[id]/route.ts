@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { db } from '@/lib/db'
 import { videoProjects, projectData } from '@/lib/schema'
 import { eq, desc } from 'drizzle-orm'
+import type { NewVideoProject } from '@/lib/types'
 
 // GET: 获取项目详情
 export async function GET(
@@ -12,11 +12,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
     
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+523}
 
     // 获取项目信息
     const [project] = await db
@@ -96,11 +96,11 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
     
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+2818}
 
     // 验证项目存在和所有权
     const [existingProject] = await db
@@ -119,7 +119,7 @@ export async function PUT(
     const body = await request.json()
     const { title, status, currentStep, thumbnailUrl, videoModel, videoStyle, generationMode } = body
 
-    const updateData: any = {
+    const updateData: Partial<NewVideoProject> = {
       updatedAt: new Date(),
     }
 
@@ -171,11 +171,11 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
     
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+4986}
 
     // 验证项目存在和所有权
     const [existingProject] = await db

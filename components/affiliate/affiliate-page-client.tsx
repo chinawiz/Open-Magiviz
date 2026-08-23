@@ -42,6 +42,7 @@ import {
 import { format } from 'date-fns'
 import { zhCN, enUS } from 'date-fns/locale'
 import { useLocale } from 'next-intl'
+import type { AffiliateRelationItem, AffiliateEarningItem, AffiliateWithdrawalItem } from '@/lib/types'
 
 interface AffiliateStats {
   code: string
@@ -70,13 +71,13 @@ export default function AffiliatePageClient() {
   const [linkCopied, setLinkCopied] = useState(false)
   const [stats, setStats] = useState<AffiliateStats | null>(null)
   const [loading, setLoading] = useState(true)
-  const [relations, setRelations] = useState<any[]>([])
-  const [earnings, setEarnings] = useState<any[]>([])
+  const [relations, setRelations] = useState<AffiliateRelationItem[]>([])
+  const [earnings, setEarnings] = useState<AffiliateEarningItem[]>([])
   const [relationsPage, setRelationsPage] = useState(1)
   const [earningsPage, setEarningsPage] = useState(1)
   const [loadingRelations, setLoadingRelations] = useState(false)
   const [loadingEarnings, setLoadingEarnings] = useState(false)
-  const [withdrawals, setWithdrawals] = useState<any[]>([])
+  const [withdrawals, setWithdrawals] = useState<AffiliateWithdrawalItem[]>([])
   const [loadingWithdrawals, setLoadingWithdrawals] = useState(false)
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
   const [withdrawAmount, setWithdrawAmount] = useState('')
@@ -198,8 +199,9 @@ export default function AffiliatePageClient() {
     : ''
 
   // 日期格式化函数
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
+  const formatDate = (dateString: string | Date | null) => {
+    if (!dateString) return '-'
+    const date = typeof dateString === 'string' ? new Date(dateString) : dateString
     if (locale === 'zh') {
       return format(date, 'yyyy年MM月dd日 HH:mm', { locale: zhCN })
     } else {
@@ -660,7 +662,7 @@ export default function AffiliatePageClient() {
               <Users className="w-5 h-5 text-primary" />
               {t('relations.title')}
             </CardTitle>
-            <Select value={relationFilter} onValueChange={(value: any) => setRelationFilter(value)}>
+            <Select value={relationFilter} onValueChange={(value: string) => setRelationFilter(value as typeof relationFilter)}>
               <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
@@ -752,7 +754,7 @@ export default function AffiliatePageClient() {
               <DollarSign className="w-5 h-5 text-primary" />
               {t('earnings.title')}
             </CardTitle>
-            <Select value={earningFilter} onValueChange={(value: any) => setEarningFilter(value)}>
+            <Select value={earningFilter} onValueChange={(value: string) => setEarningFilter(value as typeof earningFilter)}>
               <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
@@ -856,7 +858,7 @@ export default function AffiliatePageClient() {
               <Wallet className="w-5 h-5 text-primary" />
               {t('withdrawals.title')}
             </CardTitle>
-            <Select value={withdrawalFilter} onValueChange={(value: any) => setWithdrawalFilter(value)}>
+            <Select value={withdrawalFilter} onValueChange={(value: string) => setWithdrawalFilter(value as typeof withdrawalFilter)}>
               <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>

@@ -2,6 +2,7 @@ import { task } from "@trigger.dev/sdk"
 import { db } from "@/lib/db"
 import { projectData, assetMigrations } from "@/lib/schema"
 import { eq, and } from "drizzle-orm"
+import type { CharacterItem, StoryboardItem, SceneVideoItem } from "@/lib/types"
 import { S3Client, PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3"
 import { v4 as uuidv4 } from 'uuid'
 
@@ -341,13 +342,14 @@ export const migrateCharacterImage = task({
 
       // 根据 characterId 查找索引
       let targetIndex = -1
+      const characterData = data.characterData as CharacterItem[]
       if (characterId) {
-        targetIndex = data.characterData.findIndex((c: any) => String(c.id) === String(characterId))
+        targetIndex = characterData.findIndex((c: CharacterItem) => String(c.id) === String(characterId))
         console.log(`[migrate-character-image] 用 characterId=${characterId} 查找索引: ${targetIndex}`)
       }
 
       // 如果用 characterId 没找到，用 characterIndex 兜底
-      if (targetIndex < 0 && characterIndex >= 0 && characterIndex < data.characterData.length) {
+      if (targetIndex < 0 && characterIndex >= 0 && characterIndex < characterData.length) {
         targetIndex = characterIndex
         console.log(`[migrate-character-image] characterId 未匹配到，用 characterIndex=${characterIndex} 兜底`)
       }
@@ -357,7 +359,7 @@ export const migrateCharacterImage = task({
       }
 
       // 更新指定索引的主角图片 URL
-      const updatedCharacterData = [...data.characterData]
+      const updatedCharacterData = [...characterData]
       if (updatedCharacterData[targetIndex]) {
         updatedCharacterData[targetIndex] = {
           ...updatedCharacterData[targetIndex],
@@ -455,15 +457,16 @@ export const migrateStoryboardImage = task({
 
       // 根据 sceneId 查找索引
       let targetIndex = -1
+      const storyboardData = data.storyboardData as StoryboardItem[]
       if (sceneId) {
-        targetIndex = data.storyboardData.findIndex(
-          (s: any) => String(s.sceneId) === String(sceneId) || String(s.id) === String(sceneId)
+        targetIndex = storyboardData.findIndex(
+          (s: StoryboardItem) => String(s.sceneId) === String(sceneId) || String(s.id) === String(sceneId)
         )
         console.log(`[migrate-storyboard-image] 用 sceneId=${sceneId} 查找索引: ${targetIndex}`)
       }
 
       // 如果用 sceneId 没找到，用 storyboardIndex 兜底
-      if (targetIndex < 0 && storyboardIndex >= 0 && storyboardIndex < data.storyboardData.length) {
+      if (targetIndex < 0 && storyboardIndex >= 0 && storyboardIndex < storyboardData.length) {
         targetIndex = storyboardIndex
         console.log(`[migrate-storyboard-image] sceneId 未匹配到，用 storyboardIndex=${storyboardIndex} 兜底`)
       }
@@ -473,7 +476,7 @@ export const migrateStoryboardImage = task({
       }
 
       // 更新指定索引的分镜图 URL
-      const updatedStoryboardData = [...data.storyboardData]
+      const updatedStoryboardData = [...storyboardData]
       if (updatedStoryboardData[targetIndex]) {
         const existingStoryboard = updatedStoryboardData[targetIndex]
         
@@ -580,9 +583,10 @@ export const migrateSceneVideo = task({
         throw new Error('Scene video data not found or invalid')
       }
 
+      const sceneVideoData = data.sceneVideoData as SceneVideoItem[]
       console.log(`[migrate-scene-video] 当前 sceneVideoData 结构:`, {
-        length: data.sceneVideoData.length,
-        items: data.sceneVideoData.map((s: any, i: number) => ({
+        length: sceneVideoData.length,
+        items: sceneVideoData.map((s: SceneVideoItem, i: number) => ({
           index: i,
           sceneId: s.sceneId,
           id: s.id,
@@ -593,14 +597,14 @@ export const migrateSceneVideo = task({
       // 根据 sceneId 查找索引
       let targetIndex = -1
       if (sceneId) {
-        targetIndex = data.sceneVideoData.findIndex(
-          (s: any) => String(s.sceneId) === String(sceneId) || String(s.id) === String(sceneId)
+        targetIndex = sceneVideoData.findIndex(
+          (s: SceneVideoItem) => String(s.sceneId) === String(sceneId) || String(s.id) === String(sceneId)
         )
         console.log(`[migrate-scene-video] 用 sceneId=${sceneId} 查找索引: ${targetIndex}`)
       }
 
       // 如果用 sceneId 没找到，用 sceneIndex 兜底
-      if (targetIndex < 0 && sceneIndex >= 0 && sceneIndex < data.sceneVideoData.length) {
+      if (targetIndex < 0 && sceneIndex >= 0 && sceneIndex < sceneVideoData.length) {
         targetIndex = sceneIndex
         console.log(`[migrate-scene-video] sceneId 未匹配到，用 sceneIndex=${sceneIndex} 兜底`)
       }
@@ -610,7 +614,7 @@ export const migrateSceneVideo = task({
       }
 
       // 更新指定索引的视频 URL
-      const updatedSceneVideoData = [...data.sceneVideoData]
+      const updatedSceneVideoData = [...sceneVideoData]
       if (updatedSceneVideoData[targetIndex]) {
         updatedSceneVideoData[targetIndex] = {
           ...updatedSceneVideoData[targetIndex],
@@ -757,7 +761,7 @@ export const migrateFinalVideo = task({
 export async function triggerCharacterImageMigration(
   projectId: string,
   projectDataId: string,
-  characterData: any[]
+  characterData: CharacterItem[]
 ) {
   console.log(`[triggerCharacterImageMigration] 开始触发迁移任务`, {
     projectId,
@@ -810,7 +814,7 @@ export async function triggerCharacterImageMigration(
 export async function triggerStoryboardImageMigration(
   projectId: string,
   projectDataId: string,
-  storyboardData: any[]
+  storyboardData: StoryboardItem[]
 ) {
   console.log(`[triggerStoryboardImageMigration] 开始触发迁移任务`, {
     projectId,
@@ -920,7 +924,7 @@ export async function triggerStoryboardImageMigration(
 export async function triggerSceneVideoMigration(
   projectId: string,
   projectDataId: string,
-  sceneVideoData: any[]
+  sceneVideoData: SceneVideoItem[]
 ) {
   console.log(`[triggerSceneVideoMigration] 开始触发迁移任务`, {
     projectId,
@@ -954,7 +958,7 @@ export async function triggerSceneVideoMigration(
         projectId,
         projectDataId,
         sceneIndex: index,
-        sceneId,
+        sceneId: sceneId == null ? null : String(sceneId),
         tempUrl: videoUrl,
       })
       successCount++

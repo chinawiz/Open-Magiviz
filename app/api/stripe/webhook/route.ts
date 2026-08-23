@@ -7,6 +7,7 @@ import { users, pointsHistory, stripePayments, referrals, referralHistory } from
 import { eq, sql, and, gte } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createPaymentRecord, PaymentStatus, PaymentType } from '@/lib/payments'
+import type { NewUser } from '@/lib/types'
 import { handleReferredUserSubscription } from '@/lib/referral'
 import { SUBSCRIPTION_PRODUCTS } from '@/lib/stripe'
 import { processAffiliateCommission, handleAffiliateRefund } from '@/lib/affiliate'
@@ -18,7 +19,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
 // Webhook 错误日志函数：仅在开发环境输出，生产环境静默
-const logWebhookError = (...args: any[]) => {
+const logWebhookError = (...args: unknown[]) => {
   if (process.env.NODE_ENV !== 'production') {
     console.error(...args)
   }
@@ -247,14 +248,14 @@ export async function POST(request: NextRequest) {
             const newGiftedPointsTotal = previousGiftedPoints + giftedPoints
 
             // 如果是试用订阅，标记用户已订阅过试用版
-            const updateData: any = {
+            const updateData: Partial<NewUser> = {
               stripeCustomerId: customerId,
               subscriptionId: latestSubscription.id,
               subscriptionStatus: latestSubscription.status,
               subscriptionPlan: subscriptionPlan,
               subscriptionCurrentPeriodEnd: finalEndDate,
-              points: sql`${users.points} + ${giftedPoints}`,
-              giftedPoints: sql`${users.giftedPoints} + ${giftedPoints}`,
+              points: sql`${users.points} + ${giftedPoints}` as unknown as number,
+              giftedPoints:  sql`${users.giftedPoints} + ${giftedPoints}` as unknown as number,
               updatedAt: new Date(),
             }
 
@@ -273,12 +274,13 @@ export async function POST(request: NextRequest) {
           // 计算订阅时长（天数）用于推荐奖励
           // 优先使用 Stripe 的 current_period_* 字段；缺失时按价格的 recurring 维度推断
           const price = latestSubscription.items.data[0]?.price
-          const recurring = price?.recurring as any | undefined
+          const recurring = price?.recurring
           const interval = recurring?.interval as ('day' | 'week' | 'month' | 'year' | undefined)
           const intervalCount = (recurring?.interval_count as number | undefined) ?? 1
 
-          let subscriptionPeriodStart = (latestSubscription as any).current_period_start as number | undefined
-          let subscriptionPeriodEnd = (latestSubscription as any).current_period_end as number | undefined
+          const sub = latestSubscription as unknown as { current_period_start?: number; current_period_end?: number }
+          let subscriptionPeriodStart = sub.current_period_start
+          let subscriptionPeriodEnd = sub.current_period_end
 
           // 兜底：根据计划周期推断天数
           const intervalToDays = (i?: 'day'|'week'|'month'|'year', count: number = 1) => {
@@ -393,7 +395,7 @@ export async function POST(request: NextRequest) {
               userId: user[0].id,
               points: giftedPoints,
               pointsType: 'gifted' as const,
-              action: action as any,
+              action: action,
               description,
               createdAt: new Date(),
             }
@@ -577,8 +579,8 @@ export async function POST(request: NextRequest) {
               subscriptionPlan: 'trial',
               subscriptionCurrentPeriodEnd: finalEndDate,
               hasTrialSubscription: true,
-              points: sql`${users.points} + ${giftedPoints}`,
-              giftedPoints: sql`${users.giftedPoints} + ${giftedPoints}`,
+              points: sql`${users.points} + ${giftedPoints}` as unknown as number,
+              giftedPoints:  sql`${users.giftedPoints} + ${giftedPoints}` as unknown as number,
               updatedAt: new Date(),
             })
             .where(eq(users.id, currentUser.id))
@@ -805,12 +807,15 @@ export async function POST(request: NextRequest) {
         // 获取当前用户信息，检查是否需要保持累加逻辑
         const currentUser = await db.select().from(users).where(eq(users.subscriptionId, latestSubscription.id)).limit(1)
 
+        // 续费场景：比较 Stripe 标准到期时间与用户已有的累加到期时间
+        const sub = latestSubscription as unknown as { current_period_end?: number }
+
         if (currentUser.length > 0) {
           const user = currentUser[0]
           let finalEndDate: Date
 
           // 检查是否是续费场景（用户已有活跃订阅且到期时间比Stripe的标准时间更晚）
-          const stripeEndDate = new Date((latestSubscription as any).current_period_end * 1000)
+          const stripeEndDate = new Date((sub.current_period_end ?? 0) * 1000)
           const userCurrentEndDate = user.subscriptionCurrentPeriodEnd
 
           if (userCurrentEndDate &&
@@ -836,8 +841,8 @@ export async function POST(request: NextRequest) {
             .update(users)
             .set({
               subscriptionStatus: latestSubscription.status,
-              subscriptionCurrentPeriodEnd: (latestSubscription as any).current_period_end 
-                ? new Date((latestSubscription as any).current_period_end * 1000) 
+              subscriptionCurrentPeriodEnd: sub.current_period_end
+                ? new Date(sub.current_period_end * 1000)
                 : null,
               updatedAt: new Date(),
             })

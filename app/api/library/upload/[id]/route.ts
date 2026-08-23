@@ -1,6 +1,5 @@
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { userAssets } from "@/lib/schema"
 import { eq } from "drizzle-orm"
@@ -8,11 +7,11 @@ import { eq } from "drizzle-orm"
 // DELETE: 删除用户素材
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+433}
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")
@@ -48,11 +47,11 @@ export async function DELETE(request: NextRequest) {
 // PATCH: 更新用户素材（名称）
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+1503}
 
     const body = await request.json()
     const { id, name } = body

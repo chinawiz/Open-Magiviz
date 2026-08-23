@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import type { StoryScene, CharacterItem, StoryboardItem, SceneVideoItem } from '@/lib/types'
 
 // 项目类型定义
 export interface Project {
@@ -25,10 +26,10 @@ export interface ProjectData {
   version: number
   scriptTitle: string | null
   scriptDescription: string | null
-  scriptScenes: any[] | null
-  characterData: any[] | null
-  storyboardData: any[] | null
-  sceneVideoData: any[] | null
+  scriptScenes: StoryScene[] | null
+  characterData: CharacterItem[] | null
+  storyboardData: StoryboardItem[] | null
+  sceneVideoData: SceneVideoItem[] | null
   finalVideoUrl: string | null
   finalVideoThumbnail: string | null
   finalVideoDuration: number | null
@@ -41,6 +42,8 @@ export interface ProjectData {
 export interface Version {
   version: number
   createdAt: Date
+  updatedAt?: Date | null
+  finalVideoUrl?: string | null
 }
 
 // API 响应类型

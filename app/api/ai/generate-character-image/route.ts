@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
 import { eq } from 'drizzle-orm'
+import type { KieCreateResponse, KieApiResponse, KieRequestBody, GeneratedImage, SingleGenerationResult, BatchResultItem } from '@/lib/ai-types'
 
 /**
  * POST /api/ai/generate-character-image
@@ -51,13 +51,13 @@ async function generateSingleCharacter(
   versionId?: string,
   versionGroupId?: string,
   referenceImage?: string   // 新增：用户上传的参考图URL（图生图模式）
-): Promise<{ success: boolean; images?: any[]; requestId?: string; error?: string }> {
+): Promise<{ success: boolean; images?: GeneratedImage[]; requestId?: string; error?: string }> {
   if (!prompt || !prompt.trim()) {
     return { success: false, error: "Prompt is required" }
   }
 
   // 构建 Kie.ai API 请求体
-  const kieRequestBody: any = {
+  const kieRequestBody: KieRequestBody = {
     model: "nano-banana-2",
     input: {
       prompt: prompt,
@@ -69,7 +69,7 @@ async function generateSingleCharacter(
 
   // 如果提供了用户参考图，加入 image_input（图生图模式）
   if (referenceImage && typeof referenceImage === 'string' && referenceImage.trim().length > 0) {
-    kieRequestBody.input.image_input = [referenceImage]
+    kieRequestBody.input!.image_input = [referenceImage]
   }
 
   // 如果配置了 webhookUrl，添加到请求体
@@ -141,7 +141,7 @@ async function generateSingleCharacter(
   // 8分钟超时 = 160次 × 3秒
   const maxRetries = 160
   let retryCount = 0
-  let taskResult: any = null
+  let taskResult: KieApiResponse = null as unknown as KieApiResponse
 
   while (retryCount < maxRetries) {
     try {
@@ -222,27 +222,38 @@ async function generateSingleCharacter(
 export async function POST(request: NextRequest) {
   try {
     // 验证用户登录状态
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: '用户未登录' }, { status: 401 })
-    }
+    const session = await getAuthedSession()
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+6385}
 
     // 读取原始请求体
     const rawText = await request.text()
     console.log('[generate-character-image] rawBody:', rawText)
 
-    let body: any = {}
+    let body: {
+      characters?: Array<{ id?: string; prompt?: string; generationPrompt?: string; generation_prompt?: string; referenceImage?: string }>
+      projectId?: string
+      versionId?: string
+      versionGroupId?: string
+      prompt?: string
+      aspectRatio?: string
+      webhookUrl?: string
+      itemId?: string
+      referenceImage?: string
+    } = {}
     try {
       body = JSON.parse(rawText)
     } catch (e) {
-      return NextResponse.json({ error: 'Invalid JSON body', details: String(e) }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid JSON body',
+        details: String(e) }, { status: 400 })
     }
 
     // 检查是否是批量请求
     const isBatch = Array.isArray(body?.characters) && body.characters.length > 0
 
     // 计算需要扣除的积分数量（每个主角2积分）
-    const characterCount = isBatch ? body.characters.length : 1
+    const characterCount = isBatch ? body.characters!.length : 1
     const requiredPoints = characterCount * 1
 
     // 检查积分是否足够
@@ -261,10 +272,10 @@ export async function POST(request: NextRequest) {
 
     // 批量请求模式
     if (isBatch) {
-      const characters = body.characters
+      const characters = body.characters!
       console.log('[generate-character-image] batch request:', { count: characters.length })
 
-      const results: any[] = []
+      const results: BatchResultItem[] = []
       let successCount = 0
 
       for (const c of characters) {
@@ -282,7 +293,7 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        const result = await generateSingleCharacter(promptText, "1:1", undefined, session.user.id, body.projectId, characterId, body.versionId, body.versionGroupId, referenceImage)
+        const result = await generateSingleCharacter(promptText, "1:1", undefined, session.user.id, body.projectId, characterId ?? undefined, body.versionId, body.versionGroupId, referenceImage)
         
         if (result.success) {
           console.log('[generate-character-image] character generated:', { characterId, requestId: result.requestId, imageCount: result.images?.length })
@@ -309,7 +320,7 @@ export async function POST(request: NextRequest) {
     const { prompt, aspectRatio, webhookUrl, projectId, itemId, versionId, versionGroupId, referenceImage } = body
     console.log('[generate-character-image] single request:', { promptLength: prompt?.length, aspectRatio, hasWebhook: !!webhookUrl, projectId, versionId, versionGroupId, hasReferenceImage: !!referenceImage })
 
-    const result = await generateSingleCharacter(prompt, aspectRatio, webhookUrl, session.user.id, projectId, itemId, versionId, versionGroupId, referenceImage)
+    const result = await generateSingleCharacter(prompt ?? '', aspectRatio, webhookUrl, session.user.id, projectId, itemId, versionId, versionGroupId, referenceImage)
 
     if (!result.success) {
       console.error('[generate-character-image] generation failed:', { error: result.error })

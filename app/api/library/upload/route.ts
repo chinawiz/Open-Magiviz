@@ -1,6 +1,5 @@
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { userAssets } from "@/lib/schema"
 import { eq, sql } from "drizzle-orm"
@@ -108,14 +107,14 @@ async function uploadToR2(
 // POST: 上传用户素材
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
     }
 
-    // 获取用户订阅计划
-    const userPlan = (session.user as any).subscriptionPlan || "free"
+    //  * 获取用户订阅计划
+    const userPlan = session.user.subscriptionPlan || "free"
     const storageLimit = getStorageLimit(userPlan)
 
     // 如果不是无限制计划，检查存储空间
@@ -128,7 +127,7 @@ export async function POST(request: NextRequest) {
 
       let usedStorage = 0
       if (usageResult && typeof usageResult === 'object') {
-        const rows = (usageResult as any).rows
+        const rows = (usageResult as { rows?: Array<{ total?: unknown }> }).rows
         if (Array.isArray(rows) && rows.length > 0) {
           const total = rows[0].total
           usedStorage = typeof total === 'string' ? parseInt(total, 10) : Number(total)
@@ -292,11 +291,11 @@ export async function POST(request: NextRequest) {
 // GET: 获取用户素材列表
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+8516}
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get("page") || "1")

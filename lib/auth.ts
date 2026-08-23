@@ -16,7 +16,7 @@ import GoogleProvider from 'next-auth/providers/google'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 
-// 扩展NextAuth类型
+// 扩展NextAuth类型（订阅计划/角色等业务字段统一在此声明，避免各处以 as 断言访问）
 declare module "next-auth" {
   interface Session {
     user: {
@@ -24,6 +24,8 @@ declare module "next-auth" {
       name?: string | null
       email?: string | null
       image?: string | null
+      subscriptionPlan?: string | null
+      role?: string | null
     }
   }
 }

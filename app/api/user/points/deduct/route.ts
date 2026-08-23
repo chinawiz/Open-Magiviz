@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession } from '@/lib/api'
 import { db } from '@/lib/db'
 import { users, pointsHistory } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
@@ -8,8 +7,8 @@ import { nanoid } from 'nanoid'
 
 export async function POST(request: NextRequest) {
   try {
-    // 验证用户登录状态
-    const session = await getServerSession(authOptions)
+    // 验证用户登录状态（保留 email 校验，与原有行为一致）
+    const session = await getAuthedSession()
     if (!session?.user?.email) {
       return NextResponse.json(
         { success: false, error: '用户未登录' },

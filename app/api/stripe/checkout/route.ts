@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { Stripe } from 'stripe'
 import { stripe, getActualPriceIds } from '@/lib/stripe'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { db } from '@/lib/db'
 import { users } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
@@ -13,10 +13,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 })
     }
 
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
     
     if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return jsonError(401, 'Unauthorized')
     }
 
     const { priceId, planType, locale = 'en' } = await request.json()
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
     
     // 创建结账会话配置
     // 试用订阅使用一次性支付模式（payment），其他使用订阅模式（subscription）
-    const checkoutSessionConfig: any = {
+    const checkoutSessionConfig: Stripe.Checkout.SessionCreateParams = {
       customer: customer.id,
       payment_method_types: ['card'],
       line_items: [

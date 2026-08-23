@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession } from '@/lib/api'
 import { db } from '@/lib/db'
 import { users, emailVerificationTokens } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
@@ -22,7 +21,7 @@ function getClientIP(request: NextRequest): string | undefined {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
     
     if (!session?.user?.email) {
       return NextResponse.json(

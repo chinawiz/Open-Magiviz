@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { db } from '@/lib/db'
 import { videoProjects, projectData } from '@/lib/schema'
 import { eq, desc, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import type { NewVideoProject } from '@/lib/types'
 import {
   triggerCharacterImageMigration,
   triggerStoryboardImageMigration,
@@ -19,11 +19,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+728}
 
     const [existingProject] = await db
       .select({ userId: videoProjects.userId })
@@ -75,10 +75,10 @@ export async function PUT(
   const { id } = await params
 
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const session = await getAuthedSession()
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+2371}
 
     const [existingProject] = await db
       .select({ userId: videoProjects.userId })
@@ -259,7 +259,7 @@ async function updateProjectStep(
   characterData: any,
   scriptTitle: any
 ) {
-  const updateData: any = { updatedAt: new Date() }
+  const updateData: Partial<NewVideoProject> = { updatedAt: new Date() }
 
   if (finalVideoUrl) {
     updateData.status = 'completed'

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest,  NextResponse } from "next/server"
 import crypto from "crypto"
 import { v4 as uuidv4 } from 'uuid'
 
@@ -10,6 +10,9 @@ import { deductPoints, PointsAction } from '@/lib/points'
 import { eq, desc, sql } from 'drizzle-orm'
 import { triggerSceneVideoMigration } from '@/trigger/migrate-assets'
 import { resolveTargetVersion, getActiveVersionIdForFail } from '@/lib/versionMapper'
+import type { KieApiResponse } from '@/lib/ai-types'
+import { safeJsonCopy } from '@/lib/ai-types'
+import type { SceneVideoItem } from '@/lib/types'
 
 // Webhook HMAC Key - 通用视频回调
 const WEBHOOK_HMAC_KEY = process.env.KIE_WEBHOOK_HMAC_KEY!
@@ -122,8 +125,8 @@ export async function POST(request: NextRequest) {
     
     // 2. 获取原始请求体用于验证
     const rawBody = await getRawBody(request)
-    let bodyData: any
-    
+    let bodyData: KieApiResponse
+
     try {
       bodyData = JSON.parse(rawBody)
     } catch (parseError) {
@@ -199,9 +202,9 @@ export async function POST(request: NextRequest) {
 /**
  * 处理成功回调 - 兼容多种格式
  */
-async function handleSuccessCallback(taskId: string, data: any, startTime: number) {
+async function handleSuccessCallback(taskId: string, data: KieApiResponse, startTime: number) {
   // 解析 resultJson（Kie.ai 实际返回的 resultUrls 在这个 JSON 字符串里）
-  let parsedResult: any = {}
+  let parsedResult: KieApiResponse = {}
   if (data?.resultJson) {
     try {
       parsedResult = JSON.parse(data.resultJson)
@@ -314,7 +317,7 @@ async function handleSuccessCallback(taskId: string, data: any, startTime: numbe
 
   // 写入 projectData.sceneVideoData（通过 targetVersionId 精确定位版本）
   let newRecordIdForMigration: string | undefined
-  let sceneVideosForMigration: any[] | undefined
+  let sceneVideosForMigration: SceneVideoItem[] | undefined
   const sceneIndex = taskItemId ? parseInt(taskItemId, 10) : NaN
   if (taskProjectId && !isNaN(sceneIndex)) {
     try {
@@ -325,23 +328,15 @@ async function handleSuccessCallback(taskId: string, data: any, startTime: numbe
         .limit(1)
 
       if (targetRecord) {
-        const safeJsonCopy = (value: any): any => {
-          if (value === null || value === undefined) return null
-          if (typeof value === 'string') {
-            try { return JSON.parse(value) } catch { return null }
-          }
-          return JSON.parse(JSON.stringify(value))
-        }
-
-        const sceneVideos: any[] = safeJsonCopy(targetRecord.sceneVideoData) || []
+        const sceneVideos: SceneVideoItem[] = safeJsonCopy<SceneVideoItem[]>(targetRecord.sceneVideoData) || []
         // 确保数组预分配到 sceneIndex 位置，避免索引越界
         while (sceneVideos.length <= sceneIndex) {
           sceneVideos.push({})
         }
         // 从 scriptScenes 中获取 sceneId
-        const scriptScenes = safeJsonCopy(targetRecord.scriptScenes) || []
+        const scriptScenes = safeJsonCopy<{ id?: string; sceneId?: string }[]>(targetRecord.scriptScenes) || []
         const scene = scriptScenes[sceneIndex] || {}
-        const sceneId = scene.id || scene.sceneId || null
+        const sceneId = scene.id || scene.sceneId || undefined
         sceneVideos[sceneIndex] = {
           ...(sceneVideos[sceneIndex] || {}),
           sceneId,  // 写入 sceneId 以便后续迁移时匹配
@@ -462,7 +457,7 @@ async function handleFailCallback(taskId: string, failMsg: string, errorCode: st
           targetVersionId = taskVersionId || ''
         }
 
-        let targetRecord: any = null
+        let targetRecord: { id: string; version: number; sceneVideoData?: unknown } | null = null
         if (targetVersionId) {
           const [record] = await db
             .select()
@@ -482,20 +477,12 @@ async function handleFailCallback(taskId: string, failMsg: string, errorCode: st
         }
 
         if (targetRecord) {
-          const safeJsonCopy = (value: any): any => {
-            if (value === null || value === undefined) return null
-            if (typeof value === 'string') {
-              try { return JSON.parse(value) } catch { return null }
-            }
-            return JSON.parse(JSON.stringify(value))
-          }
-
           // 尝试解析 sceneIndex（itemId 可能是 sceneIndex）
           let sceneIndex = NaN
           if (taskItemId) {
             sceneIndex = parseInt(taskItemId, 10)
           }
-          const sceneVideos: any[] = safeJsonCopy(targetRecord.sceneVideoData) || []
+          const sceneVideos: SceneVideoItem[] = safeJsonCopy<SceneVideoItem[]>(targetRecord.sceneVideoData) || []
           if (!isNaN(sceneIndex)) {
             // 确保数组预分配到 sceneIndex 位置
             while (sceneVideos.length <= sceneIndex) {

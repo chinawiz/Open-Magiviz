@@ -12,7 +12,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "trigger:dev": "trigger.dev dev",
-    "trigger:deploy": "trigger.dev deploy"
+    "trigger:deploy": "trigger.dev deploy",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.10.0",
@@ -103,6 +105,7 @@
     "@types/uuid": "^10.0.0",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
   }
 }

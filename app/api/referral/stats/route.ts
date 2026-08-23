@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { db } from '@/lib/db'
 import { users, referrals, referralHistory } from '@/lib/schema'
 import { eq, and, desc, sum } from 'drizzle-orm'
@@ -8,13 +7,10 @@ import { getOrCreateReferralCode } from '@/lib/referral'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
     }
 
     const userId = session.user.id

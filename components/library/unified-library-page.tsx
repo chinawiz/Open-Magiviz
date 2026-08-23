@@ -51,6 +51,7 @@ import {
 } from "lucide-react"
 import { useCharacterLibrary, useStoryboardLibrary, useVideoLibrary, useUnifiedLibrary } from "@/hooks/useLibrary"
 import { useUserAssets, type UserAsset } from "@/hooks/useUserAssets"
+import type { LibraryMaterialItem } from "@/lib/types"
 import { UploadAssetDialog } from "@/components/library/upload-asset-dialog"
 
 // 标签页类型
@@ -249,13 +250,13 @@ export function UnifiedLibraryPage() {
   }
 
   // 打开预览
-  const openPreview = (item: any, isVideo: boolean = false) => {
+  const openPreview = (item: LibraryMaterialItem, isVideo: boolean = false) => {
     setPreviewItem(item)
     setPreviewType(isVideo ? 'video' : 'image')
   }
 
   // 格式化时间
-  const formatTime = (date: string | Date | null) => {
+  const formatTime = (date: string | Date | null | undefined) => {
     if (!date) return ""
     const d = new Date(date)
     return d.toLocaleDateString("zh-CN")
@@ -551,7 +552,7 @@ export function UnifiedLibraryPage() {
                   className="flex w-auto -ml-4"
                   columnClassName="pl-4 bg-clip-padding"
                 >
-                  {items.map((item: any, index: number) => {
+                  {items.map((item: LibraryMaterialItem, index: number) => {
                     const uniqueKey = `${item.type || activeTab}-${item.projectId}-${item.id || index}`
                     const isVideo = item.type === 'video'
                     const isStoryboard = item.type === 'storyboard'
@@ -606,7 +607,7 @@ export function UnifiedLibraryPage() {
                                   </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start">
-                                  <DropdownMenuItem onClick={() => goToProject(item.projectId)}>
+                                  <DropdownMenuItem onClick={() => goToProject(item.projectId || '')}>
                                     <ExternalLink className="w-4 h-4 mr-2" />
                                     {t("viewProject")}
                                   </DropdownMenuItem>
@@ -637,7 +638,7 @@ export function UnifiedLibraryPage() {
                       ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3'
                       : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
                   }`}>
-                  {items.map((item: any, index: number) => {
+                  {items.map((item: LibraryMaterialItem, index: number) => {
                     const uniqueKey = `${item.type || activeTab}-${item.projectId}-${item.id || index}`
                     const isVideo = item.type === 'video' || activeTab === 'videos'
                     const isStoryboard = item.type === 'storyboard' || activeTab === 'storyboards'
@@ -691,7 +692,7 @@ export function UnifiedLibraryPage() {
                                 </button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="start">
-                                <DropdownMenuItem onClick={() => goToProject(item.projectId)}>
+                                <DropdownMenuItem onClick={() => goToProject(item.projectId || '')}>
                                   <ExternalLink className="w-4 h-4 mr-2" />
                                   {t("viewProject")}
                                 </DropdownMenuItem>
@@ -717,7 +718,7 @@ export function UnifiedLibraryPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {items.map((item: any, index: number) => {
+                  {items.map((item: LibraryMaterialItem, index: number) => {
                     const uniqueKey = `${item.type || activeTab}-${item.projectId}-${item.id || index}`
                     const isVideo = item.type === 'video' || activeTab === 'videos'
                     const isStoryboard = item.type === 'storyboard' || activeTab === 'storyboards'
@@ -777,7 +778,7 @@ export function UnifiedLibraryPage() {
                             <p
                               className="text-xs text-muted-foreground truncate cursor-pointer hover:underline"
                               title={item.projectTitle}
-                              onClick={() => goToProject(item.projectId)}
+                              onClick={() => goToProject(item.projectId || '')}
                             >
                               {item.projectTitle}
                             </p>
@@ -796,7 +797,7 @@ export function UnifiedLibraryPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => goToProject(item.projectId)}
+                              onClick={() => goToProject(item.projectId || '')}
                             >
                               <ExternalLink className="w-4 h-4" />
                             </Button>
@@ -865,7 +866,7 @@ export function UnifiedLibraryPage() {
                 {previewItem?.projectId && (
                   <Button
                     size="sm"
-                    onClick={() => previewItem && goToProject(previewItem.projectId)}
+                    onClick={() => previewItem && goToProject(previewItem.projectId || '')}
                   >
                     <ExternalLink className="w-4 h-4 mr-2" />
                     {t("viewProject")}

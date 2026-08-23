@@ -2,6 +2,7 @@ import { db } from './db'
 import { stripePayments, users } from './schema'
 import { eq, desc, and, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import type { NewStripePayment } from './types'
 
 // 支付状态枚举
 export enum PaymentStatus {
@@ -69,7 +70,7 @@ export async function createPaymentRecord(data: {
   subscriptionPlan?: string
   subscriptionPeriodStart?: Date
   subscriptionPeriodEnd?: Date
-  metadata?: any
+  metadata?: unknown
   webhookEventId?: string
 }) {
   try {
@@ -114,12 +115,15 @@ export async function updatePaymentRecord(
     refundAmount: number
     refundReason: string
     refundedAt: Date
-    metadata: any
+    metadata: unknown
   }>
 ) {
   try {
-    const updateData: any = {
-      ...updates,
+    const updateData: Partial<NewStripePayment> = {
+      paymentStatus: updates.paymentStatus,
+      refundAmount: updates.refundAmount,
+      refundReason: updates.refundReason,
+      refundedAt: updates.refundedAt,
       updatedAt: new Date(),
     }
 

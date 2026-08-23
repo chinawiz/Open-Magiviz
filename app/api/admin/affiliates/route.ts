@@ -4,6 +4,7 @@ import { affiliateProfiles, affiliateRelations, affiliateEarnings, affiliateWith
 import { eq, desc, count, sum, sql } from 'drizzle-orm'
 import { isAdmin } from '@/lib/auth-utils'
 import { sendWithdrawStatusEmail } from '@/lib/email'
+import type { NewAffiliateWithdrawal } from '@/lib/types'
 
 export async function GET(request: NextRequest) {
   try {
@@ -389,7 +390,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 更新提现记录
-    const updateData: any = {
+    const updateData: Partial<NewAffiliateWithdrawal> = {
       status,
       updatedAt: new Date(),
     }

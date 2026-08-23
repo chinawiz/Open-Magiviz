@@ -3,6 +3,12 @@ import { affiliateProfiles, affiliateRelations, affiliateEarnings, affiliateWith
 import { eq, and, gte, lte, sql, desc } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
+/** 判断错误是否为 PostgreSQL 唯一约束冲突（23505 = unique_violation），兼容错误直接或嵌套在 cause 中 */
+function isUniqueViolationError(error: unknown): boolean {
+  const err = error as { code?: string; cause?: { code?: string } }
+  return err.code === '23505' || err.cause?.code === '23505'
+}
+
 /**
  * 创建或获取推广人资料
  * 处理并发请求的竞态条件：如果插入时发生唯一约束冲突，重新查询并返回
@@ -63,10 +69,10 @@ export async function getOrCreateAffiliateProfile(userId: string): Promise<strin
     })
 
     return profileId
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 如果是唯一约束冲突（userId 或 code），重新查询并返回
     // PostgreSQL 错误代码：23505 = unique_violation
-    if (error?.code === '23505' || error?.cause?.code === '23505') {
+    if (isUniqueViolationError(error)) {
       // 重新查询，可能另一个并发请求已经创建了
       const retryExisting = await db
         .select()
@@ -95,7 +101,7 @@ export async function getOrCreateAffiliateProfile(userId: string): Promise<strin
           updatedAt: new Date(),
         })
         return profileId
-      } catch (fallbackError: any) {
+      } catch (fallbackError: unknown) {
         // 如果备用方案也失败，最后一次查询
         const finalRetry = await db
           .select()
@@ -108,7 +114,8 @@ export async function getOrCreateAffiliateProfile(userId: string): Promise<strin
         }
 
         // 如果所有尝试都失败，抛出错误
-        throw new Error(`Failed to create affiliate profile for user ${userId}: ${fallbackError.message}`)
+        const message = fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+        throw new Error(`Failed to create affiliate profile for user ${userId}: ${message}`)
       }
     }
 

@@ -46,6 +46,7 @@ import {
 import { format } from 'date-fns'
 import { zhCN, enUS } from 'date-fns/locale'
 import { useLocale } from 'next-intl'
+import type { ReferralRewardItem } from '@/lib/types'
 
 interface ReferralStats {
   totalReferrals: number
@@ -95,7 +96,7 @@ export default function ReferralPageClient() {
   const [loadingRecords, setLoadingRecords] = useState(false)
   const [recordFilter, setRecordFilter] = useState<'all' | 'subscribed' | 'pending'>('all')
   const [recordsPage, setRecordsPage] = useState(1)
-  const [rewards, setRewards] = useState<any[]>([])
+  const [rewards, setRewards] = useState<ReferralRewardItem[]>([])
   const [loadingRewards, setLoadingRewards] = useState(false)
   const [rewardFilter, setRewardFilter] = useState<'all' | 'register_bonus' | 'referrer_bonus' | 'subscription_reward'>('all')
   const [rewardsPage, setRewardsPage] = useState(1)
@@ -207,7 +208,8 @@ export default function ReferralPageClient() {
   }
 
   // 日期格式化函数
-  const formatDate = (dateString: string | Date) => {
+  const formatDate = (dateString: string | Date | null) => {
+    if (!dateString) return '-'
     const date = typeof dateString === 'string' ? new Date(dateString) : dateString
     if (locale === 'zh') {
       return format(date, 'yyyy年MM月dd日 HH:mm', { locale: zhCN })
@@ -493,7 +495,7 @@ export default function ReferralPageClient() {
               <Users className="w-5 h-5 text-primary" />
               {t('records.title')}
             </CardTitle>
-            <Select value={recordFilter} onValueChange={(value: any) => setRecordFilter(value)}>
+            <Select value={recordFilter} onValueChange={(value: string) => setRecordFilter(value as typeof recordFilter)}>
               <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
@@ -579,7 +581,7 @@ export default function ReferralPageClient() {
               <Gift className="w-5 h-5 text-primary" />
               {t('rewards.title')}
             </CardTitle>
-            <Select value={rewardFilter} onValueChange={(value: any) => setRewardFilter(value)}>
+            <Select value={rewardFilter} onValueChange={(value: string) => setRewardFilter(value as typeof rewardFilter)}>
               <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>

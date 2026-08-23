@@ -10,6 +10,9 @@ import { deductPoints, PointsAction } from '@/lib/points'
 import { resolveTargetVersion, getActiveVersionIdForFail } from '@/lib/versionMapper'
 import { eq, desc, sql } from 'drizzle-orm'
 import { triggerSceneVideoMigration } from '@/trigger/migrate-assets'
+import type { KieApiResponse } from '@/lib/ai-types'
+import { safeJsonCopy } from '@/lib/ai-types'
+import type { SceneVideoItem } from '@/lib/types'
 
 // Webhook HMAC Key - 从环境变量获取
 const WEBHOOK_HMAC_KEY = process.env.KIE_VEO_WEBHOOK_HMAC_KEY!
@@ -80,8 +83,8 @@ export async function POST(request: NextRequest) {
     
     // 2. 获取原始请求体用于验证
     const rawBody = await getRawBody(request)
-    let bodyData: any
-    
+    let bodyData: KieApiResponse
+
     try {
       bodyData = JSON.parse(rawBody)
     } catch (parseError) {
@@ -172,7 +175,7 @@ export async function POST(request: NextRequest) {
  *   }
  * }
  */
-async function handleSuccessCallback(taskId: string, data: any, startTime: number) {
+async function handleSuccessCallback(taskId: string, data: KieApiResponse, startTime: number) {
   const info = data?.info
   if (!info) {
     console.error('[VEO Webhook] info 为空:', { taskId })
@@ -271,7 +274,7 @@ async function handleSuccessCallback(taskId: string, data: any, startTime: numbe
 
   // 写入 projectData.sceneVideoData（通过 targetVersionId 精确定位版本）
   let newRecordIdForMigration: string | undefined
-  let sceneVideosForMigration: any[] | undefined
+  let sceneVideosForMigration: SceneVideoItem[] | undefined
   const sceneIndex = taskItemId ? parseInt(taskItemId, 10) : NaN
   if (taskProjectId && !isNaN(sceneIndex)) {
     try {
@@ -282,23 +285,15 @@ async function handleSuccessCallback(taskId: string, data: any, startTime: numbe
         .limit(1)
 
       if (targetRecord) {
-        const safeJsonCopy = (value: any): any => {
-          if (value === null || value === undefined) return null
-          if (typeof value === 'string') {
-            try { return JSON.parse(value) } catch { return null }
-          }
-          return JSON.parse(JSON.stringify(value))
-        }
-
-        const sceneVideos: any[] = safeJsonCopy(targetRecord.sceneVideoData) || []
+        const sceneVideos: SceneVideoItem[] = safeJsonCopy<SceneVideoItem[]>(targetRecord.sceneVideoData) || []
         // 确保数组预分配到 sceneIndex 位置，避免索引越界
         while (sceneVideos.length <= sceneIndex) {
           sceneVideos.push({})
         }
         // 从 scriptScenes 中获取 sceneId
-        const scriptScenes = safeJsonCopy(targetRecord.scriptScenes) || []
+        const scriptScenes = safeJsonCopy<{ id?: string; sceneId?: string }[]>(targetRecord.scriptScenes) || []
         const scene = scriptScenes[sceneIndex] || {}
-        const sceneId = scene.id || scene.sceneId || null
+        const sceneId = scene.id || scene.sceneId || undefined
         sceneVideos[sceneIndex] = {
           ...(sceneVideos[sceneIndex] || {}),
           sceneId,  // 写入 sceneId 以便后续迁移时匹配
@@ -426,20 +421,12 @@ async function handleFailCallback(taskId: string, failMsg: string, errorCode: st
         .limit(1)
 
       if (targetRecord) {
-        const safeJsonCopy = (value: any): any => {
-          if (value === null || value === undefined) return null
-          if (typeof value === 'string') {
-            try { return JSON.parse(value) } catch { return null }
-          }
-          return JSON.parse(JSON.stringify(value))
-        }
-
         // 尝试解析 sceneIndex（itemId 可能是 sceneIndex）
         let sceneIndex = NaN
         if (taskItemId) {
           sceneIndex = parseInt(taskItemId, 10)
         }
-        const sceneVideos: any[] = safeJsonCopy(targetRecord.sceneVideoData) || []
+        const sceneVideos: SceneVideoItem[] = safeJsonCopy<SceneVideoItem[]>(targetRecord.sceneVideoData) || []
         if (!isNaN(sceneIndex)) {
           // 确保数组预分配到 sceneIndex 位置
           while (sceneVideos.length <= sceneIndex) {

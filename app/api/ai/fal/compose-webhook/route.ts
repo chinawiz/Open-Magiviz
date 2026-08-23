@@ -8,6 +8,7 @@ import { eq, desc, sql } from 'drizzle-orm'
 import { triggerFinalVideoMigration } from '@/trigger/migrate-assets'
 import { pusherServer, notifyComposeSuccess, notifyTaskFail } from '@/lib/pusher'
 import { resolveTargetVersion, clearVersionGroup } from '@/lib/versionMapper'
+import type { SceneVideoItem } from '@/lib/types'
 
 /**
  * 获取文件大小（字节）
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
       if (projectId) {
         try {
           let targetVersionId: string = taskVersionId || ''
-          let targetRecord: any = null
+          let targetRecord: { id: string; version: number } | null = null
 
           if (targetVersionId) {
             const [record] = await db

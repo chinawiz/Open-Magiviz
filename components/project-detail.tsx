@@ -24,7 +24,8 @@ import {
   Play,
   Edit,
 } from "lucide-react"
-import { useProject, getStepName, getProgressPercentage } from "@/hooks/useProject"
+import { useProject, getStepName, getProgressPercentage, type Project, type ProjectData, type Version } from "@/hooks/useProject"
+import type { StoryScene, CharacterItem, StoryboardItem, SceneVideoItem } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { useTranslations } from "next-intl"
 
@@ -69,16 +70,16 @@ export function ProjectDetail() {
     error,
   } = useProject()
 
-  const [project, setProject] = useState<any>(null)
-  const [data, setData] = useState<any>(null)
-  const [versions, setVersions] = useState<any[]>([])
+  const [project, setProject] = useState<Project | null>(null)
+  const [data, setData] = useState<ProjectData | null>(null)
+  const [versions, setVersions] = useState<Version[]>([])
   const [loadingDetail, setLoadingDetail] = useState(true)
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null)
   const [currentVersion, setCurrentVersion] = useState<number | null>(null)
   const [loadingVersion, setLoadingVersion] = useState<number | null>(null)
 
   // 格式化时间
-  const formatTime = (date: Date | string | null) => {
+  const formatTime = (date: Date | string | null | undefined) => {
     if (!date) return ""
     return new Date(date).toLocaleString("zh-CN")
   }
@@ -114,7 +115,7 @@ export function ProjectDetail() {
 
 
   // 下载文件函数
-  const handleDownloadFile = async (url?: string, filename?: string, key?: string) => {
+  const handleDownloadFile = async (url?: string | null, filename?: string, key?: string) => {
     if (!url) {
       toast({
         title: t("downloadFailed"),
@@ -182,7 +183,7 @@ export function ProjectDetail() {
         }
       }
 
-      const blob = new Blob(chunks as any)
+      const blob = new Blob(chunks)
       const downloadUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = downloadUrl
@@ -263,16 +264,16 @@ export function ProjectDetail() {
     }
 
     const scriptData = {
-      title: data.scriptTitle || project.title,
-      description: data.scriptDescription || '',
-      scenes: data.scriptScenes || [],
+      title: data?.scriptTitle || project?.title || '',
+      description: data?.scriptDescription || '',
+      scenes: data?.scriptScenes || [],
     }
 
     const blob = new Blob([JSON.stringify(scriptData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    const fileName = `${project.title || 'script'}-${tDetail("script.fileNameSuffix")}.json`
+    const fileName = `${project?.title || 'script'}-${tDetail("script.fileNameSuffix")}.json`
     a.download = fileName
     document.body.appendChild(a)
     a.click()
@@ -465,7 +466,7 @@ export function ProjectDetail() {
                       ? (() => {
                           const key = videoStyleMap[project.videoStyle] || project.videoStyle
                           try {
-                            return t(key as any)
+                            return t(key)
                           } catch {
                             return project.videoStyle
                           }
@@ -480,7 +481,7 @@ export function ProjectDetail() {
                       ? (() => {
                           const key = videoModelMap[project.videoModel] || project.videoModel
                           try {
-                            return t(key as any)
+                            return t(key)
                           } catch {
                             return project.videoModel
                           }
@@ -519,7 +520,7 @@ export function ProjectDetail() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDownloadFile(data.finalVideoUrl, `${project.title || 'final-video'}.mp4`, 'final-video-overview')}
+                      onClick={() => handleDownloadFile(data.finalVideoUrl, `${project?.title || 'final-video'}.mp4`, 'final-video-overview')}
                       disabled={downloadingKey === 'final-video-overview'}
                     >
                       {downloadingKey === 'final-video-overview' ? (
@@ -539,7 +540,7 @@ export function ProjectDetail() {
                     src={data.finalVideoUrl}
                     controls
                     className="w-full max-w-md rounded-lg"
-                    poster={data.finalVideoThumbnail}
+                    poster={data.finalVideoThumbnail ?? undefined}
                   />
                 </div>
               )}
@@ -572,9 +573,9 @@ export function ProjectDetail() {
               )}
               {data?.scriptScenes && (
                 <div className="space-y-4">
-                  {data.scriptScenes.map((scene: any, index: number) => (
+                  {data.scriptScenes.map((scene: StoryScene, index: number) => (
                     <div key={scene.id || index} className="border rounded-lg p-4">
-                      <h4 className="font-medium mb-2">{tDetail("script.scene", { index: index + 1, title: scene.title })}</h4>
+                      <h4 className="font-medium mb-2">{tDetail("script.scene", { index: index + 1, title: scene.title ?? '' })}</h4>
                       <p className="text-sm text-muted-foreground">{scene.description}</p>
                     </div>
                   ))}
@@ -593,7 +594,7 @@ export function ProjectDetail() {
             <CardContent>
               {data?.characterData && data.characterData.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {data.characterData.map((char: any, index: number) => {
+                  {data.characterData.map((char: CharacterItem, index: number) => {
                     const downloadKey = `character-${char.id || index}`
                     return (
                       <div key={char.id || index} className="border rounded-lg p-4 text-center">
@@ -654,11 +655,12 @@ export function ProjectDetail() {
             </CardHeader>
             <CardContent>
               {(() => {
+                if (!data || !data.storyboardData) return null
                 // 按 baseSceneIndex 分组配对首尾帧
                 // 首尾帧记录有 frameType 和 baseSceneIndex
                 // 普通记录没有这些字段，需要根据 id 推算 baseSceneIndex
-                const sceneMap = new Map<number, { first?: any; last?: any }>()
-                data.storyboardData.forEach((sb: any) => {
+                const sceneMap = new Map<number, { first?: StoryboardItem; last?: StoryboardItem }>()
+                data.storyboardData.forEach((sb: StoryboardItem) => {
                   // 如果是首尾帧记录（有 frameType），使用 baseSceneIndex
                   // 否则，如果是普通记录（没有 frameType 且没有 imageUrl），跳过或放到自己的组
                   if (sb.isFrameOnly || sb.frameType) {
@@ -690,6 +692,7 @@ export function ProjectDetail() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {sceneList.map(([baseIndex, frames], cardIndex) => {
                       const sb = frames.first || frames.last
+                      if (!sb) return null
                       const downloadKey = `storyboard-${baseIndex}`
                       const firstFrameUrl = frames.first?.imageUrl || frames.first?.url
                       const lastFrameUrl = frames.last?.imageUrl || frames.last?.url
@@ -847,7 +850,7 @@ export function ProjectDetail() {
             <CardContent>
               {data?.sceneVideoData && data.sceneVideoData.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {data.sceneVideoData.map((video: any, index: number) => {
+                  {data.sceneVideoData.map((video: SceneVideoItem, index: number) => {
                     const downloadKey = `scene-video-${video.id || index}`
                     return (
                       <div key={video.id || index} className="border rounded-lg overflow-hidden">
@@ -869,7 +872,7 @@ export function ProjectDetail() {
                           </p>
                           {video.duration && (
                             <p className="text-xs text-muted-foreground mb-2">
-                              {tDetail("videos.duration", { seconds: Math.round(video.duration / 1000) })}
+                              {tDetail("videos.duration", { seconds: Math.round(Number(video.duration) / 1000) })}
                             </p>
                           )}
                           {video.videoUrl && (
@@ -934,8 +937,8 @@ export function ProjectDetail() {
                 <video
                   src={data.finalVideoUrl}
                   controls
-                  className="w-full max-w-4xl mx-auto rounded-lg"
-                  poster={data.finalVideoThumbnail}
+                  className="  w-full max-w-4xl mx-auto rounded-lg"
+                  poster={data.finalVideoThumbnail ?? undefined}
                 />
                 <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
                   <div>
@@ -965,7 +968,7 @@ export function ProjectDetail() {
             <CardContent>
               {versions && versions.length > 0 ? (
                 <div className="space-y-3">
-                  {versions.map((version: any, index: number) => (
+                  {versions.map((version: Version, index: number) => (
                     <div
                       key={`${version.version}-${index}`}
                       className="flex items-center justify-between p-3 border rounded-lg"

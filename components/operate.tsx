@@ -12,8 +12,17 @@ import { PricingSection } from "@/components/pricing-section"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
-import { Plus, Sparkles, X, Zap, ChevronLeft, ChevronRight, Link, Upload, Loader2, Eye, Clock, Trash2, Download, Film, SlidersHorizontal, Play, CheckCircle2, HardDrive, Image as ImageIcon, FolderOpen, Music, Video, AlertTriangle } from "lucide-react"
+import { Plus, Sparkles, X, Zap, ChevronLeft, ChevronRight, Link, Upload, Loader2, Eye, Clock, Trash2, Download, Film, SlidersHorizontal, Play, CheckCircle2, HardDrive, Image as ImageIcon, FolderOpen, Music, Video } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type {
+  CharacterItem,
+  CharacterImageRef,
+  StoryboardItem,
+  SceneVideoItem,
+  StoryScene,
+  ComposedVideoResult,
+  ScriptData,
+} from "@/lib/types"
 import {
   probeMediaUrl,
   validateVideoMeta,
@@ -26,6 +35,11 @@ import { useSession } from "next-auth/react"
 import { SignInDialog } from "@/components/auth/signin-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { LibrarySelectorContent } from "@/components/library-selector"
+import { FileSizeLimitDialog } from "@/components/operate/FileSizeLimitDialog"
+import { LinkInputDialog } from "@/components/operate/LinkInputDialog"
+import { MediaValidationDialog } from "@/components/operate/MediaValidationDialog"
+import { StorageLimitDialog } from "@/components/operate/StorageLimitDialog"
+import { formatBytes } from "@/components/operate/format"
 import { useProject, getProgressPercentage } from "@/hooks/useProject"
 
 // Pusher 客户端导入
@@ -49,13 +63,69 @@ const VIDEO_STYLE_MAP: Record<string, string> = {
   ads: "videoStyleAdsEducation"
 }
 
-// 格式化字节大小
-function formatBytes(bytes: number): string {
-  if (bytes < 0) return "无限制"
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)}GB`
+/**
+ * 容错解析模型输出中的 JSON：依次尝试去 ``` 包裹、完整解析、
+ * 括号匹配提取首个对象/数组、正则逐段解析，全部失败返回 null。
+ * 从 operate.tsx 两处重复定义提取，行为与原来一致。
+ */
+function tryParsePossiblyMalformedJson(text: string): unknown {
+  if (!text || typeof text !== 'string') return null
+
+  // 去掉 ``` 或 ```json 包裹
+  let clean = text.trim()
+  clean = clean.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+
+  // 直接尝试完整解析
+  try {
+    return JSON.parse(clean)
+  } catch (e) {}
+
+  // 尝试定位第一个 JSON 对象/数组并做括号匹配提取
+  const firstBrace = (() => {
+    const i1 = clean.indexOf('{')
+    const i2 = clean.indexOf('[')
+    if (i1 === -1 && i2 === -1) return -1
+    if (i1 === -1) return i2
+    if (i2 === -1) return i1
+    return Math.min(i1, i2)
+  })()
+
+  if (firstBrace >= 0) {
+    const openChar = clean[firstBrace]
+    const closeChar = openChar === '{' ? '}' : ']'
+    let depth = 0
+    for (let i = firstBrace; i < clean.length; i++) {
+      if (clean[i] === openChar) depth++
+      else if (clean[i] === closeChar) {
+        depth--
+        if (depth === 0) {
+          const candidate = clean.slice(firstBrace, i + 1)
+          try {
+            return JSON.parse(candidate)
+          } catch (e) {
+            break
+          }
+        }
+      }
+    }
+  }
+
+  // 最后尝试匹配所有 {...} 或 [...] 片段逐一解析
+  const objectRegex = /\{[\s\S]*?\}/g
+  let m
+  while ((m = objectRegex.exec(clean)) !== null) {
+    try {
+      return JSON.parse(m[0])
+    } catch (e) {}
+  }
+  const arrayRegex = /\[[\s\S]*?\]/g
+  while ((m = arrayRegex.exec(clean)) !== null) {
+    try {
+      return JSON.parse(m[0])
+    } catch (e) {}
+  }
+
+  return null
 }
 
 export function AIFunction({
@@ -174,11 +244,11 @@ export function AIFunction({
 
   // 工作流状态
   const [workflowStep, setWorkflowStep] = useState<'idle' | 'script' | 'character' | 'storyboard' | 'scenes' | 'video'>('idle')
-  const [scriptData, setScriptData] = useState<any>(null)
-  const [characterData, setCharacterData] = useState<any[]>([])
-  const [storyboardImages, setStoryboardImages] = useState<any[]>([])
-  const [sceneVideos, setSceneVideos] = useState<any[]>([])
-  const [videoData, setVideoData] = useState<any>(null)
+  const [scriptData, setScriptData] = useState<ScriptData | null>(null)
+  const [characterData, setCharacterData] = useState<CharacterItem[]>([])
+  const [storyboardImages, setStoryboardImages] = useState<StoryboardItem[]>([])
+  const [sceneVideos, setSceneVideos] = useState<SceneVideoItem[]>([])
+  const [videoData, setVideoData] = useState<ComposedVideoResult | null>(null)
   const [workflowLoading, setWorkflowLoading] = useState(false)
   const [workflowError, setWorkflowError] = useState<string | null>(null)
   const [workflowPaused, setWorkflowPaused] = useState(false)
@@ -278,13 +348,13 @@ export function AIFunction({
       console.log('[恢复] 原始数据 - finalVideoUrl:', projectData?.finalVideoUrl)
       
       if (projectData?.scriptScenes && projectData.scriptScenes.length > 0) {
-        const restoredScenes = projectData.scriptScenes.map((scene: any) => ({
+        const restoredScenes = (projectData.scriptScenes as unknown as StoryScene[]).map((scene: StoryScene) => ({
           ...scene,
-          plot: scene.plot || scene.description || scene.plotText || '',
+          plot: String(scene.plot || scene.description || scene.plotText || ''),
           duration: Number(scene.duration) || 5,
         }))
-        
-        const totalDuration = restoredScenes.reduce((sum: number, s: any) => sum + (Number(s.duration) || 0), 0)
+
+        const totalDuration = restoredScenes.reduce((sum: number, s: StoryScene) => sum + (Number(s.duration) || 0), 0)
         
         console.log('[恢复] 剧情场景数:', restoredScenes.length, '总时长:', totalDuration)
         
@@ -303,8 +373,8 @@ export function AIFunction({
       // 恢复主角数据
       if (projectData?.characterData) {
         const charCount = Array.isArray(projectData.characterData) ? projectData.characterData.length : '非数组'
-        const charsWithImage = Array.isArray(projectData.characterData) 
-          ? projectData.characterData.filter((c: any) => c?.imageUrl).length 
+        const charsWithImage = Array.isArray(projectData.characterData)
+          ? (projectData.characterData as CharacterItem[]).filter((c: CharacterItem) => c?.imageUrl).length
           : 0
         console.log(`[恢复] 主角数据: 总数=${charCount}, 有图片=${charsWithImage}`)
         console.log('[恢复] 主角数据详情:', JSON.stringify(projectData.characterData, null, 2))
@@ -316,18 +386,18 @@ export function AIFunction({
       // 恢复分镜图数据
       if (projectData?.storyboardData) {
         const sbCount = Array.isArray(projectData.storyboardData) ? projectData.storyboardData.length : '非数组'
-        const sbWithImage = Array.isArray(projectData.storyboardData) 
-          ? projectData.storyboardData.filter((s: any) => s?.imageUrl || s?.url).length 
+        const sbWithImage = Array.isArray(projectData.storyboardData)
+          ? (projectData.storyboardData as StoryboardItem[]).filter((s: StoryboardItem) => s?.imageUrl || s?.url).length
           : 0
         console.log(`[恢复] 分镜图数据: 总数=${sbCount}, 有图片=${sbWithImage}`)
         console.log('[恢复] 分镜图数据详情:', JSON.stringify(projectData.storyboardData, null, 2))
 
         // 新格式：按 sceneId 配对首尾帧
         // 数据格式: [{ id: "1_first", sceneId: "scene_1", imageUrl: "..." }, { id: "1_last", sceneId: "scene_1", imageUrl: "..." }]
-        const rawData = projectData.storyboardData
-        const storyboardMap = new Map<string, any>()
+        const rawData = projectData.storyboardData as StoryboardItem[]
+        const storyboardMap = new Map<string, StoryboardItem>()
 
-        rawData.forEach((sb: any) => {
+        rawData.forEach((sb: StoryboardItem) => {
           const baseIndex = sb.baseSceneIndex ?? String(sb.sceneId || '').match(/scene_(\d+)/)?.[1]
           if (baseIndex !== undefined) {
             const key = `scene_${baseIndex}`
@@ -345,17 +415,19 @@ export function AIFunction({
               })
             }
             const entry = storyboardMap.get(key)
-            if (String(sb.id || '').endsWith('_first') || sb.frameType === 'first') {
-              entry.firstFrameUrl = sb.imageUrl || sb.url || ''
-              entry.url = entry.firstFrameUrl || entry.url
-              entry.imageUrl = entry.firstFrameUrl
-              if (sb.firstFramePrompt || sb.first_framePrompt) {
-                entry.firstFramePrompt = sb.firstFramePrompt || sb.first_framePrompt || ''
-              }
-            } else if (String(sb.id || '').endsWith('_last') || sb.frameType === 'last') {
-              entry.lastFrameUrl = sb.imageUrl || sb.url || ''
-              if (sb.lastFramePrompt || sb.last_framePrompt) {
-                entry.lastFramePrompt = sb.lastFramePrompt || sb.last_framePrompt || ''
+            if (entry) {
+              if (String(sb.id || '').endsWith('_first') || sb.frameType === 'first') {
+                entry.firstFrameUrl = sb.imageUrl || sb.url || ''
+                entry.url = entry.firstFrameUrl || entry.url
+                entry.imageUrl = entry.firstFrameUrl
+                if (sb.firstFramePrompt || sb.first_framePrompt) {
+                  entry.firstFramePrompt = String(sb.firstFramePrompt || sb.first_framePrompt || '')
+                }
+              } else if (String(sb.id || '').endsWith('_last') || sb.frameType === 'last') {
+                entry.lastFrameUrl = sb.imageUrl || sb.url || ''
+                if (sb.lastFramePrompt || sb.last_framePrompt) {
+                  entry.lastFramePrompt = String(sb.lastFramePrompt || sb.last_framePrompt || '')
+                }
               }
             }
           }
@@ -363,8 +435,8 @@ export function AIFunction({
 
         // 兼容旧格式：直接从 firstFrameUrl/lastFrameUrl 读取
         const legacyStoryboards = rawData
-          .filter((sb: any) => !String(sb.id || '').endsWith('_first') && !String(sb.id || '').endsWith('_last') && sb.firstFrameUrl !== undefined)
-          .map((sb: any, idx: number) => ({
+          .filter((sb: StoryboardItem) => !String(sb.id || '').endsWith('_first') && !String(sb.id || '').endsWith('_last') && sb.firstFrameUrl !== undefined)
+          .map((sb: StoryboardItem, idx: number) => ({
             id: sb.id || `sb_${idx}`,
             sceneId: sb.sceneId,
             imageUrl: sb.firstFrameUrl || sb.imageUrl || sb.url || '',
@@ -388,8 +460,8 @@ export function AIFunction({
       // 恢复剧情视频数据
       if (projectData?.sceneVideoData) {
         const svCount = Array.isArray(projectData.sceneVideoData) ? projectData.sceneVideoData.length : '非数组'
-        const svWithVideo = Array.isArray(projectData.sceneVideoData) 
-          ? projectData.sceneVideoData.filter((v: any) => v?.videoUrl).length 
+        const svWithVideo = Array.isArray(projectData.sceneVideoData)
+          ? (projectData.sceneVideoData as SceneVideoItem[]).filter((v: SceneVideoItem) => v?.videoUrl).length
           : 0
         console.log(`[恢复] 剧情视频数据: 总数=${svCount}, 有视频=${svWithVideo}`)
         console.log('[恢复] 剧情视频数据详情:', JSON.stringify(projectData.sceneVideoData, null, 2))
@@ -660,15 +732,15 @@ export function AIFunction({
 
   // 编辑状态
   const [isEditingScript, setIsEditingScript] = useState(false)
-  const [editedScriptData, setEditedScriptData] = useState<any>(null)
+  const [editedScriptData, setEditedScriptData] = useState<ScriptData | null>(null)
   const [isEditingCharacter, setIsEditingCharacter] = useState(false)
-  const [editedCharacterData, setEditedCharacterData] = useState<any>(null)
+  const [editedCharacterData, setEditedCharacterData] = useState<CharacterItem | null>(null)
   const [isEditingSceneVideo, setIsEditingSceneVideo] = useState(false)
   const [editingSceneVideoIndex, setEditingSceneVideoIndex] = useState<number | null>(null)
-  const [editedSceneVideoData, setEditedSceneVideoData] = useState<any>(null)
+  const [editedSceneVideoData, setEditedSceneVideoData] = useState<SceneVideoItem | null>(null)
   const [isEditingStoryboard, setIsEditingStoryboard] = useState(false)
   const [editingStoryboardIndex, setEditingStoryboardIndex] = useState<number | null>(null)
-  const [editedStoryboardData, setEditedStoryboardData] = useState<any>(null)
+  const [editedStoryboardData, setEditedStoryboardData] = useState<StoryboardItem | null>(null)
   const [isRegeneratingStoryboard, setIsRegeneratingStoryboard] = useState<number | null>(null)
   const [isGeneratingScenePlot, setIsGeneratingScenePlot] = useState(false)
   const [isRegeneratingSceneVideo, setIsRegeneratingSceneVideo] = useState<number | null>(null)
@@ -689,8 +761,8 @@ export function AIFunction({
   // 存储待处理的生成任务（key: taskId, value: { type, resolve, reject }）
   const pendingTasksRef = useRef<Map<string, {
     type: 'character' | 'storyboard' | 'video' | 'compose'
-    resolve: (data: any) => void
-    reject: (error: any) => void
+    resolve: (data: unknown) => void
+    reject: (error: unknown) => void
   }>>(new Map())
 
   // ========== Pusher 清理 effect ==========
@@ -735,7 +807,7 @@ export function AIFunction({
     taskId: string
     type: 'character' | 'storyboard' | 'video' | 'compose'
     timeoutMs?: number
-  }): Promise<any> {
+  }): Promise<ComposedVideoResult> {
     const { taskId, type, timeoutMs = 480000 } = params
 
     console.log(`[Pusher] 开始等待生成结果:`, { taskId, type })
@@ -757,7 +829,7 @@ export function AIFunction({
       // 保存任务到 pendingTasks
       pendingTasksRef.current.set(taskId, {
         type,
-        resolve: (data: any) => {
+        resolve: (data: unknown) => {
           // 检查组件是否已挂载
           if (!isMountedRef.current) {
             console.log(`[Pusher] 组件已卸载，跳过状态更新:`, { taskId })
@@ -766,9 +838,9 @@ export function AIFunction({
           clearTimeout(timeoutId)
           pendingTasksRef.current.delete(taskId)
           console.log(`[Pusher] 任务完成:`, { taskId, data })
-          resolve(data)
+          resolve(data as ComposedVideoResult)
         },
-        reject: (error: any) => {
+        reject: (error: unknown) => {
           // 检查组件是否已挂载
           if (!isMountedRef.current) {
             console.log(`[Pusher] 组件已卸载，跳过状态更新:`, { taskId })
@@ -933,17 +1005,17 @@ export function AIFunction({
 
   // 通用函数：生成单个主角（含 Pusher 处理 & 实时更新），不负责最终数组合并/保存
   const generateCharacterForSingle = async (params: {
-    character: any
-    allCharactersSnapshot: any[]
+    character: CharacterItem
+    allCharactersSnapshot: CharacterItem[]
     consolePrefix: string
     versionId?: string
     versionGroupId?: string
     itemId?: string
   }): Promise<{
-    characterId: string | number
+    characterId: string | number | undefined
     imageUrl: string
     requestId: string | null
-    raw: any
+    raw: unknown
     error?: string
     code?: string
   }> => {
@@ -977,11 +1049,11 @@ export function AIFunction({
 
     // Safely handle non-OK responses
     if (!characterResponse.ok) {
-      let errorData: any = {}
+      let errorData: { code?: string; error?: string | null; currentPoints?: number } = {}
       let errorText = ''
       try {
         errorText = await characterResponse.text()
-        errorData = errorText ? JSON.parse(errorText) : {}
+        errorData = errorText ? (JSON.parse(errorText) as { code?: string; error?: string | null; currentPoints?: number }) : {}
       } catch (e) {
         // 如果解析失败，使用原始文本
         errorData = { error: errorText || `HTTP ${characterResponse.status}` }
@@ -1000,9 +1072,9 @@ export function AIFunction({
         workflowInterruptedRef.current = true // 标记工作流被中断，以便后续可以继续
         
         // ========== 失败：更新主角状态显示错误 ==========
-        setCharacterData((prev: any[]) => {
+        setCharacterData((prev: CharacterItem[]) => {
           const newItems = prev.length > 0 ? [...prev] : [...allChars]
-          const idx = newItems.findIndex((item: any) => item.id === c.id)
+          const idx = newItems.findIndex((item: CharacterItem) => String(item.id) === String(c.id))
           if (idx >= 0) {
             newItems[idx] = {
               ...newItems[idx],
@@ -1034,7 +1106,7 @@ export function AIFunction({
       // ========== 失败：更新主角状态显示错误 ==========
       setCharacterData((prev: any[]) => {
         const newItems = prev.length > 0 ? [...prev] : [...allChars]
-        const idx = newItems.findIndex((item: any) => item.id === c.id)
+        const idx = newItems.findIndex((item: CharacterItem) => String(item.id) === String(c.id))
         if (idx >= 0) {
           newItems[idx] = {
             ...newItems[idx],
@@ -1059,7 +1131,7 @@ export function AIFunction({
       // ========== 失败：更新主角状态显示错误 ==========
       setCharacterData((prev: any[]) => {
         const newItems = prev.length > 0 ? [...prev] : [...allChars]
-        const idx = newItems.findIndex((item: any) => item.id === c.id)
+        const idx = newItems.findIndex((item: CharacterItem) => String(item.id) === String(c.id))
         if (idx >= 0) {
           newItems[idx] = {
             ...newItems[idx],
@@ -1108,7 +1180,7 @@ export function AIFunction({
           const errorMessage = pusherData.error
           setCharacterData((prev: any[]) => {
             const newItems = prev.length > 0 ? [...prev] : [...allChars]
-            const idx = newItems.findIndex((item: any) => item.id === c.id)
+            const idx = newItems.findIndex((item: CharacterItem) => String(item.id) === String(c.id))
             if (idx >= 0) {
               newItems[idx] = {
                 ...newItems[idx],
@@ -1127,7 +1199,7 @@ export function AIFunction({
           }
         }
         
-        imageUrl = pusherData?.imageUrl || pusherData?.resultUrls?.[0] || ''
+        imageUrl = String(pusherData?.imageUrl || pusherData?.resultUrls?.[0] || '')
         console.log(`${consolePrefix} single character - Pusher 完成:`, imageUrl)
 
       } catch (pusherError) {
@@ -1144,9 +1216,9 @@ export function AIFunction({
           }
         }
         // ========== 失败：更新状态显示错误 ==========
-        setCharacterData((prev: any[]) => {
+        setCharacterData((prev: CharacterItem[]) => {
           const newItems = prev.length > 0 ? [...prev] : [...allChars]
-          const idx = newItems.findIndex((item: any) => item.id === c.id)
+          const idx = newItems.findIndex((item: CharacterItem) => String(item.id) === String(c.id))
           if (idx >= 0) {
             newItems[idx] = {
               ...newItems[idx],
@@ -1184,7 +1256,7 @@ export function AIFunction({
     if (imageUrl && String(imageUrl).trim() !== '') {
       setCharacterData((prev: any[]) => {
         const newItems = prev.length > 0 ? [...prev] : [...allChars]
-        const idx = newItems.findIndex((item: any) => item.id === c.id)
+        const idx = newItems.findIndex((item: CharacterItem) => String(item.id) === String(c.id))
         if (idx >= 0) {
           newItems[idx] = {
             ...newItems[idx],
@@ -1204,16 +1276,16 @@ export function AIFunction({
 
   // 通用函数：将单个主角生成结果合并为最终主角数组，并更新状态（不发请求）
   const mergeCharactersFromResults = (
-    allChars: any[],
+    allChars: CharacterItem[],
     results: {
-      characterId: string | number
+      characterId: string | number | undefined
       imageUrl: string
-      requestId: string | null
-      raw: any
+      requestId:  string | null
+      raw: unknown
       error?: string
     }[],
     consolePrefix: string
-  ): any[] => {
+  ): CharacterItem[] => {
     console.log(`${consolePrefix} 所有主角生成完成:`, results.length)
 
     // Build a map from characterId -> resolved image URL
@@ -1224,10 +1296,10 @@ export function AIFunction({
       }
     }
 
-    const finalCharacterData = allChars.map((orig: any) => {
-      const foundImage = (resultMap[String(orig.id)] || '').trim()
-      const rawImage = (orig.imageUrl || '').trim()
-      const rawThumb = (orig.thumbnailUrl || '').trim()
+    const finalCharacterData = allChars.map((orig: CharacterItem) => {
+      const foundImage = String(orig.imageUrl || '').trim()
+      const rawImage = String(orig.imageUrl || '').trim()
+      const rawThumb = String(orig.thumbnailUrl || '').trim()
 
       // 如果本次有新的生成结果，**强制**使用新图片，避免被旧快照覆盖
       if (foundImage !== '') {
@@ -1250,7 +1322,7 @@ export function AIFunction({
 
     // log merged characters and image URLs to help diagnose missing images
     console.log(`${consolePrefix} finalCharacterData:`, finalCharacterData)
-    finalCharacterData.forEach((mc: any) =>
+    finalCharacterData.forEach((mc: CharacterItem) =>
       console.log(
         `${consolePrefix} finalCharacterData imageUrl:`,
         mc.id,
@@ -1263,7 +1335,7 @@ export function AIFunction({
     setCharacterData(finalCharacterData)
     console.log(
       `${consolePrefix} 分镜图生成前 - finalCharacterData:`,
-      finalCharacterData.map((c: any) => ({ id: c.id, imageUrl: c.imageUrl }))
+      finalCharacterData.map((c: CharacterItem) => ({ id: c.id, imageUrl: c.imageUrl }))
     )
 
     return finalCharacterData
@@ -1271,26 +1343,25 @@ export function AIFunction({
 
   // 通用函数：生成单个分镜图并更新状态（含 Pusher 处理）
   const generateStoryboardForScene = async (params: {
-    scene: any
+    scene: StoryScene
     sceneIndex: number
     aspectRatio: string
-    characterImages: any[]
+    characterImages: CharacterImageRef[]
     consolePrefix: string
     versionId?: string
     versionGroupId?: string
     itemId?: string
     regenerateFrameType?: 'first' | 'last'  // 只重新生成单个帧
-  }): Promise<any> => {
+  }): Promise<StoryboardItem> => {
     const { scene, sceneIndex, aspectRatio, characterImages, consolePrefix, itemId, regenerateFrameType } = params
     const versionGroupId = params.versionGroupId || versionGroupIdRef.current
 
-    const basePrompt =
-      scene.storyboardPrompt || scene.plot || scene.description || t('noPlotDescription')
+    const basePrompt = String(scene.storyboardPrompt ?? '') || String(scene.plot ?? '') || String(scene.description ?? '') || t('noPlotDescription')
     const logPrefix = `${consolePrefix} 分镜图 ${sceneIndex + 1}`
 
     // 首尾帧模式：从 scene 中提取首帧和尾帧提示词
-    const firstFramePrompt = scene.firstFramePrompt || null
-    const lastFramePrompt = scene.lastFramePrompt || null
+    const firstFramePrompt = String(scene.firstFramePrompt ?? '') || null
+    const lastFramePrompt = String(scene.lastFramePrompt ?? '') || null
     const useFirstLastFrame = generationMode === 'first-last-frame' && firstFramePrompt && lastFramePrompt
 
     console.log(
@@ -1306,7 +1377,7 @@ export function AIFunction({
       }
     )
 
-    const requestBody: any = {
+    const requestBody: Record<string, unknown> = {
       storyboardPrompt: basePrompt,
       aspectRatio,
       characterImages,
@@ -1530,7 +1601,7 @@ export function AIFunction({
           }
 
           // 获取生成的图片 URL
-          const imageUrl = pusherData?.imageUrl || pusherData?.resultUrls?.[0] || ''
+          const imageUrl = String(pusherData?.imageUrl || pusherData?.resultUrls?.[0] || '')
           
           console.log(`${logPrefix} 单帧 Pusher 结果 (${params.regenerateFrameType}):`, { imageUrl })
           
@@ -1609,8 +1680,8 @@ export function AIFunction({
           }
 
           // 提取首帧和尾帧 URL
-          const firstFrameUrl = firstPusherData?.imageUrl || firstPusherData?.resultUrls?.[0] || ''
-          const lastFrameUrl = lastPusherData?.imageUrl || lastPusherData?.resultUrls?.[0] || ''
+          const firstFrameUrl = String(firstPusherData?.imageUrl || firstPusherData?.resultUrls?.[0] || '')
+          const lastFrameUrl = String(lastPusherData?.imageUrl || lastPusherData?.resultUrls?.[0] || '')
           
           console.log(`${logPrefix} 首尾帧 Pusher 结果:`, { firstFrameUrl, lastFrameUrl })
           
@@ -1627,7 +1698,7 @@ export function AIFunction({
               error: t('storyboardGenerationFailed'),
             }
 
-            setStoryboardImages((prev: any[]) => {
+            setStoryboardImages((prev: StoryboardItem[]) => {
               const newItems = [...prev]
               newItems[sceneIndex] = errorItem
               return newItems
@@ -1637,7 +1708,7 @@ export function AIFunction({
           }
 
           // 构建 storyboardItem
-          const storyboardItem: any = {
+          const storyboardItem: StoryboardItem = {
             id: `storyboard_${sceneIndex + 1}`,
             url: firstFrameUrl,
             sceneId: scene.id,
@@ -1647,11 +1718,11 @@ export function AIFunction({
             generatedAt: new Date().toISOString(),
             firstFrameUrl,
             lastFrameUrl,
-            firstFramePrompt,
-            lastFramePrompt,
+            firstFramePrompt: firstFramePrompt ?? undefined,
+            lastFramePrompt: lastFramePrompt ?? undefined,
           }
 
-          setStoryboardImages((prev: any[]) => {
+          setStoryboardImages((prev: StoryboardItem[]) => {
             const newItems = [...prev]
             newItems[sceneIndex] = {
               ...storyboardItem,
@@ -1697,7 +1768,7 @@ export function AIFunction({
           return errorItem
         }
 
-        storyboardUrl = pusherData.imageUrl || pusherData.resultUrls?.[0] || ''
+        storyboardUrl = String(pusherData.imageUrl || pusherData.resultUrls?.[0] || '')
         console.log(`${logPrefix} Pusher 结果:`, storyboardUrl)
       } catch (pusherError) {
         console.error(`${logPrefix} Pusher 等待失败:`, pusherError)
@@ -1766,7 +1837,7 @@ export function AIFunction({
       return errorItem
     }
 
-    const storyboardItem: any = {
+    const storyboardItem: StoryboardItem = {
       id: `storyboard_${sceneIndex + 1}`,
       url: firstFrameUrl,
       sceneId: scene.id,
@@ -1785,7 +1856,7 @@ export function AIFunction({
     }
 
     // ========== 实时更新：每成功生成一个分镜图就立即更新状态 ==========
-    setStoryboardImages((prev: any[]) => {
+    setStoryboardImages((prev: StoryboardItem[]) => {
       const newItems = [...prev]
       newItems[sceneIndex] = {
         ...storyboardItem,
@@ -1806,19 +1877,18 @@ export function AIFunction({
 
   // 通用函数：生成单个剧情视频并更新状态（含 Pusher 处理）
   const generateSceneVideoForScene = async (params: {
-    scene: any
+    scene: StoryScene
     sceneIndex: number
-    storyboardImage: any
+    storyboardImage?: StoryboardItem
     aspectRatio: string
     consolePrefix: string
     versionId?: string
     versionGroupId?: string
-  }): Promise<any> => {
+  }): Promise<SceneVideoItem> => {
     const { scene, sceneIndex, storyboardImage, aspectRatio, consolePrefix } = params
     const versionGroupId = params.versionGroupId || versionGroupIdRef.current
 
-    const basePrompt =
-      scene.sceneVideoPrompt || scene.plot || scene.description || t('noPlotDescription')
+    const basePrompt = String(scene.sceneVideoPrompt ?? '') || String(scene.plot ?? '') || String(scene.description ?? '') || t('noPlotDescription')
     const logPrefix = `${consolePrefix} 剧情视频 ${sceneIndex + 1}`
 
     const storyboardUrl = storyboardImage?.url
@@ -1846,7 +1916,7 @@ export function AIFunction({
     }
 
     // 构建视频生成请求体
-    const videoRequestBody: any = {
+    const videoRequestBody: Record<string, unknown> = {
       imageUrl: storyboardUrl,
       prompt: basePrompt,
       aspectRatio,
@@ -1898,9 +1968,9 @@ export function AIFunction({
         errorText = `HTTP ${sceneResponse.status}`
         console.error(`${logPrefix} API 失败:`, sceneResponse.status)
       }
-      let errorData: any = {}
+      let errorData: { code?: string; error?: string | null; currentPoints?: number } = {}
       try {
-        errorData = errorText ? JSON.parse(errorText) : {}
+        errorData = errorText ? (JSON.parse(errorText) as { code?: string; error?: string | null; currentPoints?: number }) : {}
       } catch (e) {
         errorData = { error: errorText }
       }
@@ -2043,7 +2113,7 @@ export function AIFunction({
           return errorResult
         }
 
-        videoUrl = pusherData.videoUrl || pusherData.resultUrls?.[0]
+        videoUrl = String(pusherData.videoUrl || pusherData.resultUrls?.[0] || '')
         console.log(`${logPrefix} Pusher 结果:`, videoUrl)
       } catch (pusherError) {
         console.error(`${logPrefix} Pusher 等待失败:`, pusherError)
@@ -2140,12 +2210,12 @@ export function AIFunction({
   }
 
   // 读取所有视频的时长并返回（秒），失败时使用 API 返回的时长
-  const getAllVideoDurations = async (sceneVideos: any[]): Promise<number[]> => {
+  const getAllVideoDurations = async (sceneVideos: SceneVideoItem[]): Promise<number[]> => {
     const durations = await Promise.all(
-      sceneVideos.map(async (sceneVideo) => {
+      sceneVideos.map(async (sceneVideo: SceneVideoItem) => {
         try {
           // 先尝试读取视频的实际时长
-          return await getVideoDuration(sceneVideo.videoUrl)
+          return await getVideoDuration(sceneVideo.videoUrl ?? '')
         } catch (error) {
           // 获取失败时使用兜底逻辑，这是正常行为不需要报错
           console.warn('[getAllVideoDurations] 视频时长获取失败，使用兜底逻辑:', {
@@ -2178,9 +2248,9 @@ export function AIFunction({
   }
 
   // 使用 FAL AI 生成完整视频（通用函数）
-  const composeSceneVideosWithFAL = async (sceneVideosToCompose: any[], scriptDataForCompose?: any, abortSignal?: AbortSignal, projectId?: string, versionId?: string, versionGroupId?: string) => {
+  const composeSceneVideosWithFAL = async (sceneVideosToCompose: SceneVideoItem[], scriptDataForCompose?: ScriptData | null, abortSignal?: AbortSignal, projectId?: string,  versionId?: string, versionGroupId?: string): Promise<ComposedVideoResult | null> => {
     // 过滤掉生成失败的视频
-    const validSceneVideos = sceneVideosToCompose.filter((sceneVideo: any) =>
+    const validSceneVideos = sceneVideosToCompose.filter((sceneVideo: SceneVideoItem) =>
       sceneVideo.videoUrl && typeof sceneVideo.videoUrl === 'string' && sceneVideo.videoUrl.trim().length > 0
     )
 
@@ -2272,16 +2342,16 @@ export function AIFunction({
           throw new Error(pusherData.error || t('videoComposeFailed'))
         }
 
-        const videoData = {
-          url: pusherData?.videoUrl || '',
-          thumbnailUrl: pusherData?.thumbnailUrl || '',
+        const videoData: ComposedVideoResult = {
+          url: String(pusherData?.videoUrl || ''),
+          thumbnailUrl: String(pusherData?.thumbnailUrl || ''),
           duration: pusherData?.duration || totalDuration,
-          aspectRatio: pusherData?.aspectRatio || '16:9',
+          aspectRatio: String(pusherData?.aspectRatio || '16:9'),
           fileSize: pusherData?.fileSize || t('unknown'),
           prompt: t("videoPrompt", { count: validSceneVideos.length })
         }
 
-        console.log('[composeStoryVideo] Pusher 完成:', videoData.url?.substring(0, 80))
+        console.log('[composeStoryVideo] Pusher 完成:', videoData.url ? videoData.url.substring(0, 80) : '')
         return videoData
       } catch (pusherError) {
         console.error('[composeStoryVideo] Pusher 等待失败:', pusherError)
@@ -2435,65 +2505,6 @@ export function AIFunction({
 
       // 解析模型输出：优先尝试 scriptResult.output（文本形式的 JSON）
       let parsedScriptData: any = null
-      const tryParsePossiblyMalformedJson = (text: string) => {
-        if (!text || typeof text !== 'string') return null
-
-        // 去掉 ``` 或 ```json 包裹
-        let clean = text.trim()
-        clean = clean.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
-
-        // 直接尝试完整解析
-        try {
-          return JSON.parse(clean)
-        } catch (e) {}
-
-        // 尝试定位第一个 JSON 对象/数组并做括号匹配提取
-        const firstBrace = (() => {
-          const i1 = clean.indexOf('{')
-          const i2 = clean.indexOf('[')
-          if (i1 === -1 && i2 === -1) return -1
-          if (i1 === -1) return i2
-          if (i2 === -1) return i1
-          return Math.min(i1, i2)
-        })()
-
-        if (firstBrace >= 0) {
-          const openChar = clean[firstBrace]
-          const closeChar = openChar === '{' ? '}' : ']'
-          let depth = 0
-          for (let i = firstBrace; i < clean.length; i++) {
-            if (clean[i] === openChar) depth++
-            else if (clean[i] === closeChar) {
-              depth--
-              if (depth === 0) {
-                const candidate = clean.slice(firstBrace, i + 1)
-                try {
-                  return JSON.parse(candidate)
-                } catch (e) {
-                  break
-                }
-              }
-            }
-          }
-        }
-
-        // 最后尝试匹配所有 {...} 或 [...] 片段逐一解析
-        const objectRegex = /\{[\s\S]*?\}/g
-        let m
-        while ((m = objectRegex.exec(clean)) !== null) {
-          try {
-            return JSON.parse(m[0])
-          } catch (e) {}
-        }
-        const arrayRegex = /\[[\s\S]*?\]/g
-        while ((m = arrayRegex.exec(clean)) !== null) {
-          try {
-            return JSON.parse(m[0])
-          } catch (e) {}
-        }
-
-        return null
-      }
 
       if (scriptResult.output && typeof scriptResult.output === 'string') {
         const parsed = tryParsePossiblyMalformedJson(scriptResult.output)
@@ -2881,64 +2892,6 @@ export function AIFunction({
 
       // 解析返回：兼容 data 对象或 output 文本
       let parsedScriptData: any = null
-      const tryParsePossiblyMalformedJson = (text: string) => {
-        if (!text || typeof text !== 'string') return null
-        let clean = text.trim()
-        clean = clean.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
-        try {
-          return JSON.parse(clean)
-        } catch (e) {}
-        const firstBrace = (() => {
-          const i1 = clean.indexOf('{')
-          const i2 = clean.indexOf('[')
-          if (i1 === -1 && i2 === -1) return -1
-          if (i1 === -1) return i2
-          if (i2 === -1) return i1
-          return Math.min(i1, i2)
-        })()
-        if (firstBrace >= 0) {
-          const openChar = clean[firstBrace]
-          const closeChar = openChar === '{' ? '}' : ']'
-          let depth = 0
-          for (let i = firstBrace; i < clean.length; i++) {
-            if (clean[i] === openChar) depth++
-            else if (clean[i] === closeChar) {
-              depth--
-              if (depth === 0) {
-                const candidate = clean.slice(firstBrace, i + 1)
-                try {
-                  return JSON.parse(candidate)
-                } catch (e) {
-                  break
-                }
-              }
-            }
-          }
-        }
-        const objectRegex = /\{[\s\S]*?\}/g
-        let m
-        while ((m = objectRegex.exec(clean)) !== null) {
-          try {
-            return JSON.parse(m[0])
-          } catch (e) {}
-        }
-        const arrayRegex = /\[[\s\S]*?\]/g
-        while ((m = arrayRegex.exec(clean)) !== null) {
-          try {
-            return JSON.parse(m[0])
-          } catch (e) {}
-        }
-        return null
-      }
-
-      if (scriptResult.output && typeof scriptResult.output === 'string') {
-        const parsed = tryParsePossiblyMalformedJson(scriptResult.output)
-        parsedScriptData = parsed !== null ? parsed : (scriptResult.raw ?? scriptResult.output)
-      } else if (scriptResult.data) {
-        parsedScriptData = scriptResult.data
-      } else {
-        parsedScriptData = scriptResult
-      }
 
       // 映射并填入 UI
       const mapToUiScriptData = (data: any) => {
@@ -3318,8 +3271,8 @@ export function AIFunction({
       await waitForWorkflowResume()
 
       // 找出引用了被重新生成角色的场景索引
-      const affectedSceneIndices = scriptData.scenes
-        .map((scene: any, index: number) => {
+      const affectedSceneIndices = (scriptData?.scenes ?? [])
+        .map((scene: StoryScene, index: number) => {
           const sceneCharacterIds = scene.characterIds || []
           return sceneCharacterIds.includes(characterToRegenerate.id) ? index : -1
         })
@@ -3377,12 +3330,12 @@ export function AIFunction({
       abortControllerRef.current = new AbortController()
 
       const storyboardPromises = affectedSceneIndices.map(async (sceneIndex: number) => {
-        const scene = scriptData.scenes[sceneIndex]
+        const scene = (scriptData?.scenes ?? [])[sceneIndex]
 
         // 根据场景的 characterIds 筛选角色
-        const sceneCharacterIds = scene.characterIds || []
-        const relevantCharacters = updatedCharacters.filter((char: any) =>
-          sceneCharacterIds.includes(char.id)
+        const sceneCharacterIds = scene?.characterIds || []
+        const relevantCharacters = updatedCharacters.filter((char: CharacterItem) =>
+          sceneCharacterIds.includes(String(char.id))
         )
 
         // 构建角色图片数组
@@ -3424,9 +3377,9 @@ export function AIFunction({
 
       const sceneVideosPromises = affectedSceneIndices.map(
         async (sceneIndex: number) => {
-          const scene = scriptData.scenes[sceneIndex]
+          const scene = (scriptData?.scenes ?? [])[sceneIndex]
           const storyboard = storyboardResults.find(
-            (sb: any) => sb.sceneIndex === sceneIndex
+            (sb: StoryboardItem) => sb.sceneIndex === sceneIndex
           )
 
           return await generateSceneVideoForScene({
@@ -3544,7 +3497,7 @@ export function AIFunction({
     // 创建 AbortController 用于暂停
     abortControllerRef.current = new AbortController()
 
-    const scene = scriptData.scenes[index]
+    const scene = (scriptData?.scenes ?? [])[index]
     const storyboard = storyboardImages[index]
     const vgId = generateVersionGroupId()
 
@@ -3631,23 +3584,23 @@ export function AIFunction({
       // 检查是否暂停
       await waitForWorkflowResume()
 
-      // 2. 重新生成该场景的剧情视频
-      setWorkflowStep('scenes')
-      setWorkflowLoading(true)
-      
-      abortControllerRef.current = new AbortController()
+    // 2. 重新生成该场景的剧情视频
+    setWorkflowStep('scenes')
+    setWorkflowLoading(true)
 
-      // 清空该场景视频显示"生成中"状态
-      const currentSceneVideos = [...sceneVideos]
-      if (currentSceneVideos[index]) {
-        currentSceneVideos[index] = { ...currentSceneVideos[index], videoUrl: null }
-        setSceneVideos(currentSceneVideos)
-      }
+    abortControllerRef.current = new AbortController()
 
-      const videoItem = await generateSceneVideoForScene({
-        scene,
-        sceneIndex: index,
-        storyboardImage: updatedStoryboards[index],
+    // 清空该场景视频显示"生成中"状态
+    const currentSceneVideos = [...sceneVideos]
+    if (currentSceneVideos[index]) {
+      currentSceneVideos[index] = { ...currentSceneVideos[index], videoUrl: null }
+      setSceneVideos(currentSceneVideos)
+    }
+
+    const videoItem = await generateSceneVideoForScene({
+      scene,
+      sceneIndex: index,
+      storyboardImage: updatedStoryboards[index],
         aspectRatio,
         consolePrefix: '[regenerateSingleFrame]',
         versionId: currentEditVersionId.current || undefined,
@@ -3752,7 +3705,7 @@ export function AIFunction({
 
     // 清空旧的分镜图URL，显示"生成中"状态（与总视频重新生成一致）
     const updatedStoryboards = [...storyboardImages]
-    updatedStoryboards[index] = null
+    updatedStoryboards[index] = null as unknown as StoryboardItem
     setStoryboardImages(updatedStoryboards)
 
     // 同时清空对应剧情视频的URL（因为本流程会重新生成该场景剧情视频）
@@ -3770,12 +3723,12 @@ export function AIFunction({
     abortControllerRef.current = new AbortController()
 
     try {
-      const scene = scriptData.scenes[index]
+      const scene = (scriptData?.scenes ?? [])[index]
       // 根据场景的 characterIds 筛选角色
-      const sceneCharacterIds = scene.characterIds || []
-      const relevantCharacters = characterData.filter((char: any) =>
-        sceneCharacterIds.includes(char.id)
-      )
+      const sceneCharacterIds = scene?.characterIds || []
+        const relevantCharacters = characterData.filter((char: CharacterItem) =>
+          sceneCharacterIds.includes(String(char.id))
+        )
 
       // 构建角色图片数组
       const characterImages = relevantCharacters.length > 0
@@ -3946,7 +3899,7 @@ export function AIFunction({
     abortControllerRef.current = new AbortController()
 
     try {
-      const scene = scriptData.scenes[index]
+      const scene = (scriptData?.scenes ?? [])[index]
       const storyboardImage = storyboardImages[index]
 
       // 使用通用函数生成单个剧情视频
@@ -4171,24 +4124,24 @@ export function AIFunction({
     const mergedCharacterData = characterData
     console.log('[resumeStoryboardGeneration] mergedCharacterData count:', mergedCharacterData.length)
 
-    const storyboardPromises = scriptData.scenes.map(async (scene: any, index: number) => {
+    const storyboardPromises = (scriptData?.scenes ?? []).map(async (scene: StoryScene, index: number) => {
       // 根据场景的 characterIds 筛选角色，确保只传递该场景实际出现的角色
       const sceneCharacterIds = (scene.characterIds && scene.characterIds.length > 0) ? scene.characterIds : []
       console.log(`[resumeStoryboardGeneration] 分镜图 ${index + 1} - sceneCharacterIds:`, sceneCharacterIds)
 
       // 只筛选出场景中实际出现的角色，如果没有指定角色则不传递任何主角
       const relevantCharacters = sceneCharacterIds.length > 0
-        ? mergedCharacterData.filter((char: any) => sceneCharacterIds.includes(char.id))
+        ? mergedCharacterData.filter((char: CharacterItem) => sceneCharacterIds.includes(String(char.id)))
         : []
 
-      console.log(`[resumeStoryboardGeneration] 分镜图 ${index + 1} - relevantCharacters:`, relevantCharacters.map((c: any) => ({ id: c.id, imageUrl: c.imageUrl })))
+      console.log(`[resumeStoryboardGeneration] 分镜图 ${index + 1} - relevantCharacters:`, relevantCharacters.map((c: CharacterItem) => ({ id: c.id, imageUrl: c.imageUrl })))
 
       // 构建角色图片数组，包含 imageUrl 和 imagePrompt
       const characterImages = relevantCharacters.length > 0
-        ? relevantCharacters.map((char: any) => ({
-            characterId: char.id,
-            imageUrl: char.imageUrl,
-            imagePrompt: char.generationPrompt || char.prompt || char.description || ''
+        ? relevantCharacters.map((char: CharacterItem) => ({
+            characterId: char.id ?? '',
+            imageUrl: char.imageUrl ?? null,
+            imagePrompt: String(char.generationPrompt ?? char.description ?? '')
           }))
         : []
 
@@ -4224,8 +4177,8 @@ export function AIFunction({
     setWorkflowLoading(true)
     abortControllerRef.current = new AbortController()
 
-    const sceneVideosPromises = scriptData.scenes.map(
-      async (scene: any, index: number) => {
+    const sceneVideosPromises = (scriptData?.scenes ?? []).map(
+      async (scene: StoryScene, index: number) => {
         const storyboardImage = storyboardImages[index]
 
         return await generateSceneVideoForScene({
@@ -4763,7 +4716,7 @@ export function AIFunction({
         setWorkflowLoading(true)
         abortControllerRef.current = new AbortController()
 
-        const storyboardPromises = scriptData.scenes.map(async (scene: any, index: number) => {
+        const storyboardPromises = (scriptData?.scenes ?? []).map(async (scene: StoryScene, index: number) => {
           // 检查是否已有分镜图
           const existingSb = storyboardImages[index]
           if (existingSb?.imageUrl || existingSb?.url) {
@@ -4774,13 +4727,13 @@ export function AIFunction({
           const sceneCharacterIds = (scene.characterIds && scene.characterIds.length > 0) ? scene.characterIds : []
           const mergedCharacterData = finalCharacterData
           const relevantCharacters = sceneCharacterIds.length > 0
-            ? mergedCharacterData.filter((char: any) => sceneCharacterIds.includes(char.id))
+            ? mergedCharacterData.filter((char: CharacterItem) => sceneCharacterIds.includes(String(char.id)))
             : []
           const characterImages = relevantCharacters.length > 0
-            ? relevantCharacters.map((char: any) => ({
-                characterId: char.id,
-                imageUrl: char.imageUrl,
-                imagePrompt: char.generationPrompt || char.prompt || char.description || ''
+            ? relevantCharacters.map((char: CharacterItem) => ({
+                characterId: char.id ?? '',
+                imageUrl: char.imageUrl ?? null,
+                imagePrompt: String(char.generationPrompt ?? char.description ?? '')
               }))
             : []
 
@@ -4813,8 +4766,8 @@ export function AIFunction({
         setWorkflowLoading(true)
         abortControllerRef.current = new AbortController()
 
-        const sceneVideosPromises = scriptData.scenes.map(
-          async (scene: any, index: number) => {
+        const sceneVideosPromises = (scriptData?.scenes ?? []).map(
+          async (scene: StoryScene, index: number) => {
             // 检查是否已有剧情视频
             const existingSv = sceneVideos[index]
             if (existingSv?.videoUrl) {
@@ -5165,7 +5118,7 @@ export function AIFunction({
 
       // 更宽松的比较：使用任意一个可用的 prompt 字段
       const originalPrompt = originalCharacter
-        ? (originalCharacter.generationPrompt ?? originalCharacter.prompt ?? originalCharacter.generation_prompt ?? '')
+        ? String(originalCharacter.generationPrompt ?? originalCharacter.prompt ?? originalCharacter.generation_prompt ?? '')
         : ''
 
       // 如果用户刚刚上传了图片，则优先使用上传图片
@@ -5173,8 +5126,8 @@ export function AIFunction({
       const imageChanged = uploadedThisEditAtSave || imageProvided
 
       // 检查 prompt 是否被修改 - 更宽松的比较
-      const currentPrompt = dataToSave.generationPrompt || dataToSave.prompt || ''
-      const promptChanged = currentPrompt.trim() !== originalPrompt.trim()
+      const currentPrompt = String(dataToSave.generationPrompt ?? dataToSave.prompt ?? '')
+      const promptChanged = currentPrompt.trim() !== String(originalPrompt).trim()
 
       // 如果没有上传新图片且没有修改 prompt，则提示未做修改
       if (!imageChanged && !promptChanged) {
@@ -5195,7 +5148,7 @@ export function AIFunction({
       if (promptChanged && !imageChanged) {
         setWorkflowLoading(true)
         setWorkflowStep('character')
-        setIsRegeneratingCharacterId(dataToSave.id)
+        setIsRegeneratingCharacterId(dataToSave.id ?? null)
 
         toast({
           title: t("regeneratingCharacterImage"),
@@ -5286,11 +5239,11 @@ export function AIFunction({
 
       // 如果修改了图片或 prompt，分析哪些分镜图需要重新生成（包含修改主角的场景）
       if (imageChanged || promptChanged) {
-        const scenesToRegenerate = scriptData.scenes.map((scene: any, index: number) => {
+        const scenesToRegenerate = (scriptData?.scenes ?? []).map((scene: StoryScene,  index: number) => {
           const plotText = scene.plot || ''
           const narrationText = scene.narration || ''
           const fullText = `${plotText} ${narrationText}`.toLowerCase()
-          const characterName = finalCharacterData.name.toLowerCase()
+          const characterName = String(finalCharacterData.name).toLowerCase()
 
           // 检查场景文本是否包含主角名称
           const containsCharacter = fullText.includes(characterName)
@@ -5316,7 +5269,7 @@ export function AIFunction({
 
           // ========== 清空需要重新生成分镜图的 URL，进入「生成中」视觉状态 ==========
           scenesNeedingRegeneration.forEach(({ index }: any) => {
-            updatedStoryboardImages[index] = null
+            updatedStoryboardImages[index] = null as unknown as StoryboardItem
           })
           setStoryboardImages(updatedStoryboardImages)
 
@@ -5329,7 +5282,7 @@ export function AIFunction({
 
           toast({
             title: t("imageUpdated"),
-            description: t("regeneratingStoryboardsWithCharacter", { name: finalCharacterData.name, count: scenesNeedingRegeneration.length }),
+            description: t("regeneratingStoryboardsWithCharacter", { name: String(finalCharacterData.name), count: scenesNeedingRegeneration.length }),
           })
 
           try {
@@ -5443,7 +5396,7 @@ export function AIFunction({
 
               toast({
                 title: t("regenerateCompleted"),
-                description: t("characterUpdatedAll", { name: finalCharacterData.name }),
+                description: t("characterUpdatedAll", { name: String(finalCharacterData.name ?? '') }),
               })
             } else {
               setWorkflowLoading(false)
@@ -5532,8 +5485,8 @@ export function AIFunction({
       const imageChanged = wasUploadingImage || (imageProvided && dataToSave.localUrl)
 
       // 检查 prompt 是否被修改
-      const currentPrompt = dataToSave.prompt || ''
-      const originalPrompt = originalStoryboard?.prompt || ''
+      const currentPrompt = String(dataToSave.prompt ?? '')
+      const originalPrompt = String(originalStoryboard?.prompt ?? '')
       const promptChanged = currentPrompt.trim() !== originalPrompt.trim()
 
       // 上传分镜图和修改 prompt 只能选择其一，不能同时进行
@@ -5613,9 +5566,9 @@ export function AIFunction({
           }
 
           try {
-            const scene = scriptData.scenes[indexToSave]
-            const sceneCharacterIds = scene.characterIds || []
-            const sceneCharacters = characterData.filter((char: any) => sceneCharacterIds.includes(char.id))
+            const scene = (scriptData?.scenes ?? [])[indexToSave]
+            const sceneCharacterIds = scene?.characterIds || []
+            const sceneCharacters = characterData.filter((char: CharacterItem) => sceneCharacterIds.includes(String(char.id)))
 
             const characterImages = sceneCharacters.length > 0
               ? sceneCharacters.map((char: any) => ({
@@ -5749,7 +5702,7 @@ export function AIFunction({
 
         // ========== 清空该分镜图 URL，进入「生成中」视觉状态 ==========
         const updatedStoryboardsForGenerate = [...storyboardImages]
-        updatedStoryboardsForGenerate[indexToSave] = null
+        updatedStoryboardsForGenerate[indexToSave] = null as unknown as StoryboardItem
         setStoryboardImages(updatedStoryboardsForGenerate)
 
         // 同时清空对应剧情视频的 URL
@@ -5761,9 +5714,9 @@ export function AIFunction({
 
         try {
           // 调用 API 重新生成分镜图
-          const scene = scriptData.scenes[indexToSave]
+          const scene = (scriptData?.scenes ?? [])[indexToSave]
           const sceneCharacterIds = scene.characterIds || []
-          const sceneCharacters = characterData.filter((char: any) => sceneCharacterIds.includes(char.id))
+          const sceneCharacters = characterData.filter((char: CharacterItem) => sceneCharacterIds.includes(String(char.id)))
 
           const characterImages = sceneCharacters.length > 0
             ? sceneCharacters.map((char: any) => ({
@@ -5798,7 +5751,7 @@ export function AIFunction({
           const storyboardItem = await generateStoryboardForScene({
             scene: sceneWithCustomPrompt,
             sceneIndex: indexToSave,
-            aspectRatio: scene.aspectRatio || '16:9',
+            aspectRatio: String(scene.aspectRatio || '16:9'),
             characterImages,
             consolePrefix: '[edit-storyboard]',
             versionId: currentEditVersionId.current || undefined,
@@ -5878,7 +5831,7 @@ export function AIFunction({
 
       finalStoryboardData = {
         ...finalStoryboardData,
-        sceneId: scriptData.scenes[indexToSave].id,
+        sceneId: (scriptData?.scenes ?? [])[indexToSave]?.id ?? '',
         sceneIndex: indexToSave,
         // 移除编辑标记
         isEditingFirstFrame: undefined,
@@ -5928,7 +5881,7 @@ export function AIFunction({
       setWorkflowStep('scenes')
 
       // 只重新生成对应的剧情视频
-      const scene = scriptData.scenes[sceneIndex]
+      const scene = (scriptData?.scenes ?? [])[sceneIndex]
 
       const videoItem = await generateSceneVideoForScene({
         scene,
@@ -6024,8 +5977,8 @@ export function AIFunction({
       if (dataToSave != null && indexToSave !== null && scriptData && characterData) {
         // 检查提示词是否被修改
         const originalSceneVideo = sceneVideos[indexToSave]
-        const currentPrompt = dataToSave.prompt || ''
-        const originalPrompt = originalSceneVideo?.prompt || ''
+        const currentPrompt = String(dataToSave.prompt ?? '')
+        const originalPrompt = String(originalSceneVideo?.prompt ?? '')
         const promptChanged = currentPrompt.trim() !== originalPrompt.trim()
 
         // 生成版本组ID（用于关联同一批次的重新生成任务）
@@ -6052,7 +6005,7 @@ export function AIFunction({
           }
 
           try {
-            const scene = scriptData.scenes[indexToSave]
+            const scene = (scriptData?.scenes ?? [])[indexToSave]
             // 创建临时 scene 对象，包含自定义 prompt
             const sceneWithCustomPrompt = {
               ...scene,
@@ -6066,7 +6019,7 @@ export function AIFunction({
               scene: sceneWithCustomPrompt,
               sceneIndex: indexToSave,
               storyboardImage,
-              aspectRatio: dataToSave.aspectRatio || aspectRatio,
+              aspectRatio: String(dataToSave.aspectRatio ?? aspectRatio ?? '16:9'),
               consolePrefix: '[edit-scene-video]',
               versionId: currentEditVersionId.current || undefined,
               versionGroupId: vgId,
@@ -6101,7 +6054,7 @@ export function AIFunction({
         // 更新剧情视频数据
         finalSceneVideoData = {
           ...finalSceneVideoData,
-          sceneId: scriptData.scenes[indexToSave].id,
+          sceneId: (scriptData?.scenes ?? [])[indexToSave]?.id ?? '',
           sceneIndex: indexToSave
         }
 
@@ -6859,13 +6812,6 @@ export function AIFunction({
       addImageUrl(linkInput.trim())
       setLinkInput("")
       setShowLinkInput(false)
-    }
-  }
-
-  const handleLinkInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      handleAddLink()
     }
   }
 
@@ -7760,8 +7706,8 @@ export function AIFunction({
                     <div className="flex-1">
                       <h3 className="text-lg font-bold mb-2">📝 {scriptData.title}</h3>
                       <div className="flex flex-col md:flex-row gap-2 text-sm text-muted-foreground">
-                        <div className="w-full md:w-auto whitespace-nowrap">{t("totalDurationLabel", { duration: scriptData.totalDuration })}</div>
-                        <div className="w-full md:w-auto whitespace-nowrap">{t("aspectRatioDisplay", { ratio: scriptData.aspectRatio })}</div>
+                        <div className="w-full md:w-auto whitespace-nowrap">{t("totalDurationLabel", { duration: String(scriptData.totalDuration ?? '') })}</div>
+                        <div className="w-full md:w-auto whitespace-nowrap">{t("aspectRatioDisplay", { ratio: String(scriptData.aspectRatio ?? '') })}</div>
                         <div className="w-full md:w-auto whitespace-nowrap">{t("sceneCountDisplay", { count: scriptData.scenes?.length || 0 })}</div>
                       </div>
                     </div>
@@ -7986,7 +7932,10 @@ export function AIFunction({
                   </h3>
                   <div className="space-y-3">
                     {scriptData.scenes.map((scene: any, index: number) => {
-                      const sb = storyboardImages.find((s: any) => s?.sceneIndex === index) || storyboardImages?.[index]
+                      const sb = storyboardImages[index] as StoryboardItem | undefined
+                      // 提前提取，避免在外层 `sb ?` 的 else 分支里对 sb 做 truthy 收窄（TS 会窄化为 never）
+                      const sbError = sb?.error
+                      const sbUrl = sb?.url
                       const sv = sceneVideos.find((v: any) => v?.sceneIndex === index) || sceneVideos?.[index]
                       // 优先使用 characterIds 数组匹配，兼容旧逻辑作为后备
                       const protagonists = (characterData || []).filter((char: any) => {
@@ -8260,16 +8209,16 @@ export function AIFunction({
                                           {t("generating")}
                                         </div>
                                       </div>
-                                    ) : sb?.error ? (
+                                    ) : sbError ? (
                                       <div className="absolute inset-0 bg-red-500/80 flex items-center justify-center rounded-lg">
                                         <div className="text-white text-xs text-center px-2">
                                           <div className="font-medium mb-1">{t("generationFailed")}</div>
-                                          <div className="line-clamp-3">{sb.error}</div>
+                                          <div className="line-clamp-3">{sbError}</div>
                                         </div>
                                       </div>
                                     ) : (
                                       /* 只要没有图片就显示"正在生成" */
-                                      !sb?.url ? (
+                                      !sbUrl ? (
                                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-lg">
                                           <div className="flex items-center gap-2 text-white">
                                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -8289,7 +8238,7 @@ export function AIFunction({
                                         setIsEditingStoryboard(false)
                                         setShowStoryboardPreview(true)
                                       }}
-                                      disabled={!sb?.url || !!sb?.error}
+                                      disabled={!sbUrl || !!sbError}
                                       className="h-8 text-xs w-full sm:w-auto min-w-0"
                                     >
                                       <Eye className="w-3 h-3 mr-1" />
@@ -8299,11 +8248,11 @@ export function AIFunction({
                                       variant="outline"
                                       size="sm"
                                       onClick={() => {
-                                        const url = sb?.url
+                                        const url = sbUrl
                                         const key = `storyboard-${index}`
                                         handleDownloadFile(url, `storyboard-${index + 1}.png`, key)
                                       }}
-                                      disabled={!sb?.url || !!sb?.error}
+                                      disabled={!sbUrl || !!sbError}
                                       className="h-8 text-xs w-full sm:w-auto min-w-0"
                                     >
                                       {downloadingKey === `storyboard-${index}` ? (
@@ -8371,7 +8320,7 @@ export function AIFunction({
                                       size="sm"
                                       onClick={() => {
                                         const key = `scene-video-${index}`
-                                        handleDownloadFile(sv.videoUrl, `scene-video-${index + 1}.mp4`, key)
+                                        handleDownloadFile(sv.videoUrl ?? undefined, `scene-video-${index + 1}.mp4`, key)
                                       }}
                                       disabled={!sv.videoUrl || !!sv.error}
                                       className="h-8 text-xs w-full sm:w-auto min-w-0"
@@ -8494,7 +8443,7 @@ export function AIFunction({
                                       size="sm"
                                       onClick={() => {
                                         const key = `scene-video-${index}`
-                                        handleDownloadFile(sv?.videoUrl, `scene-video-${index + 1}.mp4`, key)
+                                        handleDownloadFile(sv?.videoUrl ?? undefined, `scene-video-${index + 1}.mp4`, key)
                                       }}
                                       disabled={!sv?.videoUrl || !!sv?.error}
                                     className="h-8 text-xs w-full sm:w-auto min-w-0"
@@ -8562,13 +8511,13 @@ export function AIFunction({
                     <div className="mt-2 text-xs text-muted-foreground">
                       <div className="flex flex-col sm:flex-row gap-2 min-w-0">
                         <div className="w-full sm:w-auto whitespace-nowrap">
-                          {tWorkflow("videoDuration", { duration: videoData.duration })}
+                          {tWorkflow("videoDuration", { duration: String(videoData.duration ?? '') })}
                         </div>
                         <div className="w-full sm:w-auto whitespace-nowrap">
-                          {tWorkflow("videoAspectRatio", { ratio: videoData.aspectRatio })}
+                          {tWorkflow("videoAspectRatio", { ratio: String(videoData.aspectRatio ?? '') })}
                         </div>
                         <div className="w-full sm:w-auto whitespace-nowrap">
-                          {tWorkflow("videoSize", { size: videoData.fileSize })}
+                          {tWorkflow("videoSize", { size: String(videoData.fileSize ?? '') })}
                         </div>
                       </div>
                     </div>
@@ -8670,59 +8619,17 @@ export function AIFunction({
       </Dialog>
 
       {/* 链接输入模态框 */}
-      <Dialog open={showLinkInput} onOpenChange={setShowLinkInput}>
-        <DialogContent className="sm:max-w-lg p-0 overflow-hidden">
-          <div className="p-6 pb-4">
-            <DialogHeader className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Link className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <DialogTitle className="text-lg font-semibold">{t("addLinkTitle")}</DialogTitle>
-                  <p className="text-sm text-muted-foreground mt-1">{t("addLinkDesc")}</p>
-                </div>
-              </div>
-            </DialogHeader>
-          </div>
-
-          <div className="px-6 pb-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">{t("linkLabel")}</label>
-                <Input
-                  placeholder={t("linkPlaceholder")}
-                  value={linkInput}
-                  onChange={(e) => setLinkInput(e.target.value)}
-                  onKeyDown={handleLinkInputKeyDown}
-                  className="h-11"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowLinkInput(false)
-                    setLinkInput("")
-                  }}
-                  className="px-4"
-                >
-                  {t("cancel")}
-                </Button>
-                <Button
-                  onClick={handleAddLink}
-                  disabled={!linkInput.trim()}
-                  className="px-6"
-                >
-                  <Link className="w-4 h-4 mr-2" />
-                  {t("addLink")}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <LinkInputDialog
+        open={showLinkInput}
+        onOpenChange={setShowLinkInput}
+        value={linkInput}
+        onValueChange={setLinkInput}
+        onAdd={handleAddLink}
+        onCancel={() => {
+          setShowLinkInput(false)
+          setLinkInput("")
+        }}
+      />
 
       {/* 图片预览模态框 */}
       {previewImage && (
@@ -8844,180 +8751,40 @@ export function AIFunction({
       </Dialog>
 
       {/* 文件大小超限弹窗 */}
-      <Dialog open={showFileSizeLimitDialog} onOpenChange={setShowFileSizeLimitDialog}>
-        <DialogContent className="sm:max-w-md">
-          <div className="p-2">
-            <DialogHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <DialogTitle className="text-lg font-semibold">
-                    {t("fileTooLarge")}
-                  </DialogTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {t("fileSizeLimitDesc", { limit: fileSizeLimitMB })}
-                  </p>
-                </div>
-              </div>
-            </DialogHeader>
-          </div>
-
-          <div className="px-6 pb-6">
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Button
-                autoFocus
-                onClick={() => {
-                  setShowFileSizeLimitDialog(false)
-                  setTimeout(() => {
-                    pricingDialogTriggerRef.current?.click()
-                  }, 100)
-                }}
-                className="px-6 flex items-center gap-2"
-              >
-                <Sparkles className="w-4 h-4" />
-                {t("upgrade")}
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setShowFileSizeLimitDialog(false)}
-                className="px-4"
-              >
-                {t("cancel")}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <FileSizeLimitDialog
+        open={showFileSizeLimitDialog}
+        onOpenChange={setShowFileSizeLimitDialog}
+        limitMB={fileSizeLimitMB}
+        onUpgrade={() => {
+          setShowFileSizeLimitDialog(false)
+          setTimeout(() => {
+            pricingDialogTriggerRef.current?.click()
+          }, 100)
+        }}
+      />
 
       {/* 存储空间超限弹窗 */}
-      <Dialog open={showStorageLimitDialog} onOpenChange={setShowStorageLimitDialog}>
-        <DialogContent className="sm:max-w-md">
-          <div className="p-2">
-            <DialogHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center bg-muted rounded-full">
-                  <HardDrive className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <DialogTitle className="text-lg font-semibold">
-                    {t("storageLimitReached") || "存储空间已满"}
-                  </DialogTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {t("storageLimitDesc") || "您的存储空间已用完，请升级套餐或清理文件"}
-                  </p>
-                </div>
-              </div>
-            </DialogHeader>
-          </div>
-
-          <div className="px-6 py-4">
-            <div className="bg-muted/50 rounded-lg p-3 space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">{t("storageUsed") || "已使用"}</span>
-                <span className="font-medium">
-                  {storageLimitInfo ? `${formatBytes(storageLimitInfo.usedStorage)} / ${formatBytes(storageLimitInfo.storageLimit)}` : '...'}
-                </span>
-              </div>
-              <Progress value={storageLimitInfo && storageLimitInfo.storageLimit > 0 ? (storageLimitInfo.usedStorage / storageLimitInfo.storageLimit) * 100 : 0} className="h-2" />
-            </div>
-          </div>
-
-          <div className="px-6 pb-6">
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Button
-                autoFocus
-                onClick={() => {
-                  setShowStorageLimitDialog(false)
-                  setTimeout(() => {
-                    pricingDialogTriggerRef.current?.click()
-                  }, 100)
-                }}
-                className="px-6 flex items-center gap-2"
-              >
-                <Sparkles className="w-4 h-4" />
-                {t("upgrade")}
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setShowStorageLimitDialog(false)}
-                className="px-4"
-              >
-                {t("cancel")}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <StorageLimitDialog
+        open={showStorageLimitDialog}
+        onOpenChange={setShowStorageLimitDialog}
+        info={storageLimitInfo}
+        onUpgrade={() => {
+          setShowStorageLimitDialog(false)
+          setTimeout(() => {
+            pricingDialogTriggerRef.current?.click()
+          }, 100)
+        }}
+      />
 
       {/* 媒体文件不符合 Seedance 约束弹窗 */}
-      <Dialog
+      <MediaValidationDialog
         open={showMediaValidationDialog}
         onOpenChange={(v) => {
           setShowMediaValidationDialog(v)
           if (!v) setMediaValidationMessage("")
         }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <div className="p-2">
-            <DialogHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 flex items-center justify-center bg-amber-500/10 rounded-full">
-                  <AlertTriangle className="w-5 h-5 text-amber-500" />
-                </div>
-                <div>
-                  <DialogTitle className="text-lg font-semibold">
-                    {t("mediaValidationDialogTitle") || "媒体文件不符合要求"}
-                  </DialogTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {t("mediaValidationDialogDesc") ||
-                      "上传的视频/音频文件不满足 Seedance 2.0 模型约束，请调整后重新发送。"}
-                  </p>
-                </div>
-              </div>
-            </DialogHeader>
-          </div>
-
-          <div className="px-6 py-4">
-            <div className="bg-muted/50 rounded-lg p-3 text-sm leading-relaxed break-words whitespace-pre-wrap max-h-60 overflow-auto">
-              {mediaValidationMessage}
-            </div>
-            <div className="mt-3 text-xs text-muted-foreground space-y-1">
-              <p>{t("mediaValidationDialogVideoRulesTitle") || "视频要求："}</p>
-              <ul className="list-disc list-inside space-y-0.5">
-                <li>{t("mediaValidationDialogVideoRuleFormat") || "格式：mp4 / mov，单个不超过 50 MB"}</li>
-                <li>{t("mediaValidationDialogVideoRuleCount") || "最多 3 个，总时长 ≤ 15 s"}</li>
-                <li>{t("mediaValidationDialogVideoRuleDuration") || "单个时长 2 – 15 s"}</li>
-                <li>{t("mediaValidationDialogVideoRuleRatio") || "宽高比 (W/H)：0.4 – 2.5"}</li>
-                <li>{t("mediaValidationDialogVideoRulePixels") || "宽高 300 – 6000 px，总像素 409600 – 927408"}</li>
-                <li>{t("mediaValidationDialogVideoRuleFps") || "帧率 24 – 60 FPS"}</li>
-              </ul>
-              <p className="mt-2">{t("mediaValidationDialogAudioRulesTitle") || "音频要求："}</p>
-              <ul className="list-disc list-inside space-y-0.5">
-                <li>{t("mediaValidationDialogAudioRuleFormat") || "格式：wav / mp3，单个不超过 15 MB"}</li>
-                <li>{t("mediaValidationDialogAudioRuleCount") || "最多 3 段，总时长 ≤ 15 s"}</li>
-                <li>{t("mediaValidationDialogAudioRuleDuration") || "单个时长 2 – 15 s"}</li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="px-6 pb-6">
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Button
-                autoFocus
-                onClick={() => {
-                  setShowMediaValidationDialog(false)
-                  setMediaValidationMessage("")
-                }}
-                className="px-6"
-              >
-                {t("gotIt") || t("ok") || "我知道了"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        message={mediaValidationMessage}
+      />
 
       {/* 订阅弹窗（使用PricingDialog组件） */}
       <PricingDialog>
@@ -9220,7 +8987,7 @@ export function AIFunction({
                   >
                     {editedCharacterData?.thumbnailUrl || editedCharacterData?.imageUrl ? (
                       <img
-                        src={editedCharacterData.thumbnailUrl || editedCharacterData.imageUrl}
+                        src={(editedCharacterData.thumbnailUrl || editedCharacterData.imageUrl) ?? undefined}
                         alt={editedCharacterData?.name || 'character'}
                         className="w-full h-full object-cover"
                       />
@@ -9347,7 +9114,7 @@ export function AIFunction({
                         )}
                       </p>
                       <Textarea
-                        value={editedCharacterData?.generationPrompt || editedCharacterData?.prompt || ""}
+                        value={String(editedCharacterData?.generationPrompt ?? editedCharacterData?.prompt ?? "")}
                         onChange={(e) => {
                           setEditedCharacterData({
                             ...editedCharacterData,
@@ -9432,7 +9199,7 @@ export function AIFunction({
                             <div className="relative">
                               <img
                                 src={data.firstFrameUrl || data.url}
-                                alt={t("storyboardNumber", { number: data.sceneIndex + 1 }) + " - " + t("firstFrame")}
+                                alt={t("storyboardNumber", { number: (data.sceneIndex ?? 0) + 1 }) + " - " + t("firstFrame")}
                                 className="w-full rounded-lg"
                                 onPaste={(e) => {
                                   if (isEditingStoryboard && !isUploadingStoryboardImage) {
@@ -9451,7 +9218,7 @@ export function AIFunction({
                             <div className="relative">
                               <img
                                 src={data.lastFrameUrl}
-                                alt={t("storyboardNumber", { number: data.sceneIndex + 1 }) + " - " + t("lastFrame")}
+                                alt={t("storyboardNumber", { number: (data.sceneIndex ?? 0) + 1 }) + " - " + t("lastFrame")}
                                 className="w-full rounded-lg"
                               />
                               <span className="absolute top-1 left-1 px-1.5 py-0.5 text-[10px] bg-purple-600 text-white rounded">
@@ -9468,7 +9235,7 @@ export function AIFunction({
                               <div className="flex-1 relative">
                                 <img
                                   src={data.firstFrameUrl || data.url}
-                                  alt={t("storyboardNumber", { number: data.sceneIndex + 1 })}
+                                  alt={t("storyboardNumber", { number: (data.sceneIndex ?? 0) + 1 })}
                                   className="w-full rounded-lg"
                                   onPaste={(e) => {
                                     if (isEditingStoryboard && !isUploadingStoryboardImage) {
@@ -9486,7 +9253,7 @@ export function AIFunction({
                                 <div className="flex-1 relative">
                                   <img
                                     src={data.lastFrameUrl}
-                                    alt={t("storyboardNumber", { number: data.sceneIndex + 1 }) + " " + t("lastFrame")}
+                                    alt={t("storyboardNumber", { number: (data.sceneIndex ?? 0) + 1 }) + " " + t("lastFrame")}
                                     className="w-full rounded-lg"
                                   />
                                   <span className="absolute top-1 left-1 px-1.5 py-0.5 text-[10px] bg-purple-600 text-white rounded">
@@ -9563,13 +9330,13 @@ export function AIFunction({
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">{t("sceneNumberLabel")}</span>
                         <span className="text-sm font-medium">
-                          {t("sceneNumber", { number: (isEditingStoryboard ? editedStoryboardData : storyboardImages[editingStoryboardIndex!]).sceneIndex + 1 })}
+                          {t("sceneNumber", { number: (((isEditingStoryboard ? editedStoryboardData : storyboardImages[editingStoryboardIndex!]) ?? ({} as StoryboardItem)).sceneIndex ?? 0) + 1 })}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">{t("aspectRatioLabel2")}</span>
                         <span className="text-sm font-medium">
-                          {(isEditingStoryboard ? editedStoryboardData : storyboardImages[editingStoryboardIndex!]).aspectRatio}
+                          {((isEditingStoryboard ? editedStoryboardData : storyboardImages[editingStoryboardIndex!]) ?? ({} as StoryboardItem)).aspectRatio}
                         </span>
                       </div>
 
@@ -9577,12 +9344,12 @@ export function AIFunction({
                   </div>
 
                   {/* 剧情描述 */}
-                  {scriptData?.scenes?.[(isEditingStoryboard ? editedStoryboardData : storyboardImages[editingStoryboardIndex!]).sceneIndex] && (
+                  {scriptData?.scenes?.[(((isEditingStoryboard ? editedStoryboardData : storyboardImages[editingStoryboardIndex!]) ?? ({} as StoryboardItem)).sceneIndex ?? 0)] && (
                     <div>
                       <div className="text-sm font-medium mb-2">{t("sceneDescriptionLabel")}</div>
                       <div className="p-3 rounded-lg bg-muted/50">
                         <p className="text-sm text-muted-foreground">
-                          {scriptData.scenes[(isEditingStoryboard ? editedStoryboardData : storyboardImages[editingStoryboardIndex!]).sceneIndex].plot}
+                          {scriptData?.scenes?.[(((isEditingStoryboard ? editedStoryboardData : storyboardImages[editingStoryboardIndex!]) ?? ({} as StoryboardItem)).sceneIndex ?? 0)]?.plot}
                         </p>
                       </div>
                     </div>
@@ -9717,7 +9484,7 @@ export function AIFunction({
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-muted-foreground">{t("sceneNumberLabel")}</span>
                               <span className="text-sm font-medium">
-                                {t("sceneNumber", { number: sceneIndex + 1 })}
+                                {t("sceneNumber", { number: (sceneIndex ?? 0) + 1 })}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -9729,31 +9496,31 @@ export function AIFunction({
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-muted-foreground">{t("aspectRatioLabel3")}</span>
                               <span className="text-sm font-medium">
-                                {originalData?.aspectRatio || aspectRatio}
+                                {String(originalData?.aspectRatio ?? aspectRatio ?? '')}
                               </span>
                             </div>
                           </div>
                         </div>
 
                         {/* 剧情描述 */}
-                        {scriptData?.scenes?.[sceneIndex] && (
+                        {Boolean(scriptData?.scenes?.[sceneIndex ?? 0]) && (
                           <div>
                             <div className="text-sm font-medium mb-2">{t("sceneDescriptionLabel")}</div>
                             <div className="p-3 rounded-lg bg-muted/50">
                               <p className="text-sm text-muted-foreground">
-                                {scriptData.scenes[sceneIndex].plot}
+                                {String(scriptData?.scenes?.[sceneIndex ?? 0]?.plot ?? '')}
                               </p>
                             </div>
                           </div>
                         )}
 
                         {/* 场景旁白 */}
-                        {scriptData?.scenes?.[sceneIndex]?.narration && (
+                        {Boolean(scriptData?.scenes?.[sceneIndex ?? 0]?.narration) && (
                           <div>
                             <div className="text-sm font-medium mb-2">{t("sceneNarration")}</div>
                             <div className="p-3 rounded-lg bg-muted/50">
                               <p className="text-sm text-muted-foreground italic">
-                                "{scriptData.scenes[sceneIndex].narration}"
+                                "{String(scriptData?.scenes?.[sceneIndex ?? 0]?.narration ?? '')}"
                               </p>
                             </div>
                           </div>
@@ -9883,9 +9650,9 @@ export function AIFunction({
 
             // 检查 prompt 是否被修改 - 更宽松的比较
             const originalPrompt = originalCharacter 
-              ? (originalCharacter.generationPrompt ?? originalCharacter.prompt ?? originalCharacter.generation_prompt ?? '') 
+              ? String(originalCharacter.generationPrompt ?? originalCharacter.prompt ?? originalCharacter.generation_prompt ?? '') 
               : ''
-            const currentPrompt = editedCharacterData.generationPrompt || editedCharacterData.prompt || ''
+            const currentPrompt = String(editedCharacterData.generationPrompt ?? editedCharacterData.prompt ?? '')
             const promptChanged = currentPrompt.trim() !== originalPrompt.trim()
 
             const hasChanges = imageChanged || promptChanged
@@ -9894,7 +9661,7 @@ export function AIFunction({
               const plotText = scene.plot || ''
               const narrationText = scene.narration || ''
               const fullText = `${plotText} ${narrationText}`.toLowerCase()
-              return fullText.includes(editedCharacterData.name.toLowerCase())
+              return fullText.includes(String(editedCharacterData.name ?? '').toLowerCase())
             }) || []
 
             return (

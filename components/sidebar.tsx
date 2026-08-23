@@ -4,6 +4,7 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { Sparkles, Menu, X, Layers } from "lucide-react"
 import { useSession, signOut } from "next-auth/react"
+import type { Session } from "next-auth"
 import { useRouter } from "next/navigation"
 import { useLocale, useTranslations } from "next-intl"
 import { PricingDialog } from "@/components/pricing-dialog"
@@ -16,7 +17,7 @@ interface SidebarProps {
 }
 
 // 用户信息卡片组件
-function UserProfileCard({ session }: { session: any }) {
+function UserProfileCard({ session }: { session: Session }) {
   const t = useTranslations("sidebar")
   const userName = session?.user?.name || t('user')
   const userEmail = session?.user?.email || ''

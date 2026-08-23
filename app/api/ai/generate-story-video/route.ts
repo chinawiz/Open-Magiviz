@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
+import type { KieRequestBody, KieApiResponse } from '@/lib/ai-types'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
@@ -270,7 +270,7 @@ async function pollVideoStatus(
         continue
       }
 
-      const queryData = await queryResponse.json()
+      const queryData: KieApiResponse = await queryResponse.json()
       console.log('[generate-story-video] [Veo] 查询状态:', {
         taskId,
         code: queryData.code,
@@ -464,7 +464,7 @@ async function generateWithVeo(
   }
 
   // 构建 Kie.ai 请求体
-  const kieRequestBody: any = {
+  const kieRequestBody: KieRequestBody = {
     prompt: enhancedPrompt,
     model: kieModel,
     generationType: finalGenerationType,
@@ -549,7 +549,7 @@ async function generateWithVeo(
     return { success: false, error: `API error: ${response.status}` }
   }
 
-  let data: any
+  let data: KieApiResponse
   try {
     data = JSON.parse(responseText)
   } catch (e) {
@@ -670,7 +670,7 @@ async function generateWithSeedance2(
       ? 'bytedance/seedance-2-mini'
       : (isFast ? 'bytedance/seedance-2-fast' : 'bytedance/seedance-2'))
 
-  const kieRequestBody: any = {
+  const kieRequestBody: KieRequestBody = {
     model: kieModel,
     input: {
       prompt: prompt,
@@ -690,19 +690,19 @@ async function generateWithSeedance2(
   const refVideoUrls = (referenceVideoUrls || []).filter((u) => typeof u === "string" && u.trim().length > 0)
   const refAudioUrls = (referenceAudioUrls || []).filter((u) => typeof u === "string" && u.trim().length > 0)
   if (refVideoUrls.length > 0) {
-    kieRequestBody.input.reference_video_urls = refVideoUrls.slice(0, 3)
+    kieRequestBody.input!.reference_video_urls = refVideoUrls.slice(0, 3)
   } else {
-    delete kieRequestBody.input.reference_video_urls
+    delete kieRequestBody.input!.reference_video_urls
   }
   if (refAudioUrls.length > 0) {
-    kieRequestBody.input.reference_audio_urls = refAudioUrls.slice(0, 3)
+    kieRequestBody.input!.reference_audio_urls = refAudioUrls.slice(0, 3)
   } else {
-    delete kieRequestBody.input.reference_audio_urls
+    delete kieRequestBody.input!.reference_audio_urls
   }
 
   // 如果没有尾帧，移除该字段
   if (!lastFrameUrl) {
-    delete kieRequestBody.input.last_frame_url
+    delete kieRequestBody.input!.last_frame_url
   }
 
   // 配置 webhook（与 Kling 共用环境变量，支持前端覆盖）
@@ -754,7 +754,7 @@ async function generateWithSeedance2(
     return { success: false, error: `API error: ${response.status}` }
   }
 
-  let data: any
+  let data: KieApiResponse
   try {
     data = JSON.parse(responseText)
   } catch (e) {
@@ -845,7 +845,7 @@ async function pollSeedanceVideoStatus(
         continue
       }
 
-      const queryData = await queryResponse.json()
+      const queryData: KieApiResponse = await queryResponse.json()
       console.log(`[generate-story-video] [${label}] 查询状态:`, {
         taskId,
         code: queryData.code,
@@ -966,7 +966,7 @@ async function generateWithWan(
   // 获取尾帧图片
   const lastFrameUrl = additionalImageUrls?.[0] || ''
 
-  const kieRequestBody: any = {
+  const kieRequestBody: KieRequestBody = {
     model: "wan/2-7-image-to-video",
     input: {
       prompt: prompt,
@@ -983,7 +983,7 @@ async function generateWithWan(
 
   // 如果没有尾帧，移除该字段
   if (!lastFrameUrl) {
-    delete kieRequestBody.input.last_frame_url
+    delete kieRequestBody.input!.last_frame_url
   }
 
   // 配置 webhook（与 Kling/Seedance 共用环境变量）
@@ -1026,7 +1026,7 @@ async function generateWithWan(
     return { success: false, error: `API error: ${response.status}` }
   }
 
-  let data: any
+  let data: KieApiResponse
   try {
     data = JSON.parse(responseText)
   } catch (e) {
@@ -1110,7 +1110,7 @@ async function pollWanVideoStatus(
         continue
       }
 
-      const queryData = await queryResponse.json()
+      const queryData: KieApiResponse = await queryResponse.json()
       console.log(`[generate-story-video] [Wan 2.7] 查询状态:`, {
         taskId,
         code: queryData.code,
@@ -1220,7 +1220,7 @@ async function generateWithHappyHorse(
 
   // 构建请求体
   // HappyHorse：API 调用 HappyHorse 1.1 接口（happyhorse-1-1/image-to-video），默认 720p
-  const kieRequestBody: any = {
+  const kieRequestBody: KieRequestBody = {
     model: "happyhorse-1-1/image-to-video",
     callBackUrl: finalWebhookUrl,
     input: {
@@ -1261,7 +1261,7 @@ async function generateWithHappyHorse(
     return { success: false, error: `API error: ${response.status}` }
   }
 
-  let data: any
+  let data: KieApiResponse
   try {
     data = JSON.parse(responseText)
   } catch (e) {
@@ -1345,7 +1345,7 @@ async function pollHappyHorseVideoStatus(
         continue
       }
 
-      const queryData = await queryResponse.json()
+      const queryData: KieApiResponse = await queryResponse.json()
       console.log(`[generate-story-video] [HappyHorse] 查询状态:`, {
         taskId,
         code: queryData.code,
@@ -1467,7 +1467,7 @@ async function generateWithGeminiOmni(
   const callbackUrl = webhookUrl || KLING_WEBHOOK_URL
 
   // 构建请求体
-  const requestBody: any = {
+  const requestBody: KieRequestBody = {
     model: 'gemini-omni-video',
     input: {
       prompt: prompt.trim(),
@@ -1478,7 +1478,7 @@ async function generateWithGeminiOmni(
   }
 
   if (allImageUrls.length > 0) {
-    requestBody.input.image_urls = allImageUrls.slice(0, 7)
+    requestBody.input!.image_urls = allImageUrls.slice(0, 7)
   }
 
   if (callbackUrl) {
@@ -1505,7 +1505,7 @@ async function generateWithGeminiOmni(
   })
 
   const responseText = await response.text()
-  let data: any
+  let data: KieApiResponse
   try {
     data = JSON.parse(responseText)
   } catch (e) {
@@ -1605,7 +1605,7 @@ async function generateWithMinimaxH3(
     return { success: false, error: "MiniMax H3 requires at least first_frame_url or last_frame_url" }
   }
 
-  const kieRequestBody: any = {
+  const kieRequestBody: KieRequestBody = {
     model: "minimax-h3/image-to-video",
     input: {
       prompt: prompt,
@@ -1653,7 +1653,7 @@ async function generateWithMinimaxH3(
     return { success: false, error: `API error: ${response.status}` }
   }
 
-  let data: any
+  let data: KieApiResponse
   try {
     data = JSON.parse(responseText)
   } catch (e) {
@@ -1738,7 +1738,7 @@ async function pollMinimaxH3VideoStatus(
         continue
       }
 
-      const queryData = await queryResponse.json()
+      const queryData: KieApiResponse = await queryResponse.json()
       console.log('[generate-story-video] [MiniMax H3] 查询状态:', {
         taskId,
         code: queryData.code,
@@ -1840,7 +1840,7 @@ async function generateWithKling(
   const hasFirstLastFrame = !!lastFrameUrl
 
   // 构建 Kie.ai Kling 3.0 请求体
-  const kieRequestBody: any = {
+  const kieRequestBody: KieRequestBody = {
     model: "kling-3.0/video",
     input: {
       prompt: enhancedPrompt,
@@ -1890,7 +1890,7 @@ async function generateWithKling(
     return { success: false, error: `API error: ${response.status}` }
   }
 
-  let data: any
+  let data: KieApiResponse
   try {
     data = JSON.parse(responseText)
   } catch (e) {
@@ -1977,7 +1977,7 @@ async function pollKlingVideoStatus(
         continue
       }
 
-      const queryData = await queryResponse.json()
+      const queryData: KieApiResponse = await queryResponse.json()
       console.log('[generate-story-video] [Kling 3.0] 查询状态:', {
         taskId,
         code: queryData.code,
@@ -2057,16 +2057,48 @@ async function pollKlingVideoStatus(
 export async function POST(request: NextRequest) {
   try {
     // 验证用户登录
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const session = await getAuthedSession()
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+70827}
 
     // 读取原始请求体
     const rawText = await request.text()
     console.log('[generate-story-video] rawBody:', rawText.substring(0, 200))
 
-    let body: any = {}
+    let body: {
+      scenes?: Array<{
+        id?: string | number
+        imageUrl?: string
+        image_url?: string
+        prompt?: string
+        aspectRatio?: string
+        aspect_ratio?: string
+        duration?: string
+        videoModel?: string
+        videoStyle?: string
+        additionalImageUrls?: string[]
+        generationType?: string
+        videoUrls?: string[]
+        audioUrls?: string[]
+      }>
+      projectId?: string
+      versionId?: string
+      versionGroupId?: string
+      videoModel?: string
+      videoStyle?: string
+      imageUrl?: string
+      prompt?: string
+      aspectRatio?: string
+      duration?: string
+      webhookUrl?: string
+      additionalImageUrls?: string[]
+      generationType?: string
+      videoUrls?: string[]
+      audioUrls?: string[]
+      sceneIndex?: number | string
+      sceneId?: string | number
+    } = {}
     try {
       body = JSON.parse(rawText)
     } catch (e) {
@@ -2079,12 +2111,12 @@ export async function POST(request: NextRequest) {
 
     // 批量请求模式
     if (isBatch) {
-      const scenes = body.scenes
+      const scenes = body.scenes!
       console.log('[generate-story-video] 批量请求:', { count: scenes.length, projectId })
 
       // 计算需要扣除的积分总数
       let totalRequiredPoints = 0
-      for (const s of scenes) {
+      for (const s of scenes!) {
         const duration = s.duration || '8s'
         const seconds = getDurationSeconds(duration)
         const videoModel = s.videoModel || body.videoModel
@@ -2120,13 +2152,13 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const results: any[] = []
+      const results: Array<{ sceneId?: string | number | null; videoUrl?: string; requestId?: string; error?: string }> = []
 
-      for (let index = 0; index < scenes.length; index++) {
-        const s = scenes[index]
+      for (let index = 0; index < scenes!.length; index++) {
+        const s = scenes![index]
         const imageUrl = s.imageUrl || s.image_url || ''
         const prompt = s.prompt || ''
-        const sceneId = s.id || null
+        const sceneId = s.id != null ? String(s.id) : undefined
         const aspectRatio = s.aspectRatio || s.aspect_ratio || '16:9'
         const duration = s.duration || '8s'
         const videoModel = s.videoModel || body.videoModel
@@ -2215,7 +2247,7 @@ export async function POST(request: NextRequest) {
     // 单个请求模式
     const { imageUrl, prompt, aspectRatio, duration, videoModel, videoStyle, webhookUrl, versionId, versionGroupId, additionalImageUrls, generationType, videoUrls, audioUrls } = body
     const sceneIndex = body.sceneIndex
-    const sceneId = body.sceneId
+    const sceneId = body.sceneId != null ? String(body.sceneId) : undefined
     const durationSeconds = getDurationSeconds(duration)
     const effectiveModel = ['seedance25', 'seedance2Fast', 'seedance2Mini', 'seedance2', 'kling3', 'veo31Fast', 'veo31Lite', 'veo31Quality', 'happyHorse', 'wan27', 'geminiOmni', 'minimaxH3'].includes(videoModel || '') ? videoModel : null
     const styleFallback = !effectiveModel
@@ -2250,7 +2282,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`[generate-story-video] [${modelName}] 单个请求:`, {
       imageUrl: imageUrl?.substring(0, 50) + '...',
-      additionalImageUrls: additionalImageUrls?.map?.((u: string) => u?.substring(0, 30) + '...'),
+      additionalImageUrls: additionalImageUrls?.map((u: string) => u?.substring(0, 30) + '...'),
       generationType,
       promptLength: prompt?.length,
       aspectRatio,
@@ -2286,8 +2318,8 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await generateSingleVideo(
-      imageUrl,
-      prompt,
+      imageUrl ?? '',
+      prompt ?? '',
       aspectRatio,
       duration,
       videoModel,
@@ -2295,7 +2327,7 @@ export async function POST(request: NextRequest) {
       webhookUrl,
       session.user.id,
       projectId,
-      sceneIndex,
+      sceneIndex != null ? Number(sceneIndex) : undefined,
       sceneId,
       versionId,
       versionGroupId,

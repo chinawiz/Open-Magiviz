@@ -1,10 +1,19 @@
 import { Resend } from 'resend'
 
-if (!process.env.RESEND_API_KEY) {
-  throw new Error('RESEND_API_KEY is not set')
+// 惰性初始化 Resend 客户端：仅在真正发信时才校验 RESEND_API_KEY。
+// 原先在模块加载期就 throw，会导致所有 import 了本模块的路由 / `next build` 直接崩溃；
+// 改为惰性后，缺 key 不再阻断构建，发信时若无 key 会失败（被调用方 catch 处理）。
+let resendClient: Resend | null = null
+function getResend(): Resend {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY is not set')
+  }
+  if (!resendClient) {
+    resendClient = new Resend(apiKey)
+  }
+  return resendClient
 }
-
-const resend = new Resend(process.env.RESEND_API_KEY)
 
 // 邮件发送频率限制配置
 const RATE_LIMIT_CONFIG = {
@@ -393,7 +402,7 @@ export async function sendVerificationEmail(
   const template = emailTemplates.verification[locale]
   
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: getFromAddress(),
       to: [email],
       subject: template.subject,
@@ -432,7 +441,7 @@ export async function sendPasswordResetEmail(
   const template = emailTemplates.passwordReset[locale]
   
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: getFromAddress(),
       to: [email],
       subject: template.subject,
@@ -548,7 +557,7 @@ export async function sendPointsPurchaseEmail(
   `
   
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: getFromAddress(),
       to: [email],
       subject: template.subject,
@@ -638,7 +647,7 @@ export async function sendWithdrawRequestAdminEmail(params: {
   }
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: getFromAddress(),
       to: [adminEmail],
       subject: template.subject,
@@ -737,7 +746,7 @@ export async function sendWithdrawStatusEmail(params: {
   `
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: getFromAddress(),
       to: [params.email],
       subject: template.subject,
@@ -819,7 +828,7 @@ export async function sendSubscriptionSuccessEmail(
   `
   
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: getFromAddress(),
       to: [email],
       subject: template.subject,

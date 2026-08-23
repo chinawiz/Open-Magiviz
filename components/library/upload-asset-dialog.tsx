@@ -328,8 +328,9 @@ export function UploadAssetDialog({
 
       handleClose()
       onUploadSuccess?.()
-    } catch (err: any) {
-      setError(err.message || (t("uploadFailed") || "上传失败"))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message || (t("uploadFailed") || "上传失败"))
     } finally {
       setUploading(false)
     }

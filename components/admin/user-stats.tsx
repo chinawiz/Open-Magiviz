@@ -145,7 +145,7 @@ export function UserStats() {
     fetchUsers(1)
   }, [search, roleFilter, emailVerifiedFilter, subscriptionStatusFilter])
 
-  const handleUpdateUser = async (userId: string, action: string, data: any) => {
+  const handleUpdateUser = async (userId: string, action: string, data: Record<string, unknown>) => {
     try {
       const response = await fetch(`/api/admin/users/${userId}`, {
         method: 'PUT',
@@ -527,7 +527,7 @@ function UserActionDialog({
   actionType: 'role' | 'points' | 'subscription' | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onUpdate: (userId: string, action: string, data: any) => void
+  onUpdate: (userId: string, action: string, data: Record<string, unknown>) => void
 }) {
   const t = useTranslations('admin.users')
   const locale = useLocale()

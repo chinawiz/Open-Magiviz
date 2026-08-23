@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { db } from '@/lib/db'
 import { users, pointsHistory } from '@/lib/schema'
 import { eq, sql } from 'drizzle-orm'
@@ -8,13 +7,10 @@ import { v4 as uuidv4 } from 'uuid'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getAuthedSession()
     
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: '未授权访问' },
-        { status: 401 }
-      )
+    if (!session) {
+      return jsonError(401, '未授权访问')
     }
 
     // 获取用户完整信息（包括积分信息）

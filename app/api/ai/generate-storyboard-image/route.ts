@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
+import { getAuthedSession, jsonError } from '@/lib/api'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
 import { eq } from 'drizzle-orm'
+import type { KieRequestBody, KieApiResponse, GeneratedImage, BatchResultItem } from '@/lib/ai-types'
 
 /**
  * POST /api/ai/generate-storyboard-image
@@ -84,7 +84,7 @@ async function generateFrameImage(
     return { success: false, error: "aspectRatio 只支持 '16:9' 或 '9:16'" }
   }
 
-  const kieRequestBody: any = {
+  const kieRequestBody: KieRequestBody = {
     model: "nano-banana-2",
     input: {
       prompt: prompt,
@@ -103,9 +103,9 @@ async function generateFrameImage(
   if (Array.isArray(characterImages) && characterImages.length > 0) {
     const charUrls = characterImages
       .slice(0, 8)
-      .map((item: any) => {
+      .map((item: unknown) => {
         if (typeof item === 'object' && item !== null && 'imageUrl' in item) {
-          return item.imageUrl
+          return (item as { imageUrl: string }).imageUrl
         }
         return item as string
       })
@@ -113,7 +113,7 @@ async function generateFrameImage(
     imageInputList.push(...charUrls)
   }
   if (imageInputList.length > 0) {
-    kieRequestBody.input.image_input = imageInputList.slice(0, 8)
+    kieRequestBody.input!.image_input = imageInputList.slice(0, 8)
   }
 
   // 配置 webhook（环境变量优先，支持前端覆盖）
@@ -190,7 +190,7 @@ async function generateFrameImage(
   // 轮询模式获取结果
   const maxRetries = 160
   let retryCount = 0
-  let taskResult: any = null
+  let taskResult: KieApiResponse = null as unknown as KieApiResponse
 
   while (retryCount < maxRetries) {
     try {
@@ -203,7 +203,7 @@ async function generateFrameImage(
       })
 
       if (queryResponse.ok) {
-        const queryData = await queryResponse.json()
+        const queryData: KieApiResponse = await queryResponse.json()
         if (queryData.code === 200 && queryData.data) {
           const taskData = queryData.data
           if (taskData.state === 'success' && taskData.resultJson) {
@@ -386,14 +386,14 @@ async function generateSingleStoryboard(
       }
     }
 
-    const images: any = {}
-    
-    if (firstFrameResult.success && (firstFrameResult.images as any)?.[0]?.url) {
-      images.firstFrame = { url: (firstFrameResult.images as any)[0].url }
+    const images: Record<string, { url: string }> = {}
+
+    if (firstFrameResult.success && (firstFrameResult.images as unknown as Array<{ url: string }> | undefined)?.[0]?.url) {
+      images.firstFrame = { url: (firstFrameResult.images as unknown as Array<{ url: string }>)[0].url }
     }
-    
-    if (lastFrameResult.success && (lastFrameResult.images as any)?.[0]?.url) {
-      images.lastFrame = { url: (lastFrameResult.images as any)[0].url }
+
+    if (lastFrameResult.success && (lastFrameResult.images as unknown as Array<{ url: string }> | undefined)?.[0]?.url) {
+      images.lastFrame = { url: (lastFrameResult.images as unknown as Array<{ url: string }>)[0].url }
     }
     
     // 至少要有一个成功
@@ -446,7 +446,7 @@ async function generateSingleStoryboard(
     return {
       success: true,
       images: {
-        default: (result.images as any)[0] // 兼容模式：使用 default 作为默认图片
+        default: (result.images as { default?: { url: string } }).default ?? { url: '' } // 兼容模式：使用 default 作为默认图片
       },
       requestId: result.requestId
     }
@@ -489,7 +489,7 @@ async function generateSingleStoryboardOriginal(
   }
 
   // 构建 Kie.ai API 请求体
-  const kieRequestBody: any = {
+  const kieRequestBody: KieRequestBody = {
     model: "nano-banana-2",
     input: {
       prompt: storyboardPrompt,
@@ -509,10 +509,10 @@ async function generateSingleStoryboardOriginal(
   if (Array.isArray(characterImages) && characterImages.length > 0) {
     const charUrls = characterImages
       .slice(0, 8)
-      .map((item: any) => {
+      .map((item: unknown) => {
         // 如果是对象，提取 imageUrl；否则直接使用字符串
         if (typeof item === 'object' && item !== null && 'imageUrl' in item) {
-          return item.imageUrl
+          return (item as { imageUrl: string }).imageUrl
         }
         return item as string
       })
@@ -520,7 +520,7 @@ async function generateSingleStoryboardOriginal(
     imageInputList.push(...charUrls)
   }
   if (imageInputList.length > 0) {
-    kieRequestBody.input.image_input = imageInputList.slice(0, 8)
+    kieRequestBody.input!.image_input = imageInputList.slice(0, 8)
   }
 
   // 如果配置了 webhookUrl，添加到请求体
@@ -592,7 +592,7 @@ async function generateSingleStoryboardOriginal(
   // 8分钟超时 = 160次 × 3秒
   const maxRetries = 160
   let retryCount = 0
-  let taskResult: any = null
+  let taskResult: KieApiResponse = null as unknown as KieApiResponse
 
   while (retryCount < maxRetries) {
     try {
@@ -605,7 +605,7 @@ async function generateSingleStoryboardOriginal(
       })
 
       if (queryResponse.ok) {
-        const queryData = await queryResponse.json()
+        const queryData: KieApiResponse = await queryResponse.json()
         if (queryData.code === 200 && queryData.data) {
           const taskData = queryData.data
           if (taskData.state === 'success' && taskData.resultJson) {
@@ -635,9 +635,9 @@ async function generateSingleStoryboardOriginal(
   }
 
   const resultUrls = taskResult.resultUrls || []
-  const images = resultUrls.map((url: string) => ({ url }))
+  const images = resultUrls.length > 0 ? { default: { url: resultUrls[0] } } : undefined
 
-  if (images.length === 0) {
+  if (!images) {
     return { success: false, error: "No images generated" }
   }
 
@@ -673,16 +673,31 @@ async function generateSingleStoryboardOriginal(
 export async function POST(request: NextRequest) {
   try {
     // 验证用户登录状态
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: '用户未登录' }, { status: 401 })
-    }
+    const session = await getAuthedSession()
+    if (!session) {
+      return jsonError(401, 'Unauthorized')
+19728}
 
     // 读取原始请求体
     const rawText = await request.text()
     console.log('[generate-storyboard-image] rawBody:', rawText)
 
-    let body: any = {}
+    let body: {
+      scenes?: Array<{ id?: string; storyboardPrompt?: string; prompt?: string; aspectRatio?: string; characterImages?: string[]; firstFramePrompt?: string; lastFramePrompt?: string; referenceImage?: string }>
+      projectId?: string
+      versionId?: string
+      versionGroupId?: string
+      storyboardPrompt?: string
+      aspectRatio?: string
+      resolution?: string
+      characterImages?: string[]
+      webhookUrl?: string
+      itemId?: string
+      regenerateFrameType?: 'first' | 'last'
+      firstFramePrompt?: string
+      lastFramePrompt?: string
+      referenceImage?: string
+    } = {}
     try {
       body = JSON.parse(rawText)
     } catch (e) {
@@ -693,7 +708,7 @@ export async function POST(request: NextRequest) {
     const isBatch = Array.isArray(body?.scenes) && body.scenes.length > 0
 
     // 计算需要扣除的积分数量（每个分镜图2积分）
-    const storyboardCount = isBatch ? body.scenes.length : 1
+    const storyboardCount = isBatch ? body.scenes!.length : 1
     const requiredPoints = storyboardCount * 1
 
     // 检查积分是否足够（不扣除，只检查）
@@ -712,15 +727,15 @@ export async function POST(request: NextRequest) {
 
     // 批量请求模式
     if (isBatch) {
-      const scenes = body.scenes
+      const scenes = body.scenes!
       console.log('[generate-storyboard-image] batch request:', { count: scenes.length })
 
-      const results: any[] = []
+      const results: BatchResultItem[] = []
       let successCount = 0
 
-      for (const s of scenes) {
+      for (const s of scenes!) {
         const storyboardPrompt = s.storyboardPrompt || s.prompt || ''
-        const sceneId = s.id || null
+        const sceneId = s.id ?? undefined
         const aspectRatio = s.aspectRatio || '16:9'
         const characterImages = s.characterImages || []
         const firstFramePrompt = s.firstFramePrompt
@@ -814,8 +829,8 @@ export async function POST(request: NextRequest) {
     })
 
     const result = await generateSingleStoryboard(
-      storyboardPrompt,
-      aspectRatio,
+      storyboardPrompt ?? '',
+      aspectRatio || '16:9',
       characterImages,
       webhookUrl,
       session.user.id,
@@ -844,8 +859,8 @@ export async function POST(request: NextRequest) {
     })
     
     // 构建返回数据
-    const responseData: any = {
-      success: true,
+    const responseData: { success: boolean; images?: { firstFrame?: { url: string }; lastFrame?: { url: string }; default?: { url: string } }; requestId?: string; requestIds?: string[] } = {
+      success:  true,
       images: result.images,
       requestId: result.requestId
     }
