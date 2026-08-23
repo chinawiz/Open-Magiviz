@@ -39,8 +39,10 @@ import { FileSizeLimitDialog } from "@/components/operate/FileSizeLimitDialog"
 import { LinkInputDialog } from "@/components/operate/LinkInputDialog"
 import { MediaValidationDialog } from "@/components/operate/MediaValidationDialog"
 import { StorageLimitDialog } from "@/components/operate/StorageLimitDialog"
-import { formatBytes } from "@/components/operate/format"
+import { formatBytes, computeFileSizeLimit } from "@/components/operate/format"
+import { getVideoDuration, getAllVideoDurations } from "@/components/operate/video"
 import { useProject, getProgressPercentage } from "@/hooks/useProject"
+import { useSubscriptionPlan } from "@/hooks/useSubscriptionPlan"
 
 // Pusher 客户端导入
 import { subscribeToTask, disconnectPusher } from '@/lib/pusher-client'
@@ -184,35 +186,8 @@ export function AIFunction({
   // 素材库选择弹窗状态
   const [showLibraryDialog, setShowLibraryDialog] = useState(false)
 
-  // 订阅计划状态
-  const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null)
-  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null)
-  const [isLoadingSubscription, setIsLoadingSubscription] = useState(false)
-
-  // 获取订阅信息
-  useEffect(() => {
-    const fetchSubscription = async () => {
-      if (status !== "authenticated" || !session?.user?.id) {
-        setSubscriptionPlan(null)
-        setSubscriptionStatus(null)
-        return
-      }
-      try {
-        setIsLoadingSubscription(true)
-        const response = await fetch('/api/user/subscription')
-        if (response.ok) {
-          const data = await response.json()
-          setSubscriptionPlan(data.subscriptionPlan || null)
-          setSubscriptionStatus(data.subscriptionStatus || null)
-        }
-      } catch (error) {
-        console.error('Failed to fetch subscription:', error)
-      } finally {
-        setIsLoadingSubscription(false)
-      }
-    }
-    fetchSubscription()
-  }, [status, session?.user?.id])
+  // 订阅计划状态（hooks/useSubscriptionPlan.ts，行为与原来一致）
+  const { subscriptionPlan, subscriptionStatus, isLoadingSubscription } = useSubscriptionPlan()
 
   // 获取存储空间信息
   useEffect(() => {
@@ -2177,76 +2152,6 @@ export function AIFunction({
     return videoItem
   } 
 
-  // 读取视频文件的实际时长（秒）
-  const getVideoDuration = (videoUrl: string): Promise<number> => {
-    return new Promise((resolve, reject) => {
-      const video = document.createElement('video')
-      video.preload = 'metadata'
-      video.src = videoUrl
-      
-      video.onloadedmetadata = () => {
-        window.URL.revokeObjectURL(video.src)
-        const duration = video.duration // 单位：秒
-        if (isNaN(duration) || duration <= 0) {
-          reject(new Error(t('cannotReadVideoDuration')))
-        } else {
-          resolve(duration)
-        }
-      }
-      
-      video.onerror = () => {
-        window.URL.revokeObjectURL(video.src)
-        reject(new Error(t('videoLoadFailed')))
-      }
-      
-      // 设置超时，避免长时间等待
-      setTimeout(() => {
-        if (video.readyState < 1) {
-          window.URL.revokeObjectURL(video.src)
-          reject(new Error(t('videoLoadTimeout')))
-        }
-      }, 60000)
-    })
-  }
-
-  // 读取所有视频的时长并返回（秒），失败时使用 API 返回的时长
-  const getAllVideoDurations = async (sceneVideos: SceneVideoItem[]): Promise<number[]> => {
-    const durations = await Promise.all(
-      sceneVideos.map(async (sceneVideo: SceneVideoItem) => {
-        try {
-          // 先尝试读取视频的实际时长
-          return await getVideoDuration(sceneVideo.videoUrl ?? '')
-        } catch (error) {
-          // 获取失败时使用兜底逻辑，这是正常行为不需要报错
-          console.warn('[getAllVideoDurations] 视频时长获取失败，使用兜底逻辑:', {
-            videoUrl: sceneVideo?.videoUrl,
-            fallbackReason: error instanceof Error ? error.message : '未知原因',
-          })
-
-          // 读取失败时，使用 API 返回的时长（秒）
-          // sceneVideo.duration 可能是毫秒或秒，需要判断
-          const apiDuration = sceneVideo?.duration
-          if (typeof apiDuration === 'number' && apiDuration > 0) {
-            // 如果 duration > 100，可能是毫秒，转换为秒
-            // 如果 duration <= 100，可能是秒，直接使用
-            return apiDuration > 100 ? apiDuration / 1000 : apiDuration
-          }
-
-          // 如果 API 也没有返回时长，使用一个保守的默认时长（秒），避免整个工作流报错中断
-          const fallbackDuration = 5
-          console.log(
-            '[getAllVideoDurations] 使用默认时长:',
-            fallbackDuration,
-            '秒 (视频:',
-            sceneVideo?.videoUrl, ')'
-          )
-          return fallbackDuration
-        }
-      })
-    )
-    return durations
-  }
-
   // 使用 FAL AI 生成完整视频（通用函数）
   const composeSceneVideosWithFAL = async (sceneVideosToCompose: SceneVideoItem[], scriptDataForCompose?: ScriptData | null, abortSignal?: AbortSignal, projectId?: string,  versionId?: string, versionGroupId?: string): Promise<ComposedVideoResult | null> => {
     // 过滤掉生成失败的视频
@@ -2259,7 +2164,11 @@ export function AIFunction({
     }
 
     // 读取所有视频的实际时长（秒），失败时使用 API 返回的时长
-    const videoDurations = await getAllVideoDurations(validSceneVideos) // 单位：秒
+    const videoDurations = await getAllVideoDurations(validSceneVideos, {
+      cannotReadVideoDuration: t('cannotReadVideoDuration'),
+      videoLoadFailed: t('videoLoadFailed'),
+      videoLoadTimeout: t('videoLoadTimeout'),
+    }) // 单位：秒
 
     // 计算每个视频的时间戳（毫秒）和总时长（秒）
     let currentTimestamp = 0 // 当前时间戳（毫秒）
@@ -6136,7 +6045,7 @@ export function AIFunction({
     }
 
     // 检查文件大小
-    const sizeLimit = getFileSizeLimit()
+    const sizeLimit = computeFileSizeLimit(subscriptionPlan)
     if (file.size > sizeLimit) {
       handleFileSizeExceeded()
       return
@@ -6223,7 +6132,7 @@ export function AIFunction({
         const file = items[i].getAsFile()
         if (file) {
           // 检查文件大小
-          const sizeLimit = getFileSizeLimit()
+          const sizeLimit = computeFileSizeLimit(subscriptionPlan)
           if (file.size > sizeLimit) {
             handleFileSizeExceeded()
             return
@@ -6305,7 +6214,7 @@ export function AIFunction({
     }
 
     // 检查文件大小
-    const sizeLimit = getFileSizeLimit()
+    const sizeLimit = computeFileSizeLimit(subscriptionPlan)
     if (file.size > sizeLimit) {
       handleFileSizeExceeded()
       return
@@ -6379,7 +6288,7 @@ export function AIFunction({
         const file = items[i].getAsFile()
         if (file) {
           // 检查文件大小
-          const sizeLimit = getFileSizeLimit()
+          const sizeLimit = computeFileSizeLimit(subscriptionPlan)
           if (file.size > sizeLimit) {
             handleFileSizeExceeded()
             return
@@ -6475,31 +6384,9 @@ export function AIFunction({
     return "image" // 默认当作图片
   }
 
-  // 获取上传文件大小限制 (字节)
-  const getFileSizeLimit = (): number => {
-    // 未登录或加载中：默认限制 10MB
-    if (!subscriptionPlan) {
-      return 10 * 1024 * 1024 // 10MB
-    }
-    // Annual 无限制，返回一个很大的值
-    if (subscriptionPlan === 'annual') {
-      return 500 * 1024 * 1024 // 500MB 作为无限制的合理上限
-    }
-    // Pro: 100MB
-    if (subscriptionPlan === 'pro') {
-      return 100 * 1024 * 1024
-    }
-    // Trial: 50MB
-    if (subscriptionPlan === 'trial') {
-      return 50 * 1024 * 1024
-    }
-    // Free 或其他：10MB
-    return 10 * 1024 * 1024
-  }
-
   // 获取文件大小超限提示
   const getFileSizeExceededMessage = (type: "image" | "audio" | "video"): { title: string; description: string } => {
-    const limit = getFileSizeLimit()
+    const limit = computeFileSizeLimit(subscriptionPlan)
     const limitMB = Math.round(limit / (1024 * 1024))
     let limitText = `${limitMB}MB`
 
@@ -6517,7 +6404,7 @@ export function AIFunction({
 
   // 处理文件大小超限 - 打开弹窗
   const handleFileSizeExceeded = () => {
-    const limitMB = Math.round(getFileSizeLimit() / (1024 * 1024))
+    const limitMB = Math.round(computeFileSizeLimit(subscriptionPlan) / (1024 * 1024))
     if (subscriptionPlan === 'annual') {
       // Annual 不应该超限，这只是保底处理
       toast({
@@ -6615,7 +6502,7 @@ export function AIFunction({
       // 处理所有文件的上传
       validFiles.forEach((file) => {
         const fileType = getFileType(file)
-        const sizeLimit = getFileSizeLimit()
+        const sizeLimit = computeFileSizeLimit(subscriptionPlan)
 
         // 检查文件大小
         if (file.size > sizeLimit) {
@@ -6940,7 +6827,7 @@ export function AIFunction({
       // 处理所有文件的上传
       validFiles.forEach((file) => {
         const fileType = file.type.startsWith("image/") ? "image" : (file.type.startsWith("audio/") ? "audio" : "video")
-        const sizeLimit = getFileSizeLimit()
+        const sizeLimit = computeFileSizeLimit(subscriptionPlan)
 
         // 检查文件大小
         if (file.size > sizeLimit) {
@@ -7281,7 +7168,7 @@ export function AIFunction({
                       </div>
 
                       <p className="text-xs text-muted-foreground px-1 text-center">
-                        {t("uploadFileTypeTip", { limit: Math.round(getFileSizeLimit() / (1024 * 1024)) })}
+                        {t("uploadFileTypeTip", { limit: Math.round(computeFileSizeLimit(subscriptionPlan) / (1024 * 1024)) })}
                       </p>
                       <button
                         onClick={() => {
