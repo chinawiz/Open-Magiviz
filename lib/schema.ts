@@ -1,6 +1,6 @@
 import { pgTable, text, timestamp, boolean, integer, jsonb, primaryKey, index, unique, uniqueIndex } from 'drizzle-orm/pg-core'
 import type { AdapterAccount } from 'next-auth/adapters'
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -480,3 +480,26 @@ export const assetMigrationsRelations = relations(assetMigrations, ({ one }) => 
     references: [videoProjects.id],
   }),
 })) 
+
+// ========== AI 供应商适配层（F2/M2）==========
+// 按 capability 分组的有序供应商路由表（设计 §4.2.9 修正版：text UUID 主键、
+// camelCase 列名、无 tenant_id；region 为 IC-01 预留插拔位，当前仅 overseas，
+// 'local' 预留给自托管推理节点）。priority=0 为 primary，降级按 priority 升序。
+export const providerRoutes = pgTable('provider_routes', {
+  id: text('id').primaryKey(),
+  capability: text('capability').notNull(),          // script | image | video | compose
+  provider: text('provider').notNull(),              // kieai | zenmux | fal | local
+  modelKey: text('modelKey'),                        // 具体模型键；NULL 表示该供应商任意/由调用方决定
+  region: text('region').notNull().default('overseas'),
+  priority: integer('priority').notNull().default(0),
+  enabled: boolean('enabled').notNull().default(true),
+  configVersion: text('configVersion').notNull().default('v1'),
+  createdAt: timestamp('createdAt', { mode: 'date' }).defaultNow(),
+  updatedAt: timestamp('updatedAt', { mode: 'date' }).defaultNow(),
+}, (table) => ({
+  // 启用行内 (capability, region, priority) 唯一，保证降级顺序无并列；禁用行不受限
+  capRegionPriUnique: uniqueIndex('provider_routes_cap_region_pri')
+    .on(table.capability, table.region, table.priority)
+    .where(sql`enabled = true`),
+  capRegionIdx: index('provider_routes_cap_region').on(table.capability, table.region),
+}))

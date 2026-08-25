@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import type { KieRequestBody, KieApiResponse } from '@/lib/ai-types'
 import { getAuthedSession, jsonError } from '@/lib/api'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
+import { getVideoUnitPoints, computeVideoPoints } from '@/lib/video-pricing'
+import { getVideoFallbackChain } from '@/lib/providers/defaults'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
@@ -10,6 +12,7 @@ import { eq } from 'drizzle-orm'
 /**
  * POST /api/ai/generate-story-video
  *
+ * 计费单价唯一事实源：lib/video-pricing.ts（本注释中的单价为历史说明，如有出入以模块为准）
  * Body (单个请求):
  * {
  *   imageUrl?: string,                   // 可选：分镜图 URL
@@ -160,81 +163,74 @@ async function generateSingleVideo(
     : null
   const routeTo = effectiveModel || styleFallbackModel || 'veo31Fast'
 
-  let taskType = 'generate_story_video_veo'
-  if (routeTo === 'seedance25') {
-    taskType = 'seedance_2_5_video'
-  } else if (routeTo === 'seedance2') {
-    taskType = 'seedance_2_0_video'
-  } else if (routeTo === 'seedance2Fast') {
-    taskType = 'seedance_2_0_fast_video'
-  } else if (routeTo === 'seedance2Mini') {
-    taskType = 'seedance_2_0_mini_video'
-  } else if (routeTo === 'kling3') {
-    taskType = 'kling_3_0_video'
-  } else if (routeTo === 'wan27') {
-    taskType = 'wan_2_7_video'
-  } else if (routeTo === 'veo31Lite') {
-    taskType = 'veo_3_1_lite_video'
-  } else if (routeTo === 'veo31Quality') {
-    taskType = 'veo_3_1_quality_video'
-  } else if (routeTo === 'happyHorse') {
-    taskType = 'happyhorse_video'
-  } else if (routeTo === 'geminiOmni') {
-    taskType = 'gemini_omni_video'
-  } else if (routeTo === 'minimaxH3') {
-    taskType = 'minimax_h3_video'
-  }
-
-  // 根据路由目标调用对应模型
-  if (routeTo === 'seedance25' || routeTo === 'seedance2Fast' || routeTo === 'seedance2Mini' || routeTo === 'seedance2') {
-    // Seedance 支持首尾帧模式
-    const seedanceResult = await generateWithSeedance2(imageUrl, prompt, aspectRatio, duration, videoModel, videoStyle, webhookUrl, userId, routeTo, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls, referenceVideoUrls, referenceAudioUrls)
-    return seedanceResult
-  }
-
-  if (routeTo === 'kling3') {
-    // Kling 支持首尾帧模式
-    const klingResult = await generateWithKling(imageUrl, prompt, aspectRatio, duration, videoModel, videoStyle, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
-    return klingResult
-  }
-
-  if (routeTo === 'wan27') {
-    // Wan 支持首尾帧模式
-    const wanResult = await generateWithWan(imageUrl, prompt, aspectRatio, duration, videoModel, videoStyle, webhookUrl, userId, undefined, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
-    return wanResult
-  }
-
-  // HappyHorse - 2积分/s, 默认 720p（API 实际调用 HappyHorse 1.1 接口）
-  if (routeTo === 'happyHorse') {
-    const happyHorseResult = await generateWithHappyHorse(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId)
-    return happyHorseResult
-  }
-
-  // Gemini Omni - 1积分/s, 固定 4/6/8/10s, 1080p, 不支持首尾帧
-  if (routeTo === 'geminiOmni') {
-    const durationSec = getDurationSeconds(duration)
-    const allowedDurations = [4, 6, 8, 10]
-    if (!allowedDurations.includes(durationSec)) {
-      return { success: false, error: `Gemini Omni 只支持 4/6/8/10s，当前: ${durationSec}s` }
+  // 单次目标模型的提交分发（videoModel 参数传当前链上模型，保证各函数内部
+  // 的模型分支/计费单价与实际目标一致；各函数内部自带 taskType 常量）
+  const dispatchGeneration = async (model: string): Promise<{ success: boolean; videoUrl?: string; requestId?: string; error?: string }> => {
+    if (model === 'seedance25' || model === 'seedance2Fast' || model === 'seedance2Mini' || model === 'seedance2') {
+      // Seedance 支持首尾帧模式
+      return await generateWithSeedance2(imageUrl, prompt, aspectRatio, duration, model, videoStyle, webhookUrl, userId, model, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls, referenceVideoUrls, referenceAudioUrls)
     }
-    const geminiResult = await generateWithGeminiOmni(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
-    return geminiResult
+
+    if (model === 'kling3') {
+      // Kling 支持首尾帧模式
+      return await generateWithKling(imageUrl, prompt, aspectRatio, duration, model, videoStyle, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
+    }
+
+    if (model === 'wan27') {
+      // Wan 支持首尾帧模式
+      return await generateWithWan(imageUrl, prompt, aspectRatio, duration, model, videoStyle, webhookUrl, userId, undefined, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
+    }
+
+    // HappyHorse - 2积分/s, 默认 720p（API 实际调用 HappyHorse 1.1 接口）
+    if (model === 'happyHorse') {
+      return await generateWithHappyHorse(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId)
+    }
+
+    // Gemini Omni - 1积分/s, 固定 4/6/8/10s, 1080p, 不支持首尾帧
+    if (model === 'geminiOmni') {
+      const durationSec = getDurationSeconds(duration)
+      const allowedDurations = [4, 6, 8, 10]
+      if (!allowedDurations.includes(durationSec)) {
+        return { success: false, error: `Gemini Omni 只支持 4/6/8/10s，当前: ${durationSec}s` }
+      }
+      return await generateWithGeminiOmni(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
+    }
+
+    // MiniMax H3 - 4-15s, 支持首尾帧
+    if (model === 'minimaxH3') {
+      return await generateWithMinimaxH3(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
+    }
+
+    // Veo 3.1 Lite / Fast / Quality - 支持视频生成模式
+    if (model === 'veo31Lite' || model === 'veo31Fast' || model === 'veo31Quality') {
+      return await generateWithVeo(imageUrl, prompt, aspectRatio, duration, model, videoStyle, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls, generationType)
+    }
+
+    return { success: false, error: `Unsupported model: ${model}` }
   }
 
-  // MiniMax H3 - 4积分/s, 4-15s, 支持首尾帧
-  if (routeTo === 'minimaxH3') {
-    const minimaxResult = await generateWithMinimaxH3(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
-    return minimaxResult
-  }
+  // F2 基础降级：按"主模型 → 候补链"依次尝试，提交失败（含供应商报错/校验不符）
+  // 即切下一模型；链条依输入形态（是否有图）与时长约束过滤（lib/providers/defaults）
+  const chain = getVideoFallbackChain(routeTo, {
+    hasImage: !!(imageUrl && imageUrl.trim()),
+    durationSec: getDurationSeconds(duration),
+  })
 
-  // Veo 3.1 Lite / Fast / Quality - 支持视频生成模式
-  if (routeTo === 'veo31Lite' || routeTo === 'veo31Fast' || routeTo === 'veo31Quality') {
-    const veoResult = await generateWithVeo(imageUrl, prompt, aspectRatio, duration, videoModel, videoStyle, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls, generationType)
-    return veoResult
+  let lastResult: { success: boolean; videoUrl?: string; requestId?: string; error?: string } = { success: false, error: 'No generation attempted' }
+  for (let i = 0; i < chain.length; i++) {
+    const model = chain[i]
+    const result = await dispatchGeneration(model)
+    if (result.success) {
+      if (model !== routeTo) {
+        console.warn(`[generate-story-video] 降级生效: ${routeTo} → ${model}（第 ${i + 1} 候补）`)
+      }
+      return result
+    }
+    lastResult = result
+    console.error(`[generate-story-video] 模型 ${model} 提交失败（${i + 1}/${chain.length}）: ${result.error || 'unknown'}`)
   }
-
-  // 兜底返回错误（理论上不会执行到这里）
-  return { success: false, error: `Unsupported model: ${routeTo}` }
+  console.error(`[generate-story-video] 降级链耗尽: [${chain.join(' → ')}]`)
+  return lastResult
 }
 
 /**
@@ -296,7 +292,7 @@ async function pollVideoStatus(
             if (userId && storedTaskId) {
               try {
                 const durationSeconds = getDurationSeconds(duration)
-                const pointsAmount = durationSeconds * 2
+                const pointsAmount = computeVideoPoints('veo31Fast', durationSeconds)
                 
                 // 更新任务状态为成功
                 await db.update(aiGenerationTasks)
@@ -574,8 +570,8 @@ async function generateWithVeo(
 
   const useWebhookMode = !!finalWebhookUrl
   const durationSeconds = getDurationSeconds(duration)
-  // Veo 3.1 Lite: 1积分/s, Veo 3.1 Quality: 3积分/s, Veo 3.1 Fast: 2积分/s
-  const pointsPerSecond = isVeoLite ? 1 : (isVeoQuality ? 3 : 2)
+  // 单价唯一事实源：lib/video-pricing.ts
+  const pointsPerSecond = getVideoUnitPoints(isVeoLite ? 'veo31Lite' : (isVeoQuality ? 'veo31Quality' : 'veo31Fast'))
   const pointsAmount = durationSeconds * pointsPerSecond
 
   if (userId) {
@@ -716,7 +712,7 @@ async function generateWithSeedance2(
     : (isMini
       ? 'seedance_2_0_mini_video'
       : (isFast ? 'seedance_2_0_fast_video' : 'seedance_2_0_video'))
-  const pointsPerSecond = is25 ? 9 : (isMini ? 1.5 : (isFast ? 2 : 3))
+  const pointsPerSecond = getVideoUnitPoints(is25 ? 'seedance25' : (isMini ? 'seedance2Mini' : (isFast ? 'seedance2Fast' : 'seedance2')))
   const pointsAmount = Math.round(durationParam * pointsPerSecond)
 
   const modelLabel = is25 ? 'Seedance 2.5' : (isMini ? 'Seedance 2.0 Mini' : (isFast ? 'Seedance 2.0 Fast' : 'Seedance 2.0'))
@@ -825,7 +821,7 @@ async function pollSeedanceVideoStatus(
 ): Promise<{ success: boolean; videoUrl?: string; requestId?: string; error?: string }> {
   const maxRetries = 180 // 15分钟超时
   let retryCount = 0
-  const pts = pointsPerSecond ?? (is25 ? 9 : (isMini ? 1.5 : (isFast ? 2 : 3)))
+  const pts = pointsPerSecond ?? getVideoUnitPoints(is25 ? 'seedance25' : (isMini ? 'seedance2Mini' : (isFast ? 'seedance2Fast' : 'seedance2')))
   const label = is25 ? 'Seedance 2.5' : (isMini ? 'Seedance 2.0 Mini' : (isFast ? 'Seedance 2.0 Fast' : 'Seedance 2.0'))
 
   while (retryCount < maxRetries) {
@@ -993,7 +989,7 @@ async function generateWithWan(
   }
 
   const taskType = 'wan_2_7_video'
-  const pointsPerSecond = 2
+  const pointsPerSecond = getVideoUnitPoints('wan27')
   const pointsAmount = durationParam * pointsPerSecond
 
   console.log(`[generate-story-video] [Wan 2.7] 创建视频任务:`, {
@@ -1131,7 +1127,7 @@ async function pollWanVideoStatus(
             if (userId) {
               try {
                 const durationSeconds = parseInt(duration || '5', 10)
-                const pointsAmount = durationSeconds * 2
+                const pointsAmount = computeVideoPoints('wan27', durationSeconds)
 
                 await db.update(aiGenerationTasks)
                   .set({
@@ -1232,7 +1228,7 @@ async function generateWithHappyHorse(
   }
 
   const taskType = 'happyhorse_video'
-  const pointsPerSecond = 2
+  const pointsPerSecond = getVideoUnitPoints('happyHorse')
   const pointsAmount = durationParam * pointsPerSecond
 
   console.log(`[generate-story-video] [HappyHorse] 创建视频任务:`, {
@@ -1366,7 +1362,7 @@ async function pollHappyHorseVideoStatus(
             if (userId) {
               try {
                 const durationSeconds = parseInt(duration || '5', 10)
-                const pointsAmount = durationSeconds * 2
+                const pointsAmount = computeVideoPoints('happyHorse', durationSeconds)
 
                 await db.update(aiGenerationTasks)
                   .set({
@@ -1451,7 +1447,7 @@ async function generateWithGeminiOmni(
   const resolution = '1080p'
   const finalAspectRatio = aspectRatio || '16:9'
   const taskType = 'gemini_omni_video'
-  const pointsPerSecond = 1
+  const pointsPerSecond = getVideoUnitPoints('geminiOmni')
   const pointsAmount = durationSeconds * pointsPerSecond
 
   // 构建 image_urls：imageUrl + additionalImageUrls（Gemini Omni 不支持首尾帧，仅作参考图）
@@ -1623,7 +1619,7 @@ async function generateWithMinimaxH3(
   }
 
   const taskType = 'minimax_h3_video'
-  const pointsPerSecond = 2.5
+  const pointsPerSecond = getVideoUnitPoints('minimaxH3')
   const pointsAmount = durationParam * pointsPerSecond
 
   console.log(`[generate-story-video] [MiniMax H3] 创建视频任务:`, {
@@ -1916,7 +1912,7 @@ async function generateWithKling(
   // 存储任务映射（用于 webhook 回调时扣除积分）
   if (userId) {
     const durationSeconds = parseInt(durationParam, 10)
-    const pointsAmount = durationSeconds * 2
+    const pointsAmount = computeVideoPoints('kling3', durationSeconds)
     try {
       await db.insert(aiGenerationTasks).values({
         id: uuidv4(),
@@ -2000,7 +1996,7 @@ async function pollKlingVideoStatus(
             if (userId) {
               try {
                 const durationSeconds = parseInt(duration || '5', 10)
-                const pointsAmount = durationSeconds * 2
+                const pointsAmount = computeVideoPoints('kling3', durationSeconds)
 
                 // 更新任务状态为成功
                 await db.update(aiGenerationTasks)
@@ -2254,12 +2250,8 @@ export async function POST(request: NextRequest) {
       ? (videoStyle === 'anime' ? 'seedance2Fast' : (videoStyle === 'ads' ? 'seedance2' : (videoStyle && videoStyle !== 'auto' ? 'veo31Fast' : 'veo31Fast')))
       : null
     const routeTo = effectiveModel || styleFallback || 'veo31Fast'
-    // Seedance 2.5: 9积分/s, Seedance 2.0 Mini: 1.5积分/s, Veo 3.1 Lite/Gemini Omni: 1积分/s, Seedance 2.0/Veo 3.1 Quality: 3积分/s, HappyHorse: 2积分/s, MiniMax H3: 2.5积分/s, 其他: 2积分/s
-    const pointsPerSecond = routeTo === 'seedance25'
-      ? 9
-      : (routeTo === 'seedance2Mini'
-        ? 1.5
-        : (routeTo === 'seedance2' ? 3 : (routeTo === 'veo31Lite' ? 1 : (routeTo === 'veo31Quality' ? 3 : (routeTo === 'happyHorse' ? 2 : (routeTo === 'geminiOmni' ? 1 : (routeTo === 'minimaxH3' ? 2.5 : 2)))))))
+    // 单价唯一事实源：lib/video-pricing.ts
+    const pointsPerSecond = getVideoUnitPoints(routeTo)
     const requiredPoints = Math.round(durationSeconds * pointsPerSecond)
     const getModelName = (model: string) => {
       const names: Record<string, string> = {
