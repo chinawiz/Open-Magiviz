@@ -3,6 +3,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 import { getAuthedSession } from "@/lib/api"
 import { db } from "@/lib/db"
 import { userAssets } from "@/lib/schema"
+import { getStorageLimit } from "@/lib/plan-limits"
 import { sql } from "drizzle-orm"
 import { nanoid } from "nanoid"
 
@@ -15,13 +16,7 @@ const S3 = new S3Client({
   },
 })
 
-// 存储空间限制定义（字节）
-const STORAGE_LIMITS: Record<string, number> = {
-  free: 1 * 1024 * 1024 * 1024,
-  trial: 50 * 1024 * 1024 * 1024,
-  pro: 100 * 1024 * 1024 * 1024,
-  annual: -1,
-}
+// 存储空间限制统一引用 lib/plan-limits.ts（配额唯一事实源）
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +33,7 @@ export async function POST(request: NextRequest) {
     // 如果有用户，保存到素材库
     if (userId) {
       const userPlan = session!.user.subscriptionPlan || "free"
-      const storageLimit = STORAGE_LIMITS[userPlan] ?? STORAGE_LIMITS.free
+      const storageLimit = getStorageLimit(userPlan)
 
       // 如果不是无限制计划，检查存储空间
       if (storageLimit > 0) {
