@@ -1,37 +1,20 @@
-name: Deploy to Trigger.dev
-
+name: Trigger Deploy
+# 手动触发：本地网络到 depot 构建机的 gRPC 受干扰，部署走 GitHub 网络
 on:
-  push:
-    branches:
-      - main
-      - master
-    paths:
-      - 'trigger/**'
-      - 'lib/trigger.ts'
-      - 'lib/schema.ts'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/trigger-deploy.yml'
   workflow_dispatch:
 
 jobs:
-  deploy-trigger:
+  deploy:
     runs-on: ubuntu-latest
-    env:
-      TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-
+          node-version: 22
+          cache: npm
       - name: Install dependencies
-        run: npm install --frozen-lockfile
-
-      - name: Deploy to Trigger.dev
+        run: npm ci --no-audit --no-fund
+      - name: Deploy Trigger.dev tasks
         run: npx trigger.dev@4.4.2 deploy
+        env:
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
