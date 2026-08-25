@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthedSession, jsonError } from '@/lib/api'
+import { trackFunnelEvent } from '@/lib/observability/track'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { db } from '@/lib/db'
 import { projectData } from '@/lib/schema'
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
     const session = await getAuthedSession()
     if (!session) {
       return jsonError(401, 'Unauthorized')
-4109}
+    }
 
     const body: GenerateRequestBody = await request.json()
 
@@ -141,6 +142,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    trackFunnelEvent({ stage: 'idea', userId: session.user.id, projectId: body.projectId ?? null })
 
     const apiKey = process.env.ZENMUX_API_KEY
     if (!apiKey) {
@@ -554,10 +557,12 @@ Output format: include "userImageUrl" field at the top level of each character o
     }
 
     // 第一次请求使用传入的 maxTokens
+    const scriptStartedAt = Date.now()
     let { res, json: respJson } = await doRequest(maxTokens)
 
     if (!res.ok) {
       console.error('ZenMux error:', respJson)
+      trackFunnelEvent({ stage: 'script', userId: session.user.id, projectId: body.projectId ?? null, success: false, durationMs: Date.now() - scriptStartedAt, provider: 'zenmux', model, error: JSON.stringify(respJson).slice(0, 200) })
       return NextResponse.json({ error: 'ZenMux request failed', details: respJson }, { status: 502 })
     }
 
@@ -824,6 +829,8 @@ Output format: include "userImageUrl" field at the top level of each character o
         }
       }
     }
+
+    trackFunnelEvent({ stage: 'script', userId: session.user.id, projectId: body.projectId ?? null, success: true, durationMs: Date.now() - scriptStartedAt, provider: 'zenmux', model })
 
     // 返回与 /api/video/generate-workflow 模拟格式一致的结构，便于前端统一解析
     return NextResponse.json({

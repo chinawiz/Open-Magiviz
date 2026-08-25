@@ -9,6 +9,7 @@ import { pusherServer, notifyComposeSuccess, notifyTaskFail } from '@/lib/pusher
 import { resolveTargetVersion, clearVersionGroup } from '@/lib/versionMapper'
 import { claimTaskPointsDeduction, releaseTaskPointsClaim, markTaskSuccess } from '@/lib/task-points'
 import { verifyFalWebhookToken } from '@/lib/webhook-security'
+import { trackFunnelEvent } from '@/lib/observability/track'
 import type { SceneVideoItem } from '@/lib/types'
 
 // Webhook/轻量快速路径：显式声明函数时长上限（U-04，生产纪律 10s 红线）
@@ -149,6 +150,7 @@ export async function POST(request: NextRequest) {
         taskId: request_id,
         error: error || '视频合成失败',
       })
+      trackFunnelEvent({ stage: 'final', userId, projectId: projectId ?? null, success: false, provider: 'fal', model: 'ffmpeg-api/compose', taskId: request_id, error: error || '视频合成失败' })
 
       return NextResponse.json({ status: 'received' }, { status: 200 })
     }
@@ -217,6 +219,8 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+
+    trackFunnelEvent({ stage: 'final', userId, projectId: projectId ?? null, success: true, provider: 'fal', model: 'ffmpeg-api/compose', taskId: request_id })
 
     // 通过 Pusher 推送到前端（先推送，前端即可更新，后台继续搬运）
     const pusherSuccess = await notifyComposeSuccess({

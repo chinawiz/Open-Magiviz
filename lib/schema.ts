@@ -503,3 +503,25 @@ export const providerRoutes = pgTable('provider_routes', {
     .where(sql`enabled = true`),
   capRegionIdx: index('provider_routes_cap_region').on(table.capability, table.region),
 }))
+
+// ========== N1 漏斗埋点 ==========
+// 创意→成片六阶段事件（lib/observability/track.ts 写入）：
+// 支撑 V1 降级成功率（provider/model/fallbackApplied）与 V4 漏斗转化度量。
+export const funnelEvents = pgTable('funnel_events', {
+  id: text('id').primaryKey(),
+  userId: text('userId'),
+  projectId: text('projectId'),
+  stage: text('stage').notNull(),              // idea|script|character|storyboard|video|final
+  success: boolean('success').notNull().default(true),
+  durationMs: integer('durationMs'),
+  provider: text('provider'),                  // kieai/zenmux/fal/local
+  model: text('model'),                        // veo31Lite/nano-banana-2 等
+  fallbackApplied: boolean('fallbackApplied').notNull().default(false),
+  taskId: text('taskId'),
+  error: text('error'),
+  createdAt: timestamp('createdAt', { mode: 'date' }).defaultNow(),
+}, (table) => ({
+  stageCreatedIdx: index('fe_stage_created_idx').on(table.stage, table.createdAt),
+  projectIdx: index('fe_project_idx').on(table.projectId),
+  userCreatedIdx: index('fe_user_created_idx').on(table.userId, table.createdAt),
+}))

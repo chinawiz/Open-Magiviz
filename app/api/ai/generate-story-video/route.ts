@@ -4,6 +4,7 @@ import { getAuthedSession, jsonError } from '@/lib/api'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { getVideoUnitPoints, computeVideoPoints } from '@/lib/video-pricing'
 import { getVideoFallbackChain } from '@/lib/providers/defaults'
+import { trackFunnelEvent } from '@/lib/observability/track'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
@@ -155,7 +156,7 @@ async function generateSingleVideo(
   generationType?: string,
   referenceVideoUrls?: string[],
   referenceAudioUrls?: string[],
-): Promise<{ success: boolean; videoUrl?: string; requestId?: string; error?: string }> {
+): Promise<{ success: boolean; videoUrl?: string; requestId?: string; error?: string; model?: string }> {
   // videoModel === 'auto' 或未传 → 根据 videoStyle 回退路由
   const effectiveModel = ['seedance25', 'seedance2Fast', 'seedance2Mini', 'seedance2', 'kling3', 'veo31Fast', 'veo31Lite', 'veo31Quality', 'happyHorse', 'wan27', 'geminiOmni', 'minimaxH3'].includes(videoModel || '') ? videoModel : null
   const styleFallbackModel = !effectiveModel
@@ -224,7 +225,7 @@ async function generateSingleVideo(
       if (model !== routeTo) {
         console.warn(`[generate-story-video] 降级生效: ${routeTo} → ${model}（第 ${i + 1} 候补）`)
       }
-      return result
+      return { ...result, model }
     }
     lastResult = result
     console.error(`[generate-story-video] 模型 ${model} 提交失败（${i + 1}/${chain.length}）: ${result.error || 'unknown'}`)
@@ -2219,6 +2220,8 @@ export async function POST(request: NextRequest) {
           sceneAudioUrls
         )
 
+        trackFunnelEvent({ stage: 'video', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: 'kieai', model: result.model ?? routeTo, fallbackApplied: (result.model ?? routeTo) !== routeTo, taskId: result.requestId, error: result.error })
+
         if (result.success) {
           console.log(`[generate-story-video] [${modelName}] 场景完成:`, { sceneId, requestId: result.requestId })
         } else {
@@ -2328,6 +2331,8 @@ export async function POST(request: NextRequest) {
       videoUrls,
       audioUrls
     )
+
+    trackFunnelEvent({ stage: 'video', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: 'kieai', model: result.model ?? routeTo, fallbackApplied: (result.model ?? routeTo) !== routeTo, taskId: result.requestId, error: result.error })
 
     if (!result.success) {
       console.error(`[generate-story-video] [${modelName}] 生成失败:`, { error: result.error })

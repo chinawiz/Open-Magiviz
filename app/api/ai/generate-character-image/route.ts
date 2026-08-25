@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuthedSession, jsonError } from '@/lib/api'
+import { trackFunnelEvent } from '@/lib/observability/track'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
@@ -294,7 +295,8 @@ export async function POST(request: NextRequest) {
         }
 
         const result = await generateSingleCharacter(promptText, "1:1", undefined, session.user.id, body.projectId, characterId ?? undefined, body.versionId, body.versionGroupId, referenceImage)
-        
+        trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: body.projectId ?? null, success: result.success, provider: 'kieai', model: 'nano-banana-2', taskId: result.requestId, error: result.error })
+
         if (result.success) {
           console.log('[generate-character-image] character generated:', { characterId, requestId: result.requestId, imageCount: result.images?.length })
           successCount++
@@ -321,6 +323,7 @@ export async function POST(request: NextRequest) {
     console.log('[generate-character-image] single request:', { promptLength: prompt?.length, aspectRatio, hasWebhook: !!webhookUrl, projectId, versionId, versionGroupId, hasReferenceImage: !!referenceImage })
 
     const result = await generateSingleCharacter(prompt ?? '', aspectRatio, webhookUrl, session.user.id, projectId, itemId, versionId, versionGroupId, referenceImage)
+    trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: 'kieai', model: 'nano-banana-2', taskId: result.requestId, error: result.error })
 
     if (!result.success) {
       console.error('[generate-character-image] generation failed:', { error: result.error })

@@ -10,6 +10,7 @@ import { uploadToR2, downloadFile } from "@/trigger/migrate-assets"
 import { notifyComposeSuccess, notifyTaskFail } from "@/lib/pusher"
 import { resolveTargetVersion, clearVersionGroup } from "@/lib/versionMapper"
 import { markTaskSuccess } from "@/lib/task-points"
+import { trackFunnelEvent } from "@/lib/observability/track"
 
 /**
  * F2 成片合成自托管（替代 FAL ffmpeg-api/compose）。
@@ -72,6 +73,7 @@ export const composeFinalVideo = task({
     const { taskId, userId, projectId, versionId: taskVersionId, versionGroupId, videoUrls, totalDurationSec } = payload
     const format = { width: 1920, height: 1080, fps: 30, ...payload.outputFormat }
 
+    const startedAt = Date.now()
     const workspace = await mkdtemp(path.join(tmpdir(), "compose-"))
     try {
       console.log(`[compose-final-video] 开始合成`, { taskId, projectId, clips: videoUrls.length, format })
@@ -160,9 +162,12 @@ export const composeFinalVideo = task({
         })
       }
 
+      trackFunnelEvent({ stage: 'final', userId, projectId: projectId ?? null, success: true, durationMs: Date.now() - startedAt, provider: 'local', model: 'ffmpeg', taskId })
+
       console.log(`[compose-final-video] 合成完成`, { taskId, finalUrl, fileSizeStr })
       return { success: true, videoUrl: finalUrl, thumbnailUrl: thumbUrl, fileSize: fileSizeStr }
     } catch (error) {
+      trackFunnelEvent({ stage: 'final', userId, projectId: projectId ?? null, success: false, durationMs: Date.now() - startedAt, provider: 'local', model: 'ffmpeg', taskId, error: String(error).slice(0, 200) })
       console.error(`[compose-final-video] 合成失败（将重试）:`, error)
       await notifyTaskFail({ taskId, error: "视频合成失败" }).catch(() => {})
       throw error // 抛出让 Trigger.dev 重试；3 次耗尽后任务保持可人工补偿

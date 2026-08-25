@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuthedSession, jsonError } from '@/lib/api'
+import { trackFunnelEvent } from '@/lib/observability/track'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
@@ -771,6 +772,8 @@ export async function POST(request: NextRequest) {
           { firstFramePrompt, lastFramePrompt, referenceImage }
         )
 
+        trackFunnelEvent({ stage: 'storyboard', userId: session.user.id, projectId: body.projectId ?? null, success: result.success, provider: 'kieai', model: 'nano-banana-2', taskId: result.requestId, error: result.error })
+
         if (result.success) {
           console.log('[generate-storyboard-image] scene generated:', { 
             sceneId, 
@@ -840,6 +843,8 @@ export async function POST(request: NextRequest) {
       versionGroupId,
       { firstFramePrompt, lastFramePrompt, regenerateFrameType, referenceImage }
     )
+
+    trackFunnelEvent({ stage: 'storyboard', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: 'kieai', model: 'nano-banana-2', taskId: result.requestId, error: result.error })
 
     if (!result.success) {
       console.error('[generate-storyboard-image] generation failed:', { error: result.error })
