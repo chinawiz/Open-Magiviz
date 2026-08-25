@@ -127,7 +127,11 @@ export const stripePayments = pgTable('stripePayments', {
   webhookEventId: text('webhookEventId'), // Stripe webhook事件ID
   createdAt: timestamp('createdAt', { mode: 'date' }).defaultNow(),
   updatedAt: timestamp('updatedAt', { mode: 'date' }).defaultNow(),
-})
+}, (table) => ({
+  // 幂等最终防线（F10）：webhook 处理器有应用层查重，唯一索引兜底并发窗口
+  paymentIntentUnique: uniqueIndex('sp_payment_intent_unique').on(table.paymentIntentId),
+  checkoutSessionUnique: uniqueIndex('sp_checkout_session_unique').on(table.checkoutSessionId),
+}))
 
 // 邀请关系表 - 追踪邀请者和被邀请者的关系
 export const referrals = pgTable('referrals', {

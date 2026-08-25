@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import crypto from "crypto"
-import { v4 as uuidv4 } from 'uuid'
 
 // 导入 Pusher 工具
 import { pusherServer, notifyImageSuccess, notifyTaskFail } from '@/lib/pusher'
@@ -13,38 +11,17 @@ import {
   triggerStoryboardImageMigration,
 } from '@/trigger/migrate-assets'
 import { resolveTargetVersion } from '@/lib/versionMapper'
+import { claimTaskPointsDeduction, releaseTaskPointsClaim, markTaskSuccess } from '@/lib/task-points'
+import { verifyKieWebhook } from '@/lib/webhook-security'
 import type { KieApiResponse } from '@/lib/ai-types'
 import { safeJsonCopy } from '@/lib/ai-types'
 import type { CharacterItem, StoryboardItem, SceneVideoItem } from '@/lib/types'
 
+// Webhook/轻量快速路径：显式声明函数时长上限（U-04，生产纪律 10s 红线）
+export const maxDuration = 10
+
 // Webhook HMAC Key - 从环境变量获取
 const WEBHOOK_HMAC_KEY = process.env.KIE_WEBHOOK_HMAC_KEY!
-
-/**
- * 生成 webhook 签名
- */
-function generateSignature(taskId: string, timestampSeconds: string, secret: string): string {
-  const dataToSign = `${taskId}.${timestampSeconds}`
-  const hmac = crypto.createHmac('sha256', secret)
-  hmac.update(dataToSign)
-  return hmac.digest('base64')
-}
-
-/**
- * 安全的签名比较（防止时序攻击）
- */
-function verifySignature(taskId: string, timestampSeconds: string, receivedSignature: string, secret: string): boolean {
-  const expectedSignature = generateSignature(taskId, timestampSeconds, secret)
-  
-  if (expectedSignature.length !== receivedSignature.length) {
-    return false
-  }
-  
-  return crypto.timingSafeEqual(
-    Buffer.from(expectedSignature),
-    Buffer.from(receivedSignature)
-  )
-}
 
 /**
  * 从请求体获取原始 JSON（不解析）
@@ -89,19 +66,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing taskId' }, { status: 400 })
     }
 
-    // 4. 验证签名（如果配置了 HMAC Key）
-    if (WEBHOOK_HMAC_KEY && timestamp && receivedSignature) {
-      const isValid = verifySignature(taskId, timestamp, receivedSignature, WEBHOOK_HMAC_KEY)
-      
-      if (!isValid) {
-        console.error('Kie.ai Webhook 签名验证失败')
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-      }
-      
-      console.log('Kie.ai Webhook 签名验证通过:', { taskId })
-    } else if (WEBHOOK_HMAC_KEY && (!timestamp || !receivedSignature)) {
-      console.error('Kie.ai Webhook 验证失败: 缺少签名头')
-      return NextResponse.json({ error: 'Missing signature headers' }, { status: 401 })
+    // 4. 验证签名（生产环境 fail-closed，统一策略见 lib/webhook-security.ts）
+    const signatureRejection = verifyKieWebhook({
+      taskId,
+      timestamp,
+      signature: receivedSignature,
+      secret: WEBHOOK_HMAC_KEY,
+      label: 'Kie Webhook',
+    })
+    if (signatureRejection) {
+      return NextResponse.json({ error: signatureRejection.error }, { status: signatureRejection.status })
     }
 
     // 5. 检查任务状态
@@ -433,41 +407,43 @@ export async function POST(request: NextRequest) {
       console.warn(`[Webhook] 任务缺少 projectId 或 itemId，跳过直接写入: taskId=${taskId}`)
     }
 
-    // 7.2 扣除积分（仅在未扣除时执行）
+    // 7.2 扣除积分（原子认领：并发重复回调只有一个赢家，杜绝双扣）
     console.log(`[Webhook] 积分检查: taskId=${taskId}, pointsDeducted=${pointsDeducted}, userId=${userId}`)
     if (!pointsDeducted) {
-      try {
-        let pointsAction: PointsAction
-        if (taskType === 'generate_storyboard' || taskType === 'generate_storyboard_frame') {
-          pointsAction = PointsAction.GENERATE_STORYBOARD
-        } else {
-          pointsAction = PointsAction.GENERATE_CHARACTER
+      const claimed = await claimTaskPointsDeduction(taskId)
+      if (claimed) {
+        try {
+          let pointsAction: PointsAction
+          if (taskType === 'generate_storyboard' || taskType === 'generate_storyboard_frame') {
+            pointsAction = PointsAction.GENERATE_STORYBOARD
+          } else {
+            pointsAction = PointsAction.GENERATE_CHARACTER
+          }
+
+          const itemTypeLabel = taskType === 'generate_storyboard' ? '分镜图'
+            : taskType === 'generate_storyboard_frame' ? '首尾帧图'
+            : '主角'
+
+          console.log(`[Webhook] 开始扣除积分: userId=${userId}, amount=${pointsAmount}, action=${pointsAction}`)
+          await deductPoints(userId, pointsAmount, undefined, pointsAction)
+          console.log(`[Webhook] 用户 ${userId} 成功生成${itemTypeLabel}，扣除 ${pointsAmount} 积分`)
+        } catch (pointsError) {
+          console.error('[Webhook] 扣除积分失败:', pointsError)
+          await releaseTaskPointsClaim(taskId).catch((err) => {
+            console.error('[Webhook] 释放积分认领失败:', err)
+          })
         }
-
-        const itemTypeLabel = taskType === 'generate_storyboard' ? '分镜图' 
-          : taskType === 'generate_storyboard_frame' ? '首尾帧图' 
-          : '主角'
-
-        console.log(`[Webhook] 开始扣除积分: userId=${userId}, amount=${pointsAmount}, action=${pointsAction}`)
-        await deductPoints(userId, pointsAmount, undefined, pointsAction)
-        console.log(`[Webhook] 用户 ${userId} 成功生成${itemTypeLabel}，扣除 ${pointsAmount} 积分`)
-      } catch (pointsError) {
-        console.error('[Webhook] 扣除积分失败:', pointsError)
+      } else {
+        console.log(`[Webhook] 积分已被并发回调认领，跳过: taskId=${taskId}`)
       }
     } else {
       console.log(`[Webhook] 积分已扣除过，跳过: taskId=${taskId}`)
     }
 
-    // 7.3 更新 aiGenerationTasks 状态（标记已扣除积分）
+    // 7.3 更新 aiGenerationTasks 状态（幂等）
     if (!pointsDeducted) {
       try {
-        await db.update(aiGenerationTasks)
-          .set({
-            pointsDeducted: true,
-            status: 'success',
-            updatedAt: new Date(),
-          })
-          .where(eq(aiGenerationTasks.taskId, taskId))
+        await markTaskSuccess(taskId)
       } catch (updateError) {
         console.error('[Webhook] 更新任务状态失败:', updateError)
       }

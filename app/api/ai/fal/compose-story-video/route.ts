@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
 import type { KieRequestBody } from '@/lib/ai-types'
+import { withFalWebhookToken } from '@/lib/webhook-security'
 
 // 配置 FAL API Key（支持两个环境变量）
 const falApiKey = process.env.FAL_KEY || process.env.FAL_API_KEY!
@@ -280,7 +281,7 @@ export async function POST(request: NextRequest) {
     try {
       const { request_id } = await fal.queue.submit('fal-ai/ffmpeg-api/compose', {
         input,
-        webhookUrl: FAL_COMPOSE_WEBHOOK_URL,
+        webhookUrl: withFalWebhookToken(FAL_COMPOSE_WEBHOOK_URL),
       })
 
       console.log('[compose-story-video] 任务已提交:', { request_id, projectId })

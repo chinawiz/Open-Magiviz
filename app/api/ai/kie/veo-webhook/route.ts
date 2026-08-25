@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import crypto from "crypto"
-import { v4 as uuidv4 } from 'uuid'
 
 // 导入 Pusher 工具
 import { pusherServer, notifyVideoSuccess, notifyTaskFail } from '@/lib/pusher'
@@ -8,40 +6,19 @@ import { db } from '@/lib/db'
 import { aiGenerationTasks, projectData, videoProjects } from '@/lib/schema'
 import { deductPoints, PointsAction } from '@/lib/points'
 import { resolveTargetVersion, getActiveVersionIdForFail } from '@/lib/versionMapper'
+import { claimTaskPointsDeduction, releaseTaskPointsClaim, markTaskSuccess } from '@/lib/task-points'
+import { verifyKieWebhook } from '@/lib/webhook-security'
 import { eq, desc, sql } from 'drizzle-orm'
 import { triggerSceneVideoMigration } from '@/trigger/migrate-assets'
 import type { KieApiResponse } from '@/lib/ai-types'
 import { safeJsonCopy } from '@/lib/ai-types'
 import type { SceneVideoItem } from '@/lib/types'
 
+// Webhook/轻量快速路径：显式声明函数时长上限（U-04，生产纪律 10s 红线）
+export const maxDuration = 10
+
 // Webhook HMAC Key - 从环境变量获取
 const WEBHOOK_HMAC_KEY = process.env.KIE_VEO_WEBHOOK_HMAC_KEY!
-
-/**
- * 生成 webhook 签名
- */
-function generateSignature(taskId: string, timestampSeconds: string, secret: string): string {
-  const dataToSign = `${taskId}.${timestampSeconds}`
-  const hmac = crypto.createHmac('sha256', secret)
-  hmac.update(dataToSign)
-  return hmac.digest('base64')
-}
-
-/**
- * 安全的签名比较（防止时序攻击）
- */
-function verifySignature(taskId: string, timestampSeconds: string, receivedSignature: string, secret: string): boolean {
-  const expectedSignature = generateSignature(taskId, timestampSeconds, secret)
-  
-  if (expectedSignature.length !== receivedSignature.length) {
-    return false
-  }
-  
-  return crypto.timingSafeEqual(
-    Buffer.from(expectedSignature),
-    Buffer.from(receivedSignature)
-  )
-}
 
 /**
  * 从请求体获取原始 JSON（不解析）
@@ -106,19 +83,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing taskId' }, { status: 400 })
     }
 
-    // 4. 验证签名（如果配置了 HMAC Key）
-    if (WEBHOOK_HMAC_KEY && timestamp && receivedSignature) {
-      const isValid = verifySignature(taskId, timestamp, receivedSignature, WEBHOOK_HMAC_KEY)
-      
-      if (!isValid) {
-        console.error('[VEO Webhook] 签名验证失败:', { taskId })
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-      }
-      
-      console.log('[VEO Webhook] 签名验证通过:', { taskId })
-    } else if (WEBHOOK_HMAC_KEY && (!timestamp || !receivedSignature)) {
-      console.error('[VEO Webhook] 验证失败: 缺少签名头')
-      return NextResponse.json({ error: 'Missing signature headers' }, { status: 401 })
+    // 4. 验证签名（生产环境 fail-closed，统一策略见 lib/webhook-security.ts）
+    const signatureRejection = verifyKieWebhook({
+      taskId,
+      timestamp,
+      signature: receivedSignature,
+      secret: WEBHOOK_HMAC_KEY,
+      label: 'VEO Webhook',
+    })
+    if (signatureRejection) {
+      return NextResponse.json({ error: signatureRejection.error }, { status: signatureRejection.status })
     }
 
     // 5. 根据官方文档的 code 判断状态
@@ -234,13 +208,19 @@ async function handleSuccessCallback(taskId: string, data: KieApiResponse, start
       taskVersionId = task.versionId || undefined
       taskVersionGroupId = task.versionGroupId || undefined
 
-      // 扣除积分（仅首次）
+      // 扣除积分（原子认领：并发重复回调只有一个赢家，杜绝双扣）
       if (!task.pointsDeducted) {
-        await deductPoints(task.userId, task.pointsAmount, undefined, PointsAction.GENERATE_STORY_VIDEO)
-        await db.update(aiGenerationTasks)
-          .set({ pointsDeducted: true, status: 'success', updatedAt: new Date() })
-          .where(eq(aiGenerationTasks.taskId, taskId))
-        console.log(`[VEO Webhook] 用户 ${task.userId} 成功生成视频，扣除 ${task.pointsAmount} 积分`)
+        const claimed = await claimTaskPointsDeduction(taskId)
+        if (claimed) {
+          try {
+            await deductPoints(task.userId, task.pointsAmount, undefined, PointsAction.GENERATE_STORY_VIDEO)
+            await markTaskSuccess(taskId)
+            console.log(`[VEO Webhook] 用户 ${task.userId} 成功生成视频，扣除 ${task.pointsAmount} 积分`)
+          } catch (pointsError) {
+            console.error('[VEO Webhook] 扣除积分失败:', pointsError)
+            await releaseTaskPointsClaim(taskId).catch(() => {})
+          }
+        }
       }
     }
   } catch (pointsError) {

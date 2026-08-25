@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { v4 as uuidv4 } from 'uuid'
 
 import { db } from '@/lib/db'
 import { aiGenerationTasks, projectData, videoProjects } from '@/lib/schema'
@@ -8,7 +7,12 @@ import { eq, desc, sql } from 'drizzle-orm'
 import { triggerFinalVideoMigration } from '@/trigger/migrate-assets'
 import { pusherServer, notifyComposeSuccess, notifyTaskFail } from '@/lib/pusher'
 import { resolveTargetVersion, clearVersionGroup } from '@/lib/versionMapper'
+import { claimTaskPointsDeduction, releaseTaskPointsClaim, markTaskSuccess } from '@/lib/task-points'
+import { verifyFalWebhookToken } from '@/lib/webhook-security'
 import type { SceneVideoItem } from '@/lib/types'
+
+// Webhook/轻量快速路径：显式声明函数时长上限（U-04，生产纪律 10s 红线）
+export const maxDuration = 10
 
 /**
  * 获取文件大小（字节）
@@ -46,6 +50,12 @@ async function getFileSize(url: string): Promise<number | null> {
  */
 export async function POST(request: NextRequest) {
   try {
+    // 回调 token 校验（生产环境 fail-closed；此前该端点完全无验证，可伪造回调注入任意视频 URL）
+    const tokenRejection = verifyFalWebhookToken(request)
+    if (tokenRejection) {
+      return NextResponse.json({ error: tokenRejection.error }, { status: tokenRejection.status })
+    }
+
     const body = await request.json()
     console.log('[FAL Compose Webhook] 收到回调:', JSON.stringify(body).substring(0, 300))
 
@@ -195,14 +205,16 @@ export async function POST(request: NextRequest) {
     // 注意：generate_final_video 任务的 pointsAmount 存储的是 totalDuration，不是积分
     // 所以扣除积分时使用 0
     if (!task.pointsDeducted) {
-      try {
-        await deductPoints(userId, 0, undefined, PointsAction.GENERATE_FINAL_VIDEO)
-        await db.update(aiGenerationTasks)
-          .set({ pointsDeducted: true, status: 'success', updatedAt: new Date() })
-          .where(eq(aiGenerationTasks.taskId, request_id))
-        console.log(`[FAL Compose Webhook] 用户 ${userId} 成功合成最终视频（总时长: ${task.pointsAmount || 0} 秒）`)
-      } catch (pointsError) {
-        console.error('[FAL Compose Webhook] 扣除积分失败:', pointsError)
+      const claimed = await claimTaskPointsDeduction(request_id)
+      if (claimed) {
+        try {
+          await deductPoints(userId, 0, undefined, PointsAction.GENERATE_FINAL_VIDEO)
+          await markTaskSuccess(request_id)
+          console.log(`[FAL Compose Webhook] 用户 ${userId} 成功合成最终视频（总时长: ${task.pointsAmount || 0} 秒）`)
+        } catch (pointsError) {
+          console.error('[FAL Compose Webhook] 扣除积分失败:', pointsError)
+          await releaseTaskPointsClaim(request_id).catch(() => {})
+        }
       }
     }
 

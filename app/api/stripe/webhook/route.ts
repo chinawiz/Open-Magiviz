@@ -13,6 +13,9 @@ import { SUBSCRIPTION_PRODUCTS } from '@/lib/stripe'
 import { processAffiliateCommission, handleAffiliateRefund } from '@/lib/affiliate'
 import { sendPointsPurchaseEmail, sendSubscriptionSuccessEmail } from '@/lib/email'
 
+// Webhook/轻量快速路径：显式声明函数时长上限（U-04，生产纪律 10s 红线）
+export const maxDuration = 10
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-01-28.clover',
 })
