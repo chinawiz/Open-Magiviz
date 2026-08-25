@@ -64,6 +64,7 @@
     "drizzle-kit": "^0.31.8",
     "drizzle-orm": "^0.44.2",
     "embla-carousel-react": "8.5.1",
+    "ffmpeg-static": "^5.3.0",
     "input-otp": "1.4.1",
     "isomorphic-ws": "^5.0.0",
     "jsonwebtoken": "^9.0.2",
@@ -99,6 +100,7 @@
   },
   "devDependencies": {
     "@trigger.dev/build": "4.4.2",
+    "@types/ffmpeg-static": "^3.0.3",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",

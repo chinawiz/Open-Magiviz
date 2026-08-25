@@ -6,6 +6,7 @@ import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
 import type { KieRequestBody } from '@/lib/ai-types'
 import { withFalWebhookToken } from '@/lib/webhook-security'
+import { composeFinalVideo } from '@/trigger/compose-final-video'
 
 // 配置 FAL API Key（支持两个环境变量）
 const falApiKey = process.env.FAL_KEY || process.env.FAL_API_KEY!
@@ -236,7 +237,7 @@ export async function POST(request: NextRequest) {
     const session = await getAuthedSession()
     if (!session) {
       return jsonError(401, 'Unauthorized')
-5886}
+    }
 
     const body = await request.json()
     const { tracks, outputFormat, projectId, versionId } = body
@@ -274,6 +275,58 @@ export async function POST(request: NextRequest) {
 
     // 计算总时长（秒）
     const totalDuration = calculateTotalDuration(tracks)
+
+    // 合成供应商选择：默认自托管（Trigger.dev + ffmpeg，直传 R2）；
+    // COMPOSE_PROVIDER=fal 回退旧云端路径（含独立音频轨时也自动回退 FAL）
+    const useLocalCompose = process.env.COMPOSE_PROVIDER !== 'fal'
+    const hasAudioTrack = ffTracks.some(t => t.type === 'audio')
+
+    if (useLocalCompose && !hasAudioTrack) {
+      // 自托管合成：按时间戳顺序提取视频轨 URL
+      const videoTrack = ffTracks.find(t => t.type === 'video')
+      const videoUrls = (videoTrack?.keyframes || []).map(kf => kf.url)
+      if (videoUrls.length === 0) {
+        return NextResponse.json({ error: 'No video keyframes' }, { status: 400 })
+      }
+
+      const taskId = `compose_${uuidv4().replace(/-/g, '').slice(0, 20)}`
+      try {
+        await db.insert(aiGenerationTasks).values({
+          id: uuidv4(),
+          taskId,
+          userId: session.user.id,
+          taskType: 'generate_final_video',
+          pointsAmount: totalDuration, // 临时存储总时长（秒），合成 0 积分
+          pointsDeducted: false,
+          status: 'pending',
+          projectId: projectId || null,
+          versionId: versionId || null,
+          itemId: null,
+          versionGroupId: body.versionGroupId || null,
+          newVersionId: null,
+        })
+      } catch (dbError) {
+        console.error('[compose-story-video] 存储任务映射失败:', dbError)
+      }
+
+      await composeFinalVideo.trigger({
+        taskId,
+        userId: session.user.id,
+        projectId: projectId || null,
+        versionId: versionId || null,
+        versionGroupId: body.versionGroupId || null,
+        videoUrls,
+        totalDurationSec: totalDuration,
+        outputFormat: format,
+      })
+
+      console.log('[compose-story-video] 自托管合成任务已触发:', { taskId, projectId, clips: videoUrls.length })
+      return NextResponse.json({ success: true, requestId: taskId })
+    }
+
+    if (hasAudioTrack) {
+      console.warn('[compose-story-video] 含独立音频轨，回退 FAL 合成路径（本地合成暂不支持混音）')
+    }
 
     console.log('[compose-story-video] 调用 FAL FFmpeg API (webhook 模式):', { projectId, totalDuration })
 
