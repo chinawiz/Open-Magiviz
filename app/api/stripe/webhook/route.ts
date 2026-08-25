@@ -6,7 +6,7 @@ import { getSubscriptionGiftedPoints } from '@/lib/points'
 import { users, pointsHistory, stripePayments, referrals, referralHistory } from '@/lib/schema'
 import { eq, sql, and, gte } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { createPaymentRecord, PaymentStatus, PaymentType } from '@/lib/payments'
+import { claimPaymentRecord, completePaymentRecord, PaymentStatus, PaymentType } from '@/lib/payments'
 import type { NewUser } from '@/lib/types'
 import { handleReferredUserSubscription } from '@/lib/referral'
 import { SUBSCRIPTION_PRODUCTS } from '@/lib/stripe'
@@ -52,56 +52,57 @@ export async function POST(request: NextRequest) {
       const type = paymentIntent.metadata.type
 
       if (type === 'points_purchase' && userId && points) {
+        // claim-first：以 paymentIntentId 唯一索引为锁，并发重复投递/已处理直接跳过
+        const claim = await claimPaymentRecord({
+          userId,
+          stripeCustomerId: paymentIntent.customer as string,
+          paymentIntentId: paymentIntent.id,
+          paymentType: PaymentType.POINTS_PURCHASE,
+        }).catch((claimError) => {
+          logWebhookError('Payment claim failed:', claimError)
+          return null
+        })
+        if (!claim) {
+          return NextResponse.json({ received: true })
+        }
+
         try {
-          // 幂等性检查：是否已记录该 payment_intent
-          const exists = await db
-            .select()
-            .from(stripePayments)
-            .where(and(
-              eq(stripePayments.paymentIntentId, paymentIntent.id)
-            ))
-            .limit(1)
+          // 发放 + 流水 + 记录补全放同一事务：要么全部可见，要么全部回滚
+          await db.transaction(async (tx) => {
+            await tx
+              .update(users)
+              .set({
+                points: sql`${users.points} + ${points}`,
+                purchasedPoints: sql`${users.purchasedPoints} + ${points}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(users.id, userId))
 
-          if (exists.length > 0) {
-            return NextResponse.json({ received: true })
-          }
-
-          // 更新用户购买积分（永不过期）
-          await db
-            .update(users)
-            .set({
-              points: sql`${users.points} + ${points}`,
-              purchasedPoints: sql`${users.purchasedPoints} + ${points}`,
-              updatedAt: new Date(),
+            await tx.insert(pointsHistory).values({
+              id: uuidv4(),
+              userId,
+              points,
+              pointsType: 'purchased',
+              action: 'purchase',
+              description: `购买积分 - 支付 $${(paymentIntent.amount / 100).toFixed(2)}`,
+              createdAt: new Date(),
             })
-            .where(eq(users.id, userId))
 
-          // 记录积分历史
-          await db.insert(pointsHistory).values({
-            id: uuidv4(),
-            userId,
-            points,
-            pointsType: 'purchased',
-            action: 'purchase',
-            description: `购买积分 - 支付 $${(paymentIntent.amount / 100).toFixed(2)}`,
-            createdAt: new Date(),
-          })
-
-          // 创建支付记录
-          await createPaymentRecord({
-            userId,
-            stripeCustomerId: paymentIntent.customer as string,
-            paymentIntentId: paymentIntent.id,
-            paymentStatus: PaymentStatus.SUCCEEDED,
-            paymentType: PaymentType.POINTS_PURCHASE,
-            amount: paymentIntent.amount,
-            currency: paymentIntent.currency,
-            pointsAmount: points,
-            pointsType: 'purchased',
-            productName: `${points.toLocaleString()} 积分`,
-            productDescription: `购买 ${points.toLocaleString()} 积分`,
-            metadata: paymentIntent.metadata,
-            webhookEventId: event.id,
+            await tx
+              .update(stripePayments)
+              .set({
+                paymentStatus: PaymentStatus.SUCCEEDED,
+                amount: paymentIntent.amount,
+                currency: paymentIntent.currency,
+                pointsAmount: points,
+                pointsType: 'purchased',
+                productName: `${points.toLocaleString()} 积分`,
+                productDescription: `购买 ${points.toLocaleString()} 积分`,
+                metadata: JSON.stringify(paymentIntent.metadata),
+                webhookEventId: event.id,
+                updatedAt: new Date(),
+              })
+              .where(eq(stripePayments.id, claim.id))
           })
 
           // 发送积分充值成功邮件
@@ -125,7 +126,9 @@ export async function POST(request: NextRequest) {
 
         } catch (error) {
           logWebhookError('Points purchase failed:', error)
-          // 这里可以添加重试逻辑或者错误通知
+          await completePaymentRecord(claim.id, { paymentStatus: PaymentStatus.FAILED }).catch((e) => {
+            logWebhookError('Mark claim failed error:', e)
+          })
         }
       }
     }
@@ -138,16 +141,10 @@ export async function POST(request: NextRequest) {
         const customerId = session.customer as string
         const subscriptionId = session.subscription as string
 
-        // 检查是否已经处理过这个checkout session（防重复处理）
-        const existingRecord = await db
-          .select()
-          .from(stripePayments)
-          .where(eq(stripePayments.checkoutSessionId, session.id))
-          .limit(1)
-        const hasPaymentRecord = existingRecord.length > 0
-
-        // 在 try/catch 外记录用户ID，便于出错时写入失败上下文（可选）
+        // claim-first：以 checkoutSessionId 唯一索引为锁（见用户解析后的 claimPaymentRecord）。
+        // 在 try/catch 外记录上下文，便于出错时把认领记录标记为 failed
         let processedUserId: string | null = null
+        let claimId: string | null = null
 
         try {
           // 获取客户邮箱 - 如果session中没有邮箱，从Stripe获取
@@ -181,6 +178,20 @@ export async function POST(request: NextRequest) {
           }
 
           processedUserId = user[0].id
+
+          // claim-first：并发重复投递/已处理（唯一索引冲突）直接返回；
+          // 认领成功即首次处理，后续的 hasPaymentRecord 分支恒为首次路径
+          const claim = await claimPaymentRecord({
+            userId: user[0].id,
+            stripeCustomerId: customerId,
+            checkoutSessionId: session.id,
+            paymentType: PaymentType.SUBSCRIPTION,
+          })
+          if (!claim) {
+            return NextResponse.json({ received: true })
+          }
+          claimId = claim.id
+          const hasPaymentRecord = false
 
           // 主动使用Stripe SDK获取最新的完整订阅信息
           const latestSubscription = await stripe.subscriptions.retrieve(subscriptionId)
@@ -405,21 +416,17 @@ export async function POST(request: NextRequest) {
 
             await db.insert(pointsHistory).values(pointsHistoryPayload)
 
-            // 创建订阅支付记录（仅当尚未创建过时）
-            const subscriptionPaymentRecordPayload = {
-              userId: user[0].id,
-              stripeCustomerId: customerId,
-              checkoutSessionId: session.id,
-              subscriptionId: latestSubscription.id,
+            // 补全认领的支付记录为成功终态（claim-first）
+            await completePaymentRecord(claim.id, {
               paymentStatus: PaymentStatus.SUCCEEDED,
-              paymentType: PaymentType.SUBSCRIPTION,
               amount: session.amount_total || 0,
               currency: session.currency || 'usd',
+              subscriptionId: latestSubscription.id,
               subscriptionPlan: subscriptionPlan,
               subscriptionPeriodStart: new Date(latestSubscription.created * 1000),
               subscriptionPeriodEnd: finalEndDate,
               pointsAmount: giftedPoints,
-              pointsType: 'gifted' as const,
+              pointsType: 'gifted',
               productName: `${planDisplayName}订阅`,
               productDescription: isRenewal
                 ? `续订${planDisplayName}订阅，赠送${giftedPoints}积分`
@@ -429,9 +436,7 @@ export async function POST(request: NextRequest) {
               priceId: latestSubscription.items.data[0]?.price?.id,
               metadata: session.metadata,
               webhookEventId: event.id,
-            }
-
-            await createPaymentRecord(subscriptionPaymentRecordPayload)
+            })
 
             // 发送订阅购买成功邮件
             try {
@@ -474,23 +479,12 @@ export async function POST(request: NextRequest) {
         } catch (error) {
           logWebhookError('Subscription processing failed:', error)
 
-          // 失败时不强制写入有外键约束的失败记录，避免再次报错；交由 Stripe 重试
-          if (processedUserId) {
+          // 已认领的记录标记为 failed（审计可见）；未走到认领则无记录
+          if (claimId) {
             try {
-              const { nanoid: generateId } = await import('nanoid')
-              await db.insert(stripePayments).values({
-                id: generateId(),
-                userId: processedUserId,
-                stripeCustomerId: customerId || 'UNKNOWN',
-                checkoutSessionId: session.id,
-                paymentType: 'subscription',
-                paymentStatus: 'failed',
-                amount: 0,
-                currency: 'usd',
-                createdAt: new Date(),
-              })
-            } catch (insertError) {
-              logWebhookError('Failed to record failed session:', insertError)
+              await completePaymentRecord(claimId, { paymentStatus: PaymentStatus.FAILED })
+            } catch (updateError) {
+              logWebhookError('Failed to mark claim as failed:', updateError)
             }
           }
         }
@@ -499,17 +493,7 @@ export async function POST(request: NextRequest) {
         const customerId = session.customer as string
         const planType = session.metadata.planType
 
-        // 检查是否已经处理过这个checkout session（防重复处理）
-        const existingRecord = await db
-          .select()
-          .from(stripePayments)
-          .where(eq(stripePayments.checkoutSessionId, session.id))
-          .limit(1)
-        const hasPaymentRecord = existingRecord.length > 0
-
-        if (hasPaymentRecord) {
-          return NextResponse.json({ received: true })
-        }
+        let trialClaimId: string | null = null
 
         try {
           // 获取客户邮箱
@@ -560,6 +544,18 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ received: true, warning: 'User already has active Pro/Annual subscription' })
           }
 
+          // claim-first：守卫通过后再认领（避免业务性重复也占锁）
+          const trialClaim = await claimPaymentRecord({
+            userId: currentUser.id,
+            stripeCustomerId: customerId,
+            checkoutSessionId: session.id,
+            paymentType: PaymentType.SUBSCRIPTION,
+          })
+          if (!trialClaim) {
+            return NextResponse.json({ received: true })
+          }
+          trialClaimId = trialClaim.id
+
           // 计算试用订阅到期时间（7天）
           const periodDays = 7
           const periodDaysInMs = periodDays * 24 * 60 * 60 * 1000
@@ -600,13 +596,9 @@ export async function POST(request: NextRequest) {
             createdAt: new Date(),
           })
 
-          // 创建支付记录
-          await createPaymentRecord({
-            userId: currentUser.id,
-            stripeCustomerId: customerId,
-            checkoutSessionId: session.id,
+          // 补全认领的支付记录为成功终态（claim-first）
+          await completePaymentRecord(trialClaim.id, {
             paymentStatus: PaymentStatus.SUCCEEDED,
-            paymentType: PaymentType.SUBSCRIPTION,
             amount: session.amount_total || 0,
             currency: session.currency || 'usd',
             subscriptionPlan: 'trial',
@@ -669,6 +661,11 @@ export async function POST(request: NextRequest) {
 
         } catch (error) {
           logWebhookError('Trial subscription payment processing failed:', error)
+          if (trialClaimId) {
+            await completePaymentRecord(trialClaimId, { paymentStatus: PaymentStatus.FAILED }).catch((e) => {
+              logWebhookError('Failed to mark claim as failed:', e)
+            })
+          }
           return NextResponse.json(
             { received: true, error: 'Trial subscription processing failed' },
             { status: 500 }
@@ -680,57 +677,58 @@ export async function POST(request: NextRequest) {
         const points = parseInt(session.metadata.points)
         
         if (userId && points) {
+          // claim-first：以 checkoutSessionId 唯一索引为锁
+          const claim = await claimPaymentRecord({
+            userId,
+            stripeCustomerId: session.customer as string,
+            checkoutSessionId: session.id,
+            paymentType: PaymentType.POINTS_PURCHASE,
+          }).catch((claimError) => {
+            logWebhookError('Payment claim failed:', claimError)
+            return null
+          })
+          if (!claim) {
+            return NextResponse.json({ received: true })
+          }
+
           try {
-            // 幂等性检查：是否已记录该 checkout_session
-            const exists = await db
-              .select()
-              .from(stripePayments)
-              .where(and(
-                eq(stripePayments.checkoutSessionId, session.id)
-              ))
-              .limit(1)
+            // 发放 + 流水 + 记录补全同一事务
+            await db.transaction(async (tx) => {
+              await tx
+                .update(users)
+                .set({
+                  points: sql`${users.points} + ${points}`,
+                  purchasedPoints: sql`${users.purchasedPoints} + ${points}`,
+                  updatedAt: new Date(),
+                })
+                .where(eq(users.id, userId))
 
-            if (exists.length > 0) {
-              return NextResponse.json({ received: true })
-            }
-
-            // 更新用户购买积分（永不过期）
-            await db
-              .update(users)
-              .set({
-                points: sql`${users.points} + ${points}`,
-                purchasedPoints: sql`${users.purchasedPoints} + ${points}`,
-                updatedAt: new Date(),
+              await tx.insert(pointsHistory).values({
+                id: uuidv4(),
+                userId,
+                points,
+                pointsType: 'purchased',
+                action: 'purchase',
+                description: `购买积分 - 支付 $${(session.amount_total! / 100).toFixed(2)}`,
+                createdAt: new Date(),
               })
-              .where(eq(users.id, userId))
 
-            // 记录积分历史
-            await db.insert(pointsHistory).values({
-              id: uuidv4(),
-              userId,
-              points,
-              pointsType: 'purchased',
-              action: 'purchase',
-              description: `购买积分 - 支付 $${(session.amount_total! / 100).toFixed(2)}`,
-              createdAt: new Date(),
-            })
-
-            // 创建支付记录
-            await createPaymentRecord({
-              userId,
-              stripeCustomerId: session.customer as string,
-              checkoutSessionId: session.id,
-              paymentStatus: PaymentStatus.SUCCEEDED,
-              paymentType: PaymentType.POINTS_PURCHASE,
-              amount: session.amount_total || 0,
-              currency: session.currency || 'usd',
-              pointsAmount: points,
-              pointsType: 'purchased',
-              productName: `${points.toLocaleString()} 积分`,
-              productDescription: `购买 ${points.toLocaleString()} 积分`,
-              priceId: session.metadata?.priceId,
-              metadata: session.metadata,
-              webhookEventId: event.id,
+              await tx
+                .update(stripePayments)
+                .set({
+                  paymentStatus: PaymentStatus.SUCCEEDED,
+                  amount: session.amount_total || 0,
+                  currency: session.currency || 'usd',
+                  pointsAmount: points,
+                  pointsType: 'purchased',
+                  productName: `${points.toLocaleString()} 积分`,
+                  productDescription: `购买 ${points.toLocaleString()} 积分`,
+                  priceId: session.metadata?.priceId,
+                  metadata: session.metadata ? JSON.stringify(session.metadata) : undefined,
+                  webhookEventId: event.id,
+                  updatedAt: new Date(),
+                })
+                .where(eq(stripePayments.id, claim.id))
             })
 
             // 发送积分充值成功邮件
@@ -756,6 +754,9 @@ export async function POST(request: NextRequest) {
 
           } catch (error) {
             logWebhookError('Points purchase failed:', error)
+            await completePaymentRecord(claim.id, { paymentStatus: PaymentStatus.FAILED }).catch((e) => {
+              logWebhookError('Mark claim failed error:', e)
+            })
           }
         }
       }

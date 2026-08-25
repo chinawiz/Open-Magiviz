@@ -107,6 +107,87 @@ export async function createPaymentRecord(data: {
   }
 }
 
+/**
+ * 原子认领支付记录（claim-first，F10 计费幂等）。
+ * 以 paymentIntentId / checkoutSessionId 唯一索引为锁插入一条 pending 记录：
+ * 并发重复投递时冲突方返回 null（调用方直接跳过发放）；
+ * 记录已处于终态（succeeded/failed）同样返回 null。
+ * 残余风险（已记录于文档）：处理中崩溃会留下 pending 行，可审计人工补偿。
+ */
+export async function claimPaymentRecord(data: {
+  userId: string
+  stripeCustomerId: string
+  paymentIntentId?: string
+  checkoutSessionId?: string
+  paymentType: PaymentType
+}): Promise<{ id: string } | null> {
+  const inserted = await db
+    .insert(stripePayments)
+    .values({
+      id: uuidv4(),
+      userId: data.userId,
+      stripeCustomerId: data.stripeCustomerId,
+      paymentIntentId: data.paymentIntentId,
+      checkoutSessionId: data.checkoutSessionId,
+      paymentStatus: PaymentStatus.PENDING,
+      paymentType: data.paymentType,
+      amount: 0,
+      currency: 'usd',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .onConflictDoNothing()
+    .returning({ id: stripePayments.id })
+
+  return inserted.length > 0 ? { id: inserted[0].id } : null
+}
+
+/** 认领后补全支付记录（终态与明细），仅更新提供的字段 */
+export async function completePaymentRecord(
+  paymentId: string,
+  data: {
+    paymentStatus: PaymentStatus
+    amount?: number
+    currency?: string
+    subscriptionId?: string
+    invoiceId?: string
+    productName?: string
+    productDescription?: string
+    priceId?: string
+    pointsAmount?: number
+    pointsType?: string
+    subscriptionPlan?: string
+    subscriptionPeriodStart?: Date
+    subscriptionPeriodEnd?: Date
+    metadata?: unknown
+    webhookEventId?: string
+  }
+) {
+  const updated = await db
+    .update(stripePayments)
+    .set({
+      paymentStatus: data.paymentStatus,
+      amount: data.amount,
+      currency: data.currency,
+      subscriptionId: data.subscriptionId,
+      invoiceId: data.invoiceId,
+      productName: data.productName,
+      productDescription: data.productDescription,
+      priceId: data.priceId,
+      pointsAmount: data.pointsAmount,
+      pointsType: data.pointsType,
+      subscriptionPlan: data.subscriptionPlan,
+      subscriptionPeriodStart: data.subscriptionPeriodStart,
+      subscriptionPeriodEnd: data.subscriptionPeriodEnd,
+      metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
+      webhookEventId: data.webhookEventId,
+      updatedAt: new Date(),
+    })
+    .where(eq(stripePayments.id, paymentId))
+    .returning({ id: stripePayments.id })
+  return updated[0] ?? null
+}
+
 // 更新支付记录
 export async function updatePaymentRecord(
   paymentId: string,
