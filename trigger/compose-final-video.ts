@@ -1,12 +1,15 @@
 import { task } from "@trigger.dev/sdk"
 import { spawnSync } from "node:child_process"
 import { mkdtemp, rm, writeFile, stat } from "node:fs/promises"
+import { createWriteStream, createReadStream } from "node:fs"
+import { pipeline } from "node:stream/promises"
+import { Readable } from "node:stream"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 import { db } from "@/lib/db"
 import { aiGenerationTasks, projectData, videoProjects } from "@/lib/schema"
 import { eq } from "drizzle-orm"
-import { uploadToR2, downloadFile } from "@/trigger/migrate-assets"
 import { notifyComposeSuccess, notifyTaskFail } from "@/lib/pusher"
 import { resolveTargetVersion, clearVersionGroup } from "@/lib/versionMapper"
 import { markTaskSuccess } from "@/lib/task-points"
@@ -42,6 +45,36 @@ async function runFfmpeg(args: string[], workspace: string): Promise<void> {
   }
 }
 
+/** 流式下载到文件（避免整载内存——OOM 修复） */
+async function downloadToFile(url: string, dest: string): Promise<void> {
+  const res = await fetch(url)
+  if (!res.ok || !res.body) throw new Error(`下载失败 ${res.status}: ${url.slice(0, 80)}`)
+  await pipeline(Readable.fromWeb(res.body as any), createWriteStream(dest))
+}
+
+const S3 = new S3Client({
+  region: process.env.R2_REGION || "auto",
+  endpoint: process.env.R2_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY || "",
+    secretAccessKey: process.env.R2_SECRET || "",
+  },
+})
+
+/** 流式上传文件到 R2（避免整载内存） */
+async function uploadFileToR2(filePath: string, key: string, contentType: string): Promise<string> {
+  const size = (await stat(filePath)).size
+  await S3.send(new PutObjectCommand({
+    Bucket: process.env.R2_BUCKET,
+    Key: key,
+    Body: createReadStream(filePath),
+    ContentType: contentType,
+    ContentLength: size,
+  }))
+  const publicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "") || ""
+  return publicBase ? `${publicBase}/${key}` : key
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return "0 B"
   const k = 1024
@@ -52,6 +85,7 @@ function formatFileSize(bytes: number): string {
 
 export const composeFinalVideo = task({
   id: "compose-final-video",
+  machine: { preset: "medium-1x" },
   run: async (payload: {
     taskId: string
     userId: string
@@ -72,12 +106,11 @@ export const composeFinalVideo = task({
     try {
       console.log(`[compose-final-video] 开始合成`, { taskId, projectId, clips: videoUrls.length, format })
 
-      // 1. 下载场景视频
+      // 1. 流式下载场景视频（OOM 修复）
       const localFiles: string[] = []
       for (let i = 0; i < videoUrls.length; i++) {
-        const buf = await downloadFile(videoUrls[i])
         const file = path.join(workspace, `scene-${i + 1}.mp4`)
-        await writeFile(file, buf)
+        await downloadToFile(videoUrls[i], file)
         localFiles.push(file)
       }
 
@@ -89,7 +122,7 @@ export const composeFinalVideo = task({
         "-y",
         "-f", "concat", "-safe", "0", "-i", concatFile,
         "-vf", `scale=${format.width}:${format.height}:force_original_aspect_ratio=decrease,pad=${format.width}:${format.height}:(ow-iw)/2:(oh-ih)/2,fps=${format.fps}`,
-        "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "2",
         "-c:a", "aac", "-b:a", "128k",
         "-movflags", "+faststart",
         finalFile,
@@ -99,14 +132,12 @@ export const composeFinalVideo = task({
       const thumbFile = path.join(workspace, "thumb.png")
       await runFfmpeg(["-y", "-ss", "0", "-i", finalFile, "-frames:v", "1", thumbFile], workspace)
 
-      // 4. 直传 R2（永久 URL，省去 FAL 路径的二次搬运）
-      const { readFile } = await import("node:fs/promises")
+      // 4. 流式直传 R2（永久 URL，省去 FAL 路径的二次搬运；缩略图很小可直接读）
       const videoKey = `projects/${projectId || "unknown"}/final-video/${taskId}.mp4`
       const thumbKey = `projects/${projectId || "unknown"}/final-thumbnail/${taskId}.png`
-      const [finalUrl, thumbUrl] = await Promise.all([
-        uploadToR2(await readFile(finalFile), videoKey, "video/mp4"),
-        uploadToR2(await readFile(thumbFile), thumbKey, "image/png"),
-      ])
+      const { readFile } = await import("node:fs/promises")
+      const thumbUrl = (await uploadFileToR2(thumbFile, thumbKey, "image/png"))
+      const finalUrl = await uploadFileToR2(finalFile, videoKey, "video/mp4")
       const fileSizeStr = formatFileSize((await stat(finalFile)).size)
 
       // 5. 确定目标版本（与 compose-webhook 相同的版本解析逻辑）
