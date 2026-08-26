@@ -34,3 +34,11 @@ next-env.d.ts
 # workbuddy 工具数据（会话记忆/审查报告等，非项目源码）
 .workbuddy/
 poc/output/
+
+# OpenNext
+.open-next
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
