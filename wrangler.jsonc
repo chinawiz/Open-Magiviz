@@ -19,6 +19,13 @@
 			"service": "magiviz"
 		}
 	],
+	"r2_buckets": [
+		{
+			// R2 增量缓存（ISR/SSG 页面缓存）
+			"binding": "NEXT_INC_CACHE_R2_BUCKET",
+			"bucket_name": "open-magiviz-cache"
+		}
+	],
 	"images": {
 		// Enable image optimization
 		// see https://opennext.js.org/cloudflare/howtos/image
