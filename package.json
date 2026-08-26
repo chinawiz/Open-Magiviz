@@ -52,7 +52,7 @@
     "@radix-ui/react-tooltip": "1.1.6",
     "@stripe/react-stripe-js": "^3.7.0",
     "@stripe/stripe-js": "^7.4.0",
-    "@trigger.dev/sdk": "4.4.2",
+    "@trigger.dev/sdk": "^4.5.12",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "autoprefixer": "^10.4.20",
@@ -100,7 +100,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@trigger.dev/build": "4.4.2",
+    "@trigger.dev/build": "^4.5.12",
     "@types/ffmpeg-static": "^3.0.3",
     "@types/node": "^22",
     "@types/react": "^19",

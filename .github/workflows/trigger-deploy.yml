@@ -14,7 +14,18 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+      - name: Write env file
+        run: |
+          cat > .env.trigger <<ENVFILE
+          DATABASE_URL=${{ secrets.TRIGGER_DATABASE_URL }}
+          KIE_API_KEY=${{ secrets.TRIGGER_KIE_API_KEY }}
+          R2_ACCESS_KEY=${{ secrets.TRIGGER_R2_ACCESS_KEY }}
+          R2_SECRET=${{ secrets.TRIGGER_R2_SECRET }}
+          R2_ENDPOINT=${{ secrets.TRIGGER_R2_ENDPOINT }}
+          R2_BUCKET=${{ secrets.TRIGGER_R2_BUCKET }}
+          R2_PUBLIC_URL=${{ secrets.TRIGGER_R2_PUBLIC_URL }}
+          ENVFILE
       - name: Deploy Trigger.dev tasks
-        run: npx trigger.dev@4.4.2 deploy
+        run: npx trigger.dev@4.5.12 deploy --env-file .env.trigger
         env:
           TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}

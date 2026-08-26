@@ -1,4 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk/v3";
+import { syncEnvVars } from "@trigger.dev/build/extensions/core";
 
 export default defineConfig({
   project: "proj_hycyyzkdnebddnffoaak",
@@ -19,4 +20,10 @@ export default defineConfig({
     },
   },
   dirs: ["./trigger"],
+  build: {
+    // 部署时把 --env-file 载入的环境变量同步到 Trigger 平台（CI 自包含）
+    extensions: [
+      syncEnvVars(({ env }) => env, { override: true }),
+    ],
+  },
 });
