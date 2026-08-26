@@ -1,5 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk/v3";
-import { syncEnvVars } from "@trigger.dev/build/extensions/core";
+import { syncEnvVars, ffmpeg } from "@trigger.dev/build/extensions/core";
 
 export default defineConfig({
   project: "proj_hycyyzkdnebddnffoaak",
@@ -24,6 +24,9 @@ export default defineConfig({
     // 部署时把 --env-file 载入的环境变量同步到 Trigger 平台（CI 自包含）
     extensions: [
       syncEnvVars(({ env }) => env, { override: true }),
+      // apt 安装系统 ffmpeg 并自动设置 FFMPEG_PATH（替代 ffmpeg-static——
+      // 其 postinstall 二进制下载在镜像构建时被 npm install-scripts 白名单拦截）
+      ffmpeg(),
     ],
   },
 });

@@ -28,17 +28,11 @@ import { trackFunnelEvent } from "@/lib/observability/track"
  * 若将来需要独立音频轨混音，再扩展 amix 滤镜或回退 FAL 路径。
  */
 
-/** 解析 ffmpeg 可执行文件路径（FFMPEG_PATH 覆盖 > ffmpeg-static 包内二进制）。
- *  兼容 CJS（require）与 ESM（动态 import）两种打包输出。 */
+/** ffmpeg 路径来自构建扩展注入的 FFMPEG_PATH（trigger.config.ts ffmpeg() 扩展） */
 async function resolveFfmpegPath(): Promise<string> {
-  if (process.env.FFMPEG_PATH) return process.env.FFMPEG_PATH
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require("ffmpeg-static") as string
-  } catch {
-    const mod = await import("ffmpeg-static")
-    return ((mod as { default?: string }).default ?? mod) as unknown as string
-  }
+  const p = process.env.FFMPEG_PATH
+  if (!p) throw new Error("FFMPEG_PATH 未设置（应由 trigger.config.ts 的 ffmpeg() 构建扩展注入）")
+  return p
 }
 
 async function runFfmpeg(args: string[], workspace: string): Promise<void> {
