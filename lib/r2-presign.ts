@@ -21,8 +21,11 @@ function getS3Client(): S3Client {
       endpoint: process.env.R2_ENDPOINT,
       credentials: {
         accessKeyId: process.env.R2_ACCESS_KEY || '',
-        secretAccessKey: process.env.R2_SECRET_KEY || '',
+        secretAccessKey: process.env.R2_SECRET || '',
       },
+      // aws-sdk v3.723+ 默认把 CRC 校验头纳入签名，非 AWS 端点（R2）会 SignatureDoesNotMatch
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     })
   }
   return s3Client
