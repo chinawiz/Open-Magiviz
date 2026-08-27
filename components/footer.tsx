@@ -217,10 +217,17 @@ export function Footer() {
 
         {/* Bottom Bar */}
         <div className="border-t border-dark-600/50 mt-4 pt-4 flex flex-col md:flex-row justify-between items-center">
-          <div className="flex items-center space-x-4 mb-2 md:mb-0">
+          <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-2 md:mb-0">
             <p className="text-muted-foreground text-sm">
               © {currentYear} {t("copyright")}
             </p>
+            {/* Creem 审核（清单第 8 项）：支持邮箱必须展示在公开网站上 */}
+            <a
+              href="mailto:support@mhhao.com"
+              className="text-muted-foreground text-sm hover:text-primary transition-colors"
+            >
+              support@mhhao.com
+            </a>
           </div>
 
           {/* Social Links & Language Switcher */}
