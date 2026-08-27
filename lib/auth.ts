@@ -1,8 +1,9 @@
 import { NextAuthOptions } from 'next-auth'
 import { DrizzleAdapter } from '@auth/drizzle-adapter'
+import type { AdapterAccount } from 'next-auth/adapters'
 import { db } from '@/lib/db'
 import { users, accounts, sessions, verificationTokens } from '@/lib/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { giveRegisterBonus } from '@/lib/points'
 import {
@@ -30,6 +31,10 @@ declare module "next-auth" {
   }
 }
 
+// linkAccount 的 account 参数不含归属用户信息；NextAuth 调用时序保证此前刚执行过
+// getUserByAccount(未命中) → createUser/getUserByEmail（命中目标用户），用实例级变量传递。
+let _lastResolvedUser: { id: string; email: string } | null = null
+
 export const authOptions: NextAuthOptions = {
   adapter: {
     ...DrizzleAdapter(db, {
@@ -38,8 +43,47 @@ export const authOptions: NextAuthOptions = {
       sessionsTable: sessions,
       verificationTokensTable: verificationTokens,
     }),
-    
-    // 重写createUser方法以提供ID生成
+
+    async getUserByAccount({ provider, providerAccountId }: { provider: string; providerAccountId: string }) {
+      const row = await db.query.accounts.findFirst({
+        where: and(
+          eq(accounts.provider, provider),
+          eq(accounts.providerAccountId, providerAccountId)
+        ),
+      })
+      if (!row) return null
+      return db.query.users.findFirst({ where: eq(users.id, row.userId) }) as any
+    },
+
+    async getUserByEmail(email: string) {
+      const user = await db.query.users.findFirst({ where: eq(users.email, email) })
+      if (user) _lastResolvedUser = { id: user.id, email: user.email }
+      return (user as any) ?? null
+    },
+
+    // 修复 Google 登录：官方 DrizzleAdapter 的 linkAccount 生成的 INSERT 把 userId
+    // 留给数据库默认值（serial 假设），而本项目 accounts.userId 是 text 非空无默认 →
+    // 插入抛错导致 Google 回调失败回登录页。覆盖实现：显式 nanoid 关联到已解析用户。
+    async linkAccount(account: AdapterAccount) {
+      if (!_lastResolvedUser) {
+        throw new Error('linkAccount: 无已解析用户')
+      }
+      await db.insert(accounts).values({
+        userId: _lastResolvedUser.id,
+        type: account.type,
+        provider: account.provider,
+        providerAccountId: account.providerAccountId,
+        refresh_token: account.refresh_token ?? undefined,
+        access_token: account.access_token ?? undefined,
+        expires_at: account.expires_at ?? undefined,
+        token_type: account.token_type ?? undefined,
+        scope: account.scope ?? undefined,
+        id_token: account.id_token ?? undefined,
+        session_state: (account as AdapterAccount & { session_state?: string }).session_state,
+      })
+      return
+    },
+
     async createUser(user: {
       name?: string | null
       email: string
@@ -71,6 +115,7 @@ export const authOptions: NextAuthOptions = {
         
         if (existingUser) {
           console.log('邮箱已存在，返回现有用户:', existingUser.id)
+          _lastResolvedUser = { id: existingUser.id, email: existingUser.email }
           return existingUser
         }
         
@@ -84,6 +129,7 @@ export const authOptions: NextAuthOptions = {
         }).returning()
         
         console.log('数据库插入成功:', newUser[0])
+        _lastResolvedUser = { id: newUser[0].id, email: newUser[0].email }
         
         // 为新用户赠送注册积分
         try {
