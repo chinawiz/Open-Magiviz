@@ -6,7 +6,6 @@ import { Navbar } from "@/components/navbar"
 import { Hero } from "@/components/hero"
 import Features from "@/components/Features"
 import { PricingSection } from "@/components/pricing-section"
-import { Testimonials } from "@/components/Testimonials"
 import { FAQSection } from "@/components/faq-section"
 import { Footer } from "@/components/footer"
 import { PageBackground } from "@/components/page-background"
@@ -33,7 +32,6 @@ export default function ChinesePage() {
       <main>
         <Hero />
         <Features />
-        <Testimonials />
         <PricingSection />
         <FAQSection />
       </main>
