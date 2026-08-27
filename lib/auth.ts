@@ -249,5 +249,5 @@ export const authOptions: NextAuthOptions = {
     error: '/auth/error',
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV === 'development',
+  debug: true, // 临时开启：定位 OAuth 回调失败原因，定位后关闭
 } 
