@@ -126,7 +126,6 @@
       "status": "已完成"
     }
   },
-
   "features": {
     "title": "赋能每一位创作者",
     "subtitle": "用直观的工作流程和工业级工具简化复杂的视频制作，为每一种创意领域量身打造。",
@@ -164,12 +163,10 @@
     "trial": {
       "name": "Trial",
       "period": "/试用",
-      "offer": "限时：积分消耗6.7折",
       "originalPrice": null,
       "price": "$19.9",
       "description": "完美体验AI视频创作功能",
       "features": {
-        "points_discount": "67折积分消耗",
         "period": "7天试用期",
         "points": "赠送200积分",
         "upload_size": "上传大小: 50MB",
@@ -185,7 +182,6 @@
     "pro": {
       "name": "Pro",
       "period": "/月",
-      "offer": "限时：积分消耗6.7折",
       "originalPrice": "$55",
       "price": "$49.9",
       "discountPercent": "9",
@@ -193,7 +189,6 @@
       "discountBadge": "限时9%折扣",
       "description": "专业创作者的理想选择",
       "features": {
-        "points_discount": "67折积分消耗",
         "period": "30天订阅期",
         "points": "赠送550积分",
         "upload_size": "上传大小: 100MB",
@@ -207,7 +202,6 @@
     "annual": {
       "name": "Annual",
       "period": "/年",
-      "offer": "限时：积分消耗6.7折",
       "badge": "最佳选择 - 节省17%",
       "originalPrice": "$600",
       "price": "$499",
@@ -216,7 +210,6 @@
       "discountBadge": "限时17%折扣",
       "description": "年度订阅，超高性价比，专为创作者打造",
       "features": {
-        "points_discount": "67折积分消耗",
         "period": "365天订阅期",
         "points": "赠送6600积分",
         "upload_size": "上传大小: 无限制",
@@ -816,13 +809,13 @@
       "already_changed": "推广码已修改过，无法再次修改",
       "enter_code": "请输入推广码",
       "invalid_format": "推广码格式无效，必须为8-20个字母或数字",
-        "update_success": "推广码更新成功",
-        "update_failed": "更新推广码失败",
-        "already_taken": "该推广码已被使用",
-        "code_copied": "推广码已复制",
-        "link_copied": "推广链接已复制",
-        "copy_failed": "复制失败",
-        "set_first": "请先设置推广码"
+      "update_success": "推广码更新成功",
+      "update_failed": "更新推广码失败",
+      "already_taken": "该推广码已被使用",
+      "code_copied": "推广码已复制",
+      "link_copied": "推广链接已复制",
+      "copy_failed": "复制失败",
+      "set_first": "请先设置推广码"
     },
     "share": {
       "title": "分享推广",
@@ -1878,11 +1871,11 @@
     "regenerateAllScriptButton": "重新生成全部剧情",
     "characterListTitle": "🎭 剧情主角 ({count})",
     "characterNamePrefix": "👤 {name}",
-      "view": "查看",
-      "downloading": "正在下载",
-      "downloadVideo": "下载视频",
-      "generatingVideo": "正在生成完整视频...",
-      "scriptAndVideo": "剧情与视频",
+    "view": "查看",
+    "downloading": "正在下载",
+    "downloadVideo": "下载视频",
+    "generatingVideo": "正在生成完整视频...",
+    "scriptAndVideo": "剧情与视频",
     "sceneWithIndex": "剧情 {index}",
     "aspectRatioAndDuration": "· 比例: {ratio} · 时长: {duration}",
     "referencedCharacters": "引用主角:",
