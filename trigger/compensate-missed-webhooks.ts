@@ -1,4 +1,4 @@
-import { task } from "@trigger.dev/sdk"
+import { schedules } from "@trigger.dev/sdk"
 import { db } from "@/lib/db"
 import { aiGenerationTasks } from "@/lib/schema"
 import { and, eq, lt, asc } from "drizzle-orm"
@@ -41,8 +41,10 @@ function pointsActionFor(taskType: string): PointsAction {
   return PointsAction.GENERATE_STORY_VIDEO
 }
 
-export const compensateMissedWebhooks = task({
+export const compensateMissedWebhooks = schedules.task({
   id: "compensate-missed-webhooks",
+  // 每 10 分钟自动运行（scheduled task 部署即注册，无需控制台手动挂载）
+  cron: "*/10 * * * *",
   run: async () => {
     const staleBefore = new Date(Date.now() - STALE_MINUTES * 60 * 1000)
     const zombieBefore = new Date(Date.now() - ZOMBIE_HOURS * 60 * 60 * 1000)
