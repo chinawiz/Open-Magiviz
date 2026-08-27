@@ -1407,33 +1407,6 @@
     "backToHome": "Back to Home",
     "signInAgain": "Sign In Again"
   },
-  "testimonials": {
-    "sectionLabel": "Success Stories",
-    "sectionTitle": "Loved by {visionaries} Worldwide",
-    "sectionDescription": "Redefining the boundaries of the film industry, ensuring every extraordinary idea finds its perfect form.",
-    "visionaries": "Visionaries",
-    "items": [
-      {
-        "quote": "MeiHao has completely transformed our pre-production. It's a revolution for indie filmmakers.",
-        "author": "Marcus Thorne",
-        "role": "Director, SilverLine Studios",
-        "highlight": "pre-production"
-      },
-      {
-        "quote": "The character consistency in AI generation is stunning. This is true cinematic quality.",
-        "author": "Elena Rossi",
-        "role": "Marketing Lead, TechFlow",
-        "highlight": "stunning",
-        "featured": true
-      },
-      {
-        "quote": "MeiHao is like having a perfect creative assistant handling all the heavy lifting.",
-        "author": "Sarah Jenkins",
-        "role": "Senior Animator",
-        "highlight": "creative assistant"
-      }
-    ]
-  },
   "blogPage": {
     "title": "meihao Blog",
     "subtitle": "Explore the latest SaaS development trends and insights",

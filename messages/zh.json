@@ -1386,33 +1386,6 @@
     "backToHome": "返回首页",
     "signInAgain": "重新登录"
   },
-  "testimonials": {
-    "sectionLabel": "用户案例",
-    "sectionTitle": "全球创作者的一致选择",
-    "sectionDescription": "重新定义电影行业的边界，确保每一个非凡的创意都能找到完美的呈现方式。",
-    "visionaries": "创作者",
-    "items": [
-      {
-        "quote": "MeiHao彻底改变了我们的预制作流程。这是独立电影人的一场革命。",
-        "author": "Marcus Thorne",
-        "role": "导演，SilverLine Studios",
-        "highlight": "预制作流程"
-      },
-      {
-        "quote": "AI生成的角色一致性令人惊叹。这是真正的电影级品质。",
-        "author": "Elena Rossi",
-        "role": "营销主管，TechFlow",
-        "highlight": "令人惊叹",
-        "featured": true
-      },
-      {
-        "quote": "MeiHao就像拥有一个完美的创意助手，处理所有繁重的工作。",
-        "author": "Sarah Jenkins",
-        "role": "高级动画师",
-        "highlight": "完美创意助手"
-      }
-    ]
-  },
   "blogPage": {
     "title": "meihao 博客",
     "subtitle": "探索SaaS开发的最新动态和技术分享",
