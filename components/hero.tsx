@@ -91,7 +91,7 @@ export function Hero() {
                   <img
                     alt="Character Preview"
                     className="w-full h-full object-cover dark:grayscale dark:grayscale-0"
-                    src="https://img.meihao.com/home/char_tanjiro-1773555549691.png"
+                    src="https://pub-61687a5706ad41cc97beea0f8a02afea.r2.dev/meihao/home/char_tanjiro-1773555549691.png"
                     referrerPolicy="no-referrer"
                   />
                 </div>
@@ -113,7 +113,7 @@ export function Hero() {
                     <img
                       alt="Grid 1"
                       className="w-full h-full object-cover opacity-80 mix-blend-multiply dark:mix-blend-normal"
-                      src="https://img.meihao.com/home/1773556481535-96bgmfqehgd.png"
+                      src="https://pub-61687a5706ad41cc97beea0f8a02afea.r2.dev/meihao/home/1773556481535-96bgmfqehgd.png"
                       referrerPolicy="no-referrer"
                     />
                   </div>
@@ -121,7 +121,7 @@ export function Hero() {
                     <img
                       alt="Grid 2"
                       className="w-full h-full object-cover opacity-80 mix-blend-multiply dark:mix-blend-normal"
-                      src="https://img.meihao.com/home/1773556472079-wopkkww8lal.png"
+                      src="https://pub-61687a5706ad41cc97beea0f8a02afea.r2.dev/meihao/home/1773556472079-wopkkww8lal.png"
                       referrerPolicy="no-referrer"
                     />
                   </div>
@@ -143,7 +143,7 @@ export function Hero() {
                   <img
                     alt="Video Preview"
                     className="w-full h-full object-cover brightness-75"
-                    src="https://img.meihao.com/home/1773556481535-96bgmfqehgd.png"
+                    src="https://pub-61687a5706ad41cc97beea0f8a02afea.r2.dev/meihao/home/1773556481535-96bgmfqehgd.png"
                     referrerPolicy="no-referrer"
                   />
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -166,7 +166,7 @@ export function Hero() {
                   <img
                     alt="Final Render"
                     className="w-full h-full object-cover brightness-75"
-                    src="https://img.meihao.com/home/1773556472079-wopkkww8lal.png"
+                    src="https://pub-61687a5706ad41cc97beea0f8a02afea.r2.dev/meihao/home/1773556472079-wopkkww8lal.png"
                     referrerPolicy="no-referrer"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
