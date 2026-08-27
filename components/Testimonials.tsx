@@ -3,9 +3,9 @@ import { motion } from 'motion/react';
 import { useTranslations } from 'next-intl';
 
 const AVATAR_MAP: Record<string, string> = {
-  'Marcus Thorne': 'https://img.magiviz.com/home/Marcus-Thorne.jpg',
-  'Elena Rossi': 'https://img.magiviz.com/home/Elena-Rossi.jpg',
-  'Sarah Jenkins': 'https://img.magiviz.com/home/Sarah-Jenkins.jpg',
+  'Marcus Thorne': 'https://img.meihao.com/home/Marcus-Thorne.jpg',
+  'Elena Rossi': 'https://img.meihao.com/home/Elena-Rossi.jpg',
+  'Sarah Jenkins': 'https://img.meihao.com/home/Sarah-Jenkins.jpg',
 };
 
 export function Testimonials() {

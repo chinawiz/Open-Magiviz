@@ -1,0 +1,6 @@
+# Open-Magiviz — Agent 工作约定
+
+- 本项目的制作经验库位于 `.agents/skills/magiviz-playbook/`（SKILL.md + references/）。
+  - 干活前：涉及部署、CI、供应商接入、计费定价、R2 存储、Trigger 合成、文案/界面修改时，先按主题读对应 references 的经验条目。
+  - **干活后：每次完成较大改动（feature、部署、事故修复、有价值的失败尝试），必须执行该 skill 的「沉淀模式」流程，把新经验写回对应文件后再收尾。** typo 级小改动可跳过。
+- 运维 runbook 以仓库根的 `DEPLOY-CHECKLIST.md` 为准；经验库只链接它，不复制。

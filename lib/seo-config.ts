@@ -1,6 +1,6 @@
 export const seoConfig = {
   baseUrl: process.env.NEXT_PUBLIC_BASE_URL || '',
-  siteName: 'Magiviz',
+  siteName: 'MeiHao',
   defaultLocale: 'zh',
   locales: ['zh', 'en'],
 
@@ -40,12 +40,12 @@ export const seoConfig = {
 
   // 结构化数据设置
   organization: {
-    name: 'Magiviz',
+    name: 'MeiHao',
     foundingDate: '2025',
     industry: 'Video Production & AI Technology',
     numberOfEmployees: '1-10',
     contactEmail: 'app@itusi.cn',
-    url: 'https://magiviz.com',
+    url: 'https://meihao.com',
     description: 'AI-powered intelligent video creation platform. From concept to finished product in one click. Support Hollywood films, anime, story plots, advertisements, and educational videos.',
     keywords: ['AI Video Creation', 'Video Generation', 'Film Production', 'Anime Production', 'Advertising Video', 'Educational Video', 'Story Plot', 'Intelligent Creation'],
     sameAs: [

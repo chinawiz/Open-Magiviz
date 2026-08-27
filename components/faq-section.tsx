@@ -7,8 +7,8 @@ import { useTranslations } from "next-intl"
 
 const faqs = [
   {
-    question: "questions.whatIsMagiviz.question",
-    answer: "questions.whatIsMagiviz.answer",
+    question: "questions.whatIsMeiHao.question",
+    answer: "questions.whatIsMeiHao.answer",
   },
   {
     question: "questions.howToStart.question",

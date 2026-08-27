@@ -79,7 +79,7 @@ export function VerifyEmailPage() {
             {!status && (
               <Image
                 src="/logo.png"
-                alt="magiviz"
+                alt="meihao"
                 width={48}
                 height={48}
                 className="object-contain"

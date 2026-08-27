@@ -15,7 +15,7 @@ export function PrivacyContent() {
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-4xl font-bold text-foreground mb-8">
-            {isZh ? 'Magiviz 隐私政策' : 'Magiviz Privacy Policy'}
+            {isZh ? 'MeiHao 隐私政策' : 'MeiHao Privacy Policy'}
           </h1>
           <div className="prose prose-lg max-w-none">
             <p className="text-muted-foreground mb-8">
@@ -28,8 +28,8 @@ export function PrivacyContent() {
               </h2>
               <p className="mb-4">
                 {isZh
-                  ? 'Magiviz（"我们"、"我们的"或"本服务"）非常重视用户的隐私保护。本隐私政策详细说明了我们如何收集、使用、存储和保护您在使用我们AI视频创作平台时的个人信息。'
-                  : 'Magiviz ("we", "our", or "the service") takes user privacy protection very seriously. This privacy policy details how we collect, use, store, and protect your personal information when you use our AI video creation platform.'
+                  ? 'MeiHao（"我们"、"我们的"或"本服务"）非常重视用户的隐私保护。本隐私政策详细说明了我们如何收集、使用、存储和保护您在使用我们AI视频创作平台时的个人信息。'
+                  : 'MeiHao ("we", "our", or "the service") takes user privacy protection very seriously. This privacy policy details how we collect, use, store, and protect your personal information when you use our AI video creation platform.'
                 }
               </p>
               <p className="mb-4">
@@ -218,7 +218,7 @@ export function PrivacyContent() {
               </p>
               <ul className="list-disc list-inside mb-4 space-y-2">
                 <li>{isZh ? '邮箱：app@itusi.cn' : 'Email: app@itusi.cn'}</li>
-                <li>{isZh ? '网站：https://magiviz.com' : 'Website: https://magiviz.com'}</li>
+                <li>{isZh ? '网站：https://meihao.com' : 'Website: https://meihao.com'}</li>
               </ul>
             </section>
           </div>

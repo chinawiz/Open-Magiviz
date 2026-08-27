@@ -64,7 +64,7 @@ export default function Features() {
             <img 
               alt="Abstract AI Visual" 
               className="absolute top-0 right-0 w-1/2 h-full object-cover opacity-10 group-hover:scale-110 transition-transform duration-700" 
-              src="https://img.magiviz.com/home/unnamed.png"
+              src="https://img.meihao.com/home/unnamed.png"
               referrerPolicy="no-referrer"
             />
           </motion.div>

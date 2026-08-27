@@ -16,8 +16,8 @@ export async function generateMetadata({
   const description = t('description')
   const keywords =
     locale === 'zh'
-      ? '我的项目,视频项目,项目管理,视频列表,创作历史,Magiviz'
-      : 'My Projects,Video Projects,Project Management,Video List,Creation History,Magiviz'
+      ? '我的项目,视频项目,项目管理,视频列表,创作历史,MeiHao'
+      : 'My Projects,Video Projects,Project Management,Video List,Creation History,MeiHao'
 
   return {
     title,
@@ -39,7 +39,7 @@ export async function generateMetadata({
       url: currentUrl,
       title,
       description,
-      siteName: 'Magiviz',
+      siteName: 'MeiHao',
       images:
         baseUrl !== ''
           ? [

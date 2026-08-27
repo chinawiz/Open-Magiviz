@@ -1,31 +1,31 @@
 {
   "metadata": {
-    "title": "Magiviz - 创意一键成片，释放无限影视想象力",
-    "description": "Magiviz是AI驱动的智能视频创作平台。从创意到成品，只需一键生成。支持好莱坞影视、动漫、故事剧情、广告、科普等各类视频内容，让每个人都能成为影视创作者。",
+    "title": "MeiHao - 创意一键成片，释放无限影视想象力",
+    "description": "MeiHao是AI驱动的智能视频创作平台。从创意到成品，只需一键生成。支持好莱坞影视、动漫、故事剧情、广告、科普等各类视频内容，让每个人都能成为影视创作者。",
     "terms": {
-      "title": "服务条款 - Magiviz",
-      "description": "查看Magiviz视频创作平台的服务条款，了解平台使用规则、许可协议和用户权利责任。"
+      "title": "服务条款 - MeiHao",
+      "description": "查看MeiHao视频创作平台的服务条款，了解平台使用规则、许可协议和用户权利责任。"
     },
     "privacy": {
-      "title": "隐私政策 - Magiviz",
-      "description": "了解Magiviz如何处理用户数据和隐私保护，确保您的个人信息和创作内容安全。"
+      "title": "隐私政策 - MeiHao",
+      "description": "了解MeiHao如何处理用户数据和隐私保护，确保您的个人信息和创作内容安全。"
     },
     "cookies": {
-      "title": "Cookie政策 - Magiviz",
-      "description": "了解Magiviz如何使用Cookie和相关技术来优化视频创作体验和网站性能。"
+      "title": "Cookie政策 - MeiHao",
+      "description": "了解MeiHao如何使用Cookie和相关技术来优化视频创作体验和网站性能。"
     },
     "pricing": {
-      "title": "价格 - Magiviz",
-      "description": "查看Magiviz订阅计划和价格，选择适合您AI视频创作需求的套餐。免费试用或升级到高级版本，享受无限视频生成。"
+      "title": "价格 - MeiHao",
+      "description": "查看MeiHao订阅计划和价格，选择适合您AI视频创作需求的套餐。免费试用或升级到高级版本，享受无限视频生成。"
     },
     "landing": {
-      "title": "Magiviz - AI智能视频创作平台",
+      "title": "MeiHao - AI智能视频创作平台",
       "description": "将故事大纲转化为AI电影级视频。支持好莱坞影视、动漫、营销广告、科普教育等各类内容。从剧本到成片，分钟级完成。"
     }
   },
   "demoBanner": {
     "prefix": "这是",
-    "productName": "magiviz",
+    "productName": "meihao",
     "suffix": "演示站点，体验完整功能后",
     "cta": "立即购买完整版"
   },
@@ -122,7 +122,7 @@
     },
     "finalRender": {
       "title": "鬼灭之刃",
-      "subtitle": "Magiviz AI 作品",
+      "subtitle": "MeiHao AI 作品",
       "status": "已完成"
     }
   },
@@ -248,17 +248,17 @@
   "faq": {
     "title": "常见问题",
     "questions": {
-      "whatIsMagiviz": {
-        "question": "Magiviz是什么？",
-        "answer": "Magiviz是一款AI驱动的智能视频创作平台，让每个人都能轻松创作专业级的视频内容。从创意构想到成品制作，只需一键完成。"
+      "whatIsMeiHao": {
+        "question": "MeiHao是什么？",
+        "answer": "MeiHao是一款AI驱动的智能视频创作平台，让每个人都能轻松创作专业级的视频内容。从创意构想到成品制作，只需一键完成。"
       },
       "howToStart": {
-        "question": "如何开始使用Magiviz？",
+        "question": "如何开始使用MeiHao？",
         "answer": "注册账户后，选择适合您的订阅方案，即可开始创作。平台提供直观的界面，即使是新手也能快速上手。"
       },
       "supportedFormats": {
         "question": "支持哪些视频格式和类型？",
-        "answer": "Magiviz支持好莱坞影视、动漫、故事剧情、广告、科普等多种视频类型，导出均为行业标准格式。"
+        "answer": "MeiHao支持好莱坞影视、动漫、故事剧情、广告、科普等多种视频类型，导出均为行业标准格式。"
       },
       "videoQuality": {
         "question": "视频质量如何保证？",
@@ -319,13 +319,13 @@
         "unsubscribeError": "取消订阅失败"
       }
     },
-    "copyright": "Magiviz. 版权所有."
+    "copyright": "MeiHao. 版权所有."
   },
   "verify": {
     "title": "邮箱验证",
     "description": "验证您的邮箱地址以完成账户注册",
     "meta_title": "邮箱验证",
-    "meta_description": "验证您的 magiviz 账户邮箱，完成账户激活",
+    "meta_description": "验证您的 meihao 账户邮箱，完成账户激活",
     "verifying": "正在验证您的邮箱...",
     "success": "邮箱验证成功！",
     "failed": "邮箱验证失败",
@@ -339,11 +339,11 @@
     "back_to_login": "返回登录"
   },
   "auth": {
-    "meta_title": "用户认证 - magiviz",
+    "meta_title": "用户认证 - meihao",
     "signin_title": "登录",
-    "signin_description": "登录您的 magiviz 账户，开始使用现代化SaaS模版",
+    "signin_description": "登录您的 meihao 账户，开始使用现代化SaaS模版",
     "signup_title": "注册",
-    "signup_description": "注册 magiviz 账户，开启SaaS开发之旅",
+    "signup_description": "注册 meihao 账户，开启SaaS开发之旅",
     "error_title": "认证错误",
     "error_description": "认证过程中遇到问题，请重试或联系技术支持",
     "error_page_title": "登录失败",
@@ -372,7 +372,7 @@
       "default": "认证过程中发生未知错误，请重试"
     },
     "welcome_back": "欢迎回来",
-    "login_description": "登录您的 magiviz 账户",
+    "login_description": "登录您的 meihao 账户",
     "email": "邮箱地址",
     "password": "密码",
     "email_placeholder": "请输入您的邮箱",
@@ -431,7 +431,7 @@
     "title": "找回密码",
     "description": "输入您的邮箱地址，我们将向您发送重置密码的链接",
     "meta_title": "找回密码",
-    "meta_description": "找回您的 magiviz 账户密码，通过邮箱重置密码",
+    "meta_description": "找回您的 meihao 账户密码，通过邮箱重置密码",
     "email_label": "邮箱地址",
     "email_placeholder": "请输入您的邮箱地址",
     "send_reset_link": "发送重置链接",
@@ -449,7 +449,7 @@
     "title": "重置密码",
     "description": "请输入您的新密码",
     "meta_title": "重置密码",
-    "meta_description": "重置您的 magiviz 账户密码，设置新的安全密码",
+    "meta_description": "重置您的 meihao 账户密码，设置新的安全密码",
     "password_label": "新密码",
     "password_placeholder": "请输入新密码",
     "confirm_password_label": "确认密码",
@@ -916,18 +916,18 @@
     }
   },
   "create_page": {
-    "title": "探索视频 - Magiviz",
+    "title": "探索视频 - MeiHao",
     "description": "使用AI智能视频创作工具，一键生成专业视频。支持好莱坞影视、动漫、故事剧情等多种视频类型，让创意轻松成片。"
   },
   "projects_page": {
-    "title": "我的项目 - Magiviz",
+    "title": "我的项目 - MeiHao",
     "description": "管理您的所有视频创作项目，查看创作历史，编辑和分享您的作品。"
   },
   "dashboard": {
     "payment_success": {
       "title": "购买成功！",
-      "subtitle": "欢迎使用magiviz",
-      "subtitle_with_plan": "欢迎使用magiviz {plan}",
+      "subtitle": "欢迎使用meihao",
+      "subtitle_with_plan": "欢迎使用meihao {plan}",
       "processing_title": "处理支付结果",
       "processing_description": "请稍候，我们正在确认您的购买状态...",
       "verifying_title": "验证购买状态",
@@ -965,7 +965,7 @@
   },
   "admin": {
     "dashboard": {
-      "meta_title": "管理员控制台 - magiviz",
+      "meta_title": "管理员控制台 - meihao",
       "meta_description": "管理员控制台，统一管理用户、邮件订阅、系统设置等功能。",
       "title": "管理员控制台",
       "sidebar": {
@@ -1037,7 +1037,7 @@
       }
     },
     "newsletter": {
-      "meta_title": "邮件订阅统计 - magiviz",
+      "meta_title": "邮件订阅统计 - meihao",
       "meta_description": "查看和管理邮件订阅统计数据，包括订阅用户数量、语言分布等信息。",
       "title": "邮件订阅统计",
       "stats": {
@@ -1080,7 +1080,7 @@
       }
     },
     "users": {
-      "meta_title": "用户管理 - magiviz",
+      "meta_title": "用户管理 - meihao",
       "meta_description": "查看和管理所有注册用户的详细信息，包括用户统计、角色管理、积分调整等功能。",
       "title": "用户管理",
       "stats": {
@@ -1393,7 +1393,7 @@
     "visionaries": "创作者",
     "items": [
       {
-        "quote": "Magiviz彻底改变了我们的预制作流程。这是独立电影人的一场革命。",
+        "quote": "MeiHao彻底改变了我们的预制作流程。这是独立电影人的一场革命。",
         "author": "Marcus Thorne",
         "role": "导演，SilverLine Studios",
         "highlight": "预制作流程"
@@ -1406,7 +1406,7 @@
         "featured": true
       },
       {
-        "quote": "Magiviz就像拥有一个完美的创意助手，处理所有繁重的工作。",
+        "quote": "MeiHao就像拥有一个完美的创意助手，处理所有繁重的工作。",
         "author": "Sarah Jenkins",
         "role": "高级动画师",
         "highlight": "完美创意助手"
@@ -1414,12 +1414,12 @@
     ]
   },
   "blogPage": {
-    "title": "magiviz 博客",
+    "title": "meihao 博客",
     "subtitle": "探索SaaS开发的最新动态和技术分享",
     "contactPost": {
       "badge": "最新",
       "date": "2024年12月",
-      "author": "magiviz Team",
+      "author": "meihao Team",
       "title": "联系我们 - 让我们一起探索SaaS开发的无限可能",
       "description": "我们很高兴与您建立联系！无论您是想了解我们的SaaS模版服务，还是有任何技术问题，我们都随时准备为您提供帮助。",
       "contactMethods": {
@@ -1460,14 +1460,14 @@
       "post1": {
         "category": "技术解析",
         "date": "2025年7月",
-        "title": "magiviz可以做哪些网站？",
-        "excerpt": "深入了解magiviz模版的应用场景，从电商平台到企业管理系统，再到在线教育平台的完整解决方案。"
+        "title": "meihao可以做哪些网站？",
+        "excerpt": "深入了解meihao模版的应用场景，从电商平台到企业管理系统，再到在线教育平台的完整解决方案。"
       },
       "post2": {
         "category": "产品介绍",
         "date": "2025年7月",
-        "title": "magiviz有什么功能？",
-        "excerpt": "深入了解magiviz模版提供的核心功能：用户认证、支付系统、多语言支持、SEO优化等完整解决方案。"
+        "title": "meihao有什么功能？",
+        "excerpt": "深入了解meihao模版提供的核心功能：用户认证、支付系统、多语言支持、SEO优化等完整解决方案。"
       },
       "post3": {
         "category": "行业洞察",

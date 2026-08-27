@@ -33,9 +33,9 @@ export async function generateMetadata({
     keywords: locale === 'zh'
       ? 'AI视频创作,视频生成,影视制作,动漫制作,广告视频,科普视频,故事剧情,智能创作,创意成片,视频编辑,AI工具,影视创作平台,在线视频制作,自动化视频'
       : 'AI Video Creation,Video Generation,Film Production,Anime Production,Advertising Video,Educational Video,Story Plot,Intelligent Creation,Creative Film,Video Editing,AI Tools,Film Creation Platform,Online Video Production,Automated Video',
-    authors: [{ name: 'Magiviz Team' }],
-    creator: 'Magiviz',
-    publisher: 'Magiviz',
+    authors: [{ name: 'MeiHao Team' }],
+    creator: 'MeiHao',
+    publisher: 'MeiHao',
     formatDetection: {
       email: false,
       address: false,
@@ -61,7 +61,7 @@ export async function generateMetadata({
       url: currentUrl,
       title: t('title'),
       description: t('description'),
-      siteName: 'Magiviz',
+      siteName: 'MeiHao',
       images: baseUrl ? [
         {
           url: `${baseUrl}/images/home-og.png`,
@@ -100,7 +100,7 @@ export async function generateMetadata({
       'theme-color': '#E6A37A',
       'apple-mobile-web-app-capable': 'yes',
       'apple-mobile-web-app-status-bar-style': 'black-translucent',
-      'apple-mobile-web-app-title': 'Magiviz',
+      'apple-mobile-web-app-title': 'MeiHao',
     },
   }
 }

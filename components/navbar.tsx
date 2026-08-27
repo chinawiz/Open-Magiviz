@@ -68,13 +68,13 @@ export function Navbar() {
               <div className="relative w-8 h-8 sm:w-10 sm:h-10">
                 <Image
                   src="/logo.png"
-                  alt="magiviz Logo"
+                  alt="meihao Logo"
                   fill
                   className="object-contain"
                   priority
                 />
               </div>
-              <span className="ml-3 text-xl font-bold text-primary">Magiviz</span>
+              <span className="ml-3 text-xl font-bold text-primary">MeiHao</span>
             </Link>
           </div>
 

@@ -137,7 +137,7 @@ function extractBrandNameFromEmail() {
     }
     return fromEmail.replace(/["']/g, '').trim()
   }
-  return 'magiviz'
+  return 'meihao'
 }
 
 const BRAND_NAME =

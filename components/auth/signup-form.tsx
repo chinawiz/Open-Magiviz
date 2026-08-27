@@ -156,7 +156,7 @@ export function SignUpForm() {
           <div className="mx-auto w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center shadow-lg border border-primary/30">
             <Image
               src="/logo.png"
-              alt="magiviz"
+              alt="meihao"
               width={48}
               height={48}
               className="object-contain"

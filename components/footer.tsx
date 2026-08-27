@@ -106,12 +106,12 @@ export function Footer() {
                 <div className="relative w-8 h-8">
                   <Image
                     src="/logo.png"
-                    alt="Magiviz Logo"
+                    alt="MeiHao Logo"
                     fill
                     className="object-contain"
                   />
                 </div>
-                <span className="ml-3 text-xl font-bold text-primary">Magiviz</span>
+                <span className="ml-3 text-xl font-bold text-primary">MeiHao</span>
               </Link>
               <p className="text-muted-foreground leading-relaxed max-w-sm">
                 {t("description")}

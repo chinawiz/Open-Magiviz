@@ -1,31 +1,31 @@
 {
   "metadata": {
-    "title": "Magiviz - Creativity to Film in One Click, Unleash Infinite Cinematic Imagination",
-    "description": "Magiviz is an AI-powered intelligent video creation platform. From concept to finished product in one click. Support Hollywood films, anime, story plots, advertisements, and educational videos. Let everyone become a filmmaker with AI-powered creative tools.",
+    "title": "MeiHao - Creativity to Film in One Click, Unleash Infinite Cinematic Imagination",
+    "description": "MeiHao is an AI-powered intelligent video creation platform. From concept to finished product in one click. Support Hollywood films, anime, story plots, advertisements, and educational videos. Let everyone become a filmmaker with AI-powered creative tools.",
     "terms": {
-      "title": "Terms of Service - Magiviz",
-      "description": "View Magiviz's Terms of Service for video creation platform usage, understanding usage rules, license agreement and user rights and responsibilities."
+      "title": "Terms of Service - MeiHao",
+      "description": "View MeiHao's Terms of Service for video creation platform usage, understanding usage rules, license agreement and user rights and responsibilities."
     },
     "privacy": {
-      "title": "Privacy Policy - Magiviz",
-      "description": "Learn how Magiviz handles user data and privacy protection to ensure your personal information and creative content security."
+      "title": "Privacy Policy - MeiHao",
+      "description": "Learn how MeiHao handles user data and privacy protection to ensure your personal information and creative content security."
     },
     "cookies": {
-      "title": "Cookie Policy - Magiviz",
-      "description": "Learn how Magiviz uses cookies and related technologies to optimize video creation experience and website performance."
+      "title": "Cookie Policy - MeiHao",
+      "description": "Learn how MeiHao uses cookies and related technologies to optimize video creation experience and website performance."
     },
     "pricing": {
-      "title": "Pricing - Magiviz",
-      "description": "View Magiviz subscription plans and pricing. Choose the plan that fits your AI video creation needs. Start with a free trial or upgrade to premium for unlimited video generation."
+      "title": "Pricing - MeiHao",
+      "description": "View MeiHao subscription plans and pricing. Choose the plan that fits your AI video creation needs. Start with a free trial or upgrade to premium for unlimited video generation."
     },
     "landing": {
-      "title": "Magiviz - AI-Powered Video Creation Platform",
+      "title": "MeiHao - AI-Powered Video Creation Platform",
       "description": "Transform story outlines into cinematic videos with AI. Supports Hollywood films, anime, marketing videos, and educational content. From script to final render in minutes."
     }
   },
   "demoBanner": {
     "prefix": "This is a",
-    "productName": "magiviz",
+    "productName": "meihao",
     "suffix": "demo site. After exploring all features,",
     "cta": "Purchase Full Version"
   },
@@ -122,7 +122,7 @@
     },
     "finalRender": {
       "title": "Demon Slayer",
-      "subtitle": "Production Magiviz AI",
+      "subtitle": "Production MeiHao AI",
       "status": "READY"
     }
   },
@@ -268,17 +268,17 @@
   "faq": {
     "title": "Frequently Asked Questions",
     "questions": {
-      "whatIsMagiviz": {
-        "question": "What is Magiviz?",
-        "answer": "Magiviz is an AI-powered intelligent video creation platform that enables everyone to easily create professional-level video content. From concept to finished product, it's all done with one click."
+      "whatIsMeiHao": {
+        "question": "What is MeiHao?",
+        "answer": "MeiHao is an AI-powered intelligent video creation platform that enables everyone to easily create professional-level video content. From concept to finished product, it's all done with one click."
       },
       "howToStart": {
-        "question": "How do I get started with Magiviz?",
+        "question": "How do I get started with MeiHao?",
         "answer": "After registering an account, choose a subscription plan that suits you and start creating. The platform provides an intuitive interface, so even beginners can get started quickly."
       },
       "supportedFormats": {
         "question": "What video formats and types are supported?",
-        "answer": "Magiviz supports Hollywood films, anime, story plots, advertisements, educational videos, and more — all exported in industry-standard formats."
+        "answer": "MeiHao supports Hollywood films, anime, story plots, advertisements, educational videos, and more — all exported in industry-standard formats."
       },
       "videoQuality": {
         "question": "How is video quality ensured?",
@@ -339,13 +339,13 @@
         "unsubscribeError": "Failed to unsubscribe"
       }
     },
-    "copyright": "Magiviz. All rights reserved."
+    "copyright": "MeiHao. All rights reserved."
   },
   "verify": {
     "title": "Email Verification",
     "description": "Verify your email address to complete account registration",
     "meta_title": "Email Verification",
-    "meta_description": "Verify your magiviz account email to complete account activation",
+    "meta_description": "Verify your meihao account email to complete account activation",
     "verifying": "Verifying your email...",
     "success": "Email verification successful!",
     "failed": "Email verification failed",
@@ -359,11 +359,11 @@
     "back_to_login": "Back to Login"
   },
   "auth": {
-    "meta_title": "Authentication - magiviz",
+    "meta_title": "Authentication - meihao",
     "signin_title": "Sign In",
-    "signin_description": "Sign in to your magiviz account to start using modern SaaS templates",
+    "signin_description": "Sign in to your meihao account to start using modern SaaS templates",
     "signup_title": "Sign Up",
-    "signup_description": "Create your magiviz account and start your SaaS development journey",
+    "signup_description": "Create your meihao account and start your SaaS development journey",
     "error_title": "Authentication Error",
     "error_description": "An error occurred during authentication, please try again or contact technical support",
     "error_page_title": "Sign In Failed",
@@ -392,7 +392,7 @@
       "default": "Unknown error occurred during authentication, please try again"
     },
     "welcome_back": "Welcome Back",
-    "login_description": "Sign in to your magiviz account",
+    "login_description": "Sign in to your meihao account",
     "email": "Email Address",
     "password": "Password",
     "email_placeholder": "Enter your email address",
@@ -451,7 +451,7 @@
     "title": "Forgot Password",
     "description": "Enter your email address and we'll send you a link to reset your password",
     "meta_title": "Forgot Password",
-    "meta_description": "Recover your magiviz account password by resetting it via email",
+    "meta_description": "Recover your meihao account password by resetting it via email",
     "email_label": "Email Address",
     "email_placeholder": "Enter your email address",
     "send_reset_link": "Send Reset Link",
@@ -469,7 +469,7 @@
     "title": "Reset Password",
     "description": "Enter your new password",
     "meta_title": "Reset Password",
-    "meta_description": "Reset your magiviz account password and set a new secure password",
+    "meta_description": "Reset your meihao account password and set a new secure password",
     "password_label": "New Password",
     "password_placeholder": "Enter your new password",
     "confirm_password_label": "Confirm Password",
@@ -937,18 +937,18 @@
     }
   },
   "create_page": {
-    "title": "Explore Video - Magiviz",
+    "title": "Explore Video - MeiHao",
     "description": "Use AI-powered intelligent video creation tools to generate professional videos with one click. Support Hollywood films, anime, story plots and more video types, making creativity easy to film."
   },
   "projects_page": {
-    "title": "My Projects - Magiviz",
+    "title": "My Projects - MeiHao",
     "description": "Manage all your video creation projects, view creation history, edit and share your works."
   },
   "dashboard": {
     "payment_success": {
       "title": "Purchase Successful!",
-      "subtitle": "Welcome to magiviz",
-      "subtitle_with_plan": "Welcome to magiviz {plan}",
+      "subtitle": "Welcome to meihao",
+      "subtitle_with_plan": "Welcome to meihao {plan}",
       "processing_title": "Processing Payment Result",
       "processing_description": "Please wait while we confirm your purchase status...",
       "verifying_title": "Verifying Purchase Status",
@@ -986,7 +986,7 @@
   },
   "admin": {
     "dashboard": {
-      "meta_title": "Admin Dashboard - magiviz",
+      "meta_title": "Admin Dashboard - meihao",
       "meta_description": "Admin dashboard for unified management of users, newsletter subscriptions, system settings, and more.",
       "title": "Admin Dashboard",
       "sidebar": {
@@ -1058,7 +1058,7 @@
       }
     },
     "newsletter": {
-      "meta_title": "Newsletter Statistics - magiviz",
+      "meta_title": "Newsletter Statistics - meihao",
       "meta_description": "View and manage newsletter subscription statistics, including subscriber counts, language distribution, and more.",
       "title": "Newsletter Statistics",
       "stats": {
@@ -1101,7 +1101,7 @@
       }
     },
     "users": {
-      "meta_title": "User Management - magiviz",
+      "meta_title": "User Management - meihao",
       "meta_description": "View and manage all registered users' detailed information, including user statistics, role management, points adjustment, and more.",
       "title": "User Management",
       "stats": {
@@ -1414,7 +1414,7 @@
     "visionaries": "Visionaries",
     "items": [
       {
-        "quote": "Magiviz has completely transformed our pre-production. It's a revolution for indie filmmakers.",
+        "quote": "MeiHao has completely transformed our pre-production. It's a revolution for indie filmmakers.",
         "author": "Marcus Thorne",
         "role": "Director, SilverLine Studios",
         "highlight": "pre-production"
@@ -1427,7 +1427,7 @@
         "featured": true
       },
       {
-        "quote": "Magiviz is like having a perfect creative assistant handling all the heavy lifting.",
+        "quote": "MeiHao is like having a perfect creative assistant handling all the heavy lifting.",
         "author": "Sarah Jenkins",
         "role": "Senior Animator",
         "highlight": "creative assistant"
@@ -1435,12 +1435,12 @@
     ]
   },
   "blogPage": {
-    "title": "magiviz Blog",
+    "title": "meihao Blog",
     "subtitle": "Explore the latest SaaS development trends and insights",
     "contactPost": {
       "badge": "Latest",
       "date": "December 2024",
-      "author": "magiviz Team",
+      "author": "meihao Team",
       "title": "Contact Us - Let's Explore the Infinite Possibilities of SaaS Together",
       "description": "We're excited to connect with you! Whether you want to learn about our SaaS template services or have any technical questions, we're always ready to help.",
       "contactMethods": {
@@ -1481,14 +1481,14 @@
       "post1": {
         "category": "Technology Analysis",
         "date": "July 2025",
-        "title": "What Websites Can magiviz Build?",
-        "excerpt": "Understand magiviz template application scenarios, from e-commerce platforms to enterprise management systems, to online education platforms."
+        "title": "What Websites Can meihao Build?",
+        "excerpt": "Understand meihao template application scenarios, from e-commerce platforms to enterprise management systems, to online education platforms."
       },
       "post2": {
         "category": "Product Introduction",
         "date": "July 2025",
-        "title": "What Features Does magiviz Have?",
-        "excerpt": "Explore the core features provided by magiviz template: user authentication, payment systems, multi-language support, SEO optimization and more."
+        "title": "What Features Does meihao Have?",
+        "excerpt": "Explore the core features provided by meihao template: user authentication, payment systems, multi-language support, SEO optimization and more."
       },
       "post3": {
         "category": "Industry Insights",

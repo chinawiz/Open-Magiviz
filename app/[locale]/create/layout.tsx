@@ -39,7 +39,7 @@ export async function generateMetadata({
       url: currentUrl,
       title,
       description,
-      siteName: 'Magiviz',
+      siteName: 'MeiHao',
       images:
         baseUrl !== ''
           ? [

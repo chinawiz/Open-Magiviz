@@ -15,7 +15,7 @@ export function TermsContent() {
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-4xl font-bold text-foreground mb-8">
-            {isZh ? 'Magiviz 服务条款' : 'Magiviz Terms of Service'}
+            {isZh ? 'MeiHao 服务条款' : 'MeiHao Terms of Service'}
           </h1>
           <div className="prose prose-lg max-w-none">
             <p className="text-muted-foreground mb-8">
@@ -28,8 +28,8 @@ export function TermsContent() {
               </h2>
               <p className="mb-4">
                 {isZh
-                  ? '欢迎使用Magiviz（"我们"、"我们的"或"本服务"）。Magiviz是一个AI驱动的智能视频创作平台，为用户提供从创意到成品的一键视频生成服务，支持好莱坞影视、动漫、故事剧情、广告、科普等各类视频内容。'
-                  : 'Welcome to Magiviz ("we", "our", or "the service"). Magiviz is an AI-powered intelligent video creation platform that provides users with one-click video generation services from concept to finished product, supporting Hollywood films, anime, story plots, advertisements, educational videos, and more.'
+                  ? '欢迎使用MeiHao（"我们"、"我们的"或"本服务"）。MeiHao是一个AI驱动的智能视频创作平台，为用户提供从创意到成品的一键视频生成服务，支持好莱坞影视、动漫、故事剧情、广告、科普等各类视频内容。'
+                  : 'Welcome to MeiHao ("we", "our", or "the service"). MeiHao is an AI-powered intelligent video creation platform that provides users with one-click video generation services from concept to finished product, supporting Hollywood films, anime, story plots, advertisements, educational videos, and more.'
                 }
               </p>
               <p className="mb-4">
@@ -118,7 +118,7 @@ export function TermsContent() {
               </p>
               <p className="mb-4">
                 <strong>{isZh ? '我们的知识产权' : 'Our Intellectual Property'}</strong>：
-                {isZh ? 'Magiviz平台、AI视频生成模型、算法、界面设计和相关技术受知识产权法保护，归我们所有。' : 'The Magiviz platform, AI video generation models, algorithms, interface designs, and related technologies are protected by intellectual property laws and belong to us.'}
+                {isZh ? 'MeiHao平台、AI视频生成模型、算法、界面设计和相关技术受知识产权法保护，归我们所有。' : 'The MeiHao platform, AI video generation models, algorithms, interface designs, and related technologies are protected by intellectual property laws and belong to us.'}
               </p>
             </section>
 
@@ -216,7 +216,7 @@ export function TermsContent() {
               </p>
               <ul className="list-disc list-inside mb-4 space-y-2">
                 <li>{isZh ? '邮箱：app@itusi.cn' : 'Email: app@itusi.cn'}</li>
-                <li>{isZh ? '网站：https://magiviz.com' : 'Website: https://magiviz.com'}</li>
+                <li>{isZh ? '网站：https://meihao.com' : 'Website: https://meihao.com'}</li>
               </ul>
             </section>
           </div>

@@ -5,7 +5,7 @@ describe('deriveR2KeyFromUrl（公开直链 → R2 对象键）', () => {
   beforeEach(() => {
     process.env.R2_PUBLIC_URL = 'https://assets.example.com'
     process.env.R2_ENDPOINT = 'https://abc.r2.cloudflarestorage.com'
-    process.env.R2_BUCKET = 'magiviz'
+    process.env.R2_BUCKET = 'meihao'
   })
 
   it('识别 public base 形式的直链', () => {
@@ -14,7 +14,7 @@ describe('deriveR2KeyFromUrl（公开直链 → R2 对象键）', () => {
   })
 
   it('识别 endpoint/bucket 形式的直链', () => {
-    expect(deriveR2KeyFromUrl('https://abc.r2.cloudflarestorage.com/magiviz/uploads/image/a.png'))
+    expect(deriveR2KeyFromUrl('https://abc.r2.cloudflarestorage.com/meihao/uploads/image/a.png'))
       .toBe('uploads/image/a.png')
   })
 

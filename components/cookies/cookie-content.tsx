@@ -15,7 +15,7 @@ export function CookieContent() {
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-4xl font-bold text-foreground mb-8">
-            {isZh ? 'Magiviz Cookie政策' : 'Magiviz Cookie Policy'}
+            {isZh ? 'MeiHao Cookie政策' : 'MeiHao Cookie Policy'}
           </h1>
           <div className="prose prose-lg max-w-none">
             <p className="text-muted-foreground mb-8">
@@ -34,8 +34,8 @@ export function CookieContent() {
               </p>
               <p className="mb-4">
                 {isZh
-                  ? 'Magiviz使用Cookie和类似技术来增强您的AI视频创作体验，分析网站使用情况，并提供个性化的创作服务功能。'
-                  : 'Magiviz uses cookies and similar technologies to enhance your AI video creation experience, analyze website usage, and provide personalized creative service features.'
+                  ? 'MeiHao使用Cookie和类似技术来增强您的AI视频创作体验，分析网站使用情况，并提供个性化的创作服务功能。'
+                  : 'MeiHao uses cookies and similar technologies to enhance your AI video creation experience, analyze website usage, and provide personalized creative service features.'
                 }
               </p>
             </section>
@@ -264,7 +264,7 @@ export function CookieContent() {
               </p>
               <ul className="list-disc list-inside mb-4 space-y-2">
                 <li>{isZh ? '邮箱：app@itusi.cn' : 'Email: app@itusi.cn'}</li>
-                <li>{isZh ? '网站：https://magiviz.com' : 'Website: https://magiviz.com'}</li>
+                <li>{isZh ? '网站：https://meihao.com' : 'Website: https://meihao.com'}</li>
               </ul>
             </section>
           </div>

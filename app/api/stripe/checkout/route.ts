@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
       checkoutSessionConfig.invoice_creation = {
         enabled: true,
         invoice_data: {
-          description: 'magiviz Trial Subscription',
+          description: 'meihao Trial Subscription',
           metadata: {
             userId: session.user.id,
             type: 'trial_subscription'
