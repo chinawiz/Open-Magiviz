@@ -19,14 +19,12 @@ export async function POST(request: NextRequest) {
       return jsonError(401, 'Unauthorized')
     }
 
-    const { priceId, planType, locale = 'en' } = await request.json()
+    const { planType, locale = 'en' } = await request.json()
 
-    // 获取实际的价格ID
     const actualPriceIds = getActualPriceIds()
 
     // 添加调试日志
     console.log('=== Stripe Checkout Debug ===')
-    console.log('收到的价格ID:', priceId)
     console.log('计划类型:', planType)
     console.log('语言:', locale)
     console.log('实际的价格ID配置:', actualPriceIds)
@@ -95,21 +93,16 @@ export async function POST(request: NextRequest) {
       // trial和pro可以升级到annual，所以也不做限制
     }
 
-    // 确定要使用的价格ID
-    let finalPriceId = priceId
-    
-    // 如果前端传递的价格ID为空或无效，使用服务端的配置
-    if (!priceId || priceId.trim() === '') {
-      if (planType === 'trial') {
-        finalPriceId = actualPriceIds.trial
-      } else if (planType === 'pro') {
-        finalPriceId = actualPriceIds.pro
-      } else if (planType === 'annual') {
-        finalPriceId = actualPriceIds.annual
-      } else {
-        return NextResponse.json({ error: 'Missing price ID for plan type' }, { status: 400 })
-      }
-    }
+    // 安全约束：价格一律由 planType 映射到服务端配置，忽略客户端传入的 priceId，
+    // 防止传入其他价格 ID 造成跨档错配（如用试用价格开通年费）
+    const finalPriceId =
+      planType === 'trial'
+        ? actualPriceIds.trial
+        : planType === 'pro'
+          ? actualPriceIds.pro
+          : planType === 'annual'
+            ? actualPriceIds.annual
+            : ''
 
     // 验证最终的价格ID
     if (!finalPriceId || finalPriceId.trim() === '') {

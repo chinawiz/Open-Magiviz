@@ -16,7 +16,10 @@
 
 - 单部典型片 ≈ $0.18–0.23：脚本（ZenMux ~$0.002）+ 3 张图（nano-banana-2 ~$0.005–0.01/张）+ 8s veo3_lite（~$0.02–0.025/s）+ 自托管合成（~$0.001）。**视频生成 ≈85% 总成本——优化只动视频选型，别的省不出水花。**
 - 每 video-second 成本 ≈ $0.023–0.029。参照系：Kie credit = $0.005；Google 官方 Veo3.1 Fast $0.10/s（720p）。
-- 内部定价（credit = $0.10）毛利：veo31Lite 1cr/s → ~78% ✅；veo31Fast 2cr/s → ~75–81% ✅；**veo31Quality 3cr/s → 仅 ~17% ⚠️ 严重低估**——要么把 `lib/video-pricing.ts` 提到 4–5 cr/s，要么给降级链加成本约束（Lite→Fast 降级意味着成本翻倍）。定价改动后必须回到本节复算毛利。
+- 内部定价（点数包 $0.10/点，订阅摊薄后最差 $0.0756/点；2026-08-28 按「利润率 ≥100%」规则重订）：veo31Lite 1.5cr/s、veo31Fast 2cr/s、veo31Quality **9cr/s**（官方 $2/条 = $0.25/s，3cr/s 旧价在失败损耗下为负毛利，已按底线公式从 3 提到 9）、seedance25 9cr/s、seedance2 3.5cr/s、kling3/happyHorse/geminiOmni/minimaxH3 2.5cr/s、wan27/seedance2Fast 2cr/s、seedance2Mini 1.5cr/s；图片（nano-banana-2）1.5 分/张按次取整（单张 2 分、首尾帧两张 3 分）；剧本 1 分。
+- 底线公式（已代码化）：`unit ≥ ceil0.5( cost × 3.5 ÷ 0.10 )`，3.5 = 失败损耗 1.7 × 目标利润 2 × 支付缓冲 1.04。成本依据与单价同置于 `lib/video-pricing.ts`（MODEL_COST_BASIS_USD_PER_SECOND，verified 标注实测/估计），`video-pricing.test.ts` 守卫两表不许只改一边。**定价改动后必须回到本节复算毛利。**
+- 尾部风险提示：年费档（$0.0756/点）用户若把全部点数烧在最贵档，毛利会低于 100% 规则（按 Quality 算约 +60%）；极端场景，接受，但若 Kie 实测 Quality 成本低于 $0.25/s 应优先下调其售价。12 个模型中仅 veo31Lite 与图片为账单实测（verified），其余为估计——Kie 账单 xlsx 实测后回填。
+- 对账制度（2026-08-28 落地）：账单校准脚本 `scripts/kie_cost_audit.py`（桶表 + 干净 $/s + 底线对照）；线上失败率/毛利看 `/api/admin/pricing-health?days=30`（lib/pricing-health.ts 纯函数，任务表 model 列由迁移 0013 支持，失败损耗 >1.7× 或毛利 <100% 自动 warning）；runbook 见 `DEPLOY-CHECKLIST.md` §8。教训：**成本数据不会自己变准——没有一键工具的对账制度约等于没有制度**；另外媒体上传的强制模型默认档别指向最贵档（曾强制 seedance25 9分/秒，已改 seedance2Fast）。
 - 元教训：**上线前做一次单位经济学审计远比事后调价容易**；多档定价中最贵的一档最容易亏（高档用法占比高、价格未随成本等比放大时）。
 
 ## 供应商怪癖

@@ -45,16 +45,14 @@ export function PointsPurchase({ onPointsUpdate }: { onPointsUpdate?: () => void
     setLoading(pkg.id)
     
     try {
-      // 创建Stripe Checkout会话
+      // 只传套餐 ID：点数与金额由服务端价目表决定，客户端不传金额
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          points: pkg.points,
-          amount: pkg.price * 100, // 转换为分
-          priceId: pkg.priceId,
+          packageId: pkg.id,
         }),
       })
 

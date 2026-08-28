@@ -387,6 +387,7 @@ export const aiGenerationTasks = pgTable('ai_generation_tasks', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   taskType: text('taskType').notNull(), // 任务类型：generate_character, generate_storyboard, generate_video 等
+  model: text('model'), // 供应商模型键（lib/video-pricing.ts 的 key），用于按模型统计失败率与毛利；历史行为 NULL
   pointsDeducted: boolean('pointsDeducted').notNull().default(false), // 是否已扣除积分
   pointsAmount: integer('pointsAmount').notNull(), // 需要扣除的积分数量
   status: text('status').notNull().default('pending'), // 任务状态：pending, success, failed

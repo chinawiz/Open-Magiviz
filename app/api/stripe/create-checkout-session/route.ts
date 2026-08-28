@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { stripe } from '@/lib/stripe'
+import { stripe, POINTS_PRODUCTS } from '@/lib/stripe'
 import { getAuthedSession, jsonError } from '@/lib/api'
 
 export async function POST(request: NextRequest) {
@@ -10,15 +10,22 @@ export async function POST(request: NextRequest) {
     }
 
     const session = await getAuthedSession()
-    
+
     if (!session?.user?.email) {
       return jsonError(401, 'Unauthorized')
     }
 
-    const { points, amount, priceId } = await request.json()
+    const { packageId, points } = await request.json()
 
-    if (!points || !amount) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    // 安全约束：点数与金额只能来自服务端价目表（POINTS_PRODUCTS）。
+    // 历史上这里信任客户端传入的 amount，导致可伪造低价结算，已修复——
+    // 客户端输入仅用于匹配套餐，金额一律以服务端配置为准。
+    const pkg = packageId
+      ? Object.values(POINTS_PRODUCTS).find((p) => p.id === packageId)
+      : Object.values(POINTS_PRODUCTS).find((p) => p.points === Number(points))
+
+    if (!pkg) {
+      return NextResponse.json({ error: 'Invalid points package' }, { status: 400 })
     }
 
     // 创建或获取客户
@@ -37,32 +44,27 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // 创建line items - 优先使用价格ID
-    let lineItems
-    if (priceId && priceId.trim() !== '') {
-      // 使用预定义的价格ID
-      lineItems = [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ]
-    } else {
-      // 使用动态价格创建（向后兼容）
-      lineItems = [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: `${points.toLocaleString()} Points`,
-              description: `Purchase ${points.toLocaleString()} points for your account`,
-            },
-            unit_amount: amount, // 金额已经是分为单位
+    // 优先使用服务端环境变量里配置的价格 ID；未配置时按服务端价目表动态建价
+    const lineItems = pkg.priceId
+      ? [
+          {
+            price: pkg.priceId,
+            quantity: 1,
           },
-          quantity: 1,
-        },
-      ]
-    }
+        ]
+      : [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: `${pkg.points.toLocaleString()} Points`,
+                description: `Purchase ${pkg.points.toLocaleString()} points for your account`,
+              },
+              unit_amount: pkg.price * 100, // 元转分
+            },
+            quantity: 1,
+          },
+        ]
 
     // 创建结账会话
     const checkoutSession = await stripe.checkout.sessions.create({
@@ -74,14 +76,14 @@ export async function POST(request: NextRequest) {
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/profile?payment=cancelled`,
       metadata: {
         userId: session.user.id || '',
-        points: points.toString(),
+        points: pkg.points.toString(),
         type: 'points_purchase',
       },
       // 启用发票生成
       invoice_creation: {
         enabled: true,
         invoice_data: {
-          description: `${points.toLocaleString()} Points Purchase`,
+          description: `${pkg.points.toLocaleString()} Points Purchase`,
           metadata: {
             userId: session.user.id,
             type: 'points_purchase'
@@ -98,4 +100,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}

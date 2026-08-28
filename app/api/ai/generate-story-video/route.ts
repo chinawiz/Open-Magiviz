@@ -293,7 +293,15 @@ async function pollVideoStatus(
             if (userId && storedTaskId) {
               try {
                 const durationSeconds = getDurationSeconds(duration)
-                const pointsAmount = computeVideoPoints('veo31Fast', durationSeconds)
+                // 优先读任务创建时按请求模型写入的 pointsAmount（Veo 路径同时服务
+                // Lite/Fast/Quality 三档，不得一律按 Fast 计价）；无记录才按 Fast 兜底
+                const taskRows = await db
+                  .select({ pointsAmount: aiGenerationTasks.pointsAmount })
+                  .from(aiGenerationTasks)
+                  .where(eq(aiGenerationTasks.taskId, storedTaskId))
+                  .limit(1)
+                const pointsAmount =
+                  taskRows[0]?.pointsAmount ?? computeVideoPoints('veo31Fast', durationSeconds)
                 
                 // 更新任务状态为成功
                 await db.update(aiGenerationTasks)
@@ -572,8 +580,9 @@ async function generateWithVeo(
   const useWebhookMode = !!finalWebhookUrl
   const durationSeconds = getDurationSeconds(duration)
   // 单价唯一事实源：lib/video-pricing.ts
-  const pointsPerSecond = getVideoUnitPoints(isVeoLite ? 'veo31Lite' : (isVeoQuality ? 'veo31Quality' : 'veo31Fast'))
-  const pointsAmount = durationSeconds * pointsPerSecond
+  const modelKey = isVeoLite ? 'veo31Lite' : (isVeoQuality ? 'veo31Quality' : 'veo31Fast')
+  const pointsPerSecond = getVideoUnitPoints(modelKey)
+  const pointsAmount = Math.round(durationSeconds * pointsPerSecond)
 
   if (userId) {
     try {
@@ -583,6 +592,7 @@ async function generateWithVeo(
         userId: userId,
         taskType: 'generate_story_video_veo',
         pointsAmount: pointsAmount,
+        model: modelKey,
         pointsDeducted: false,
         status: 'pending',
         projectId: projectId || null,
@@ -713,7 +723,8 @@ async function generateWithSeedance2(
     : (isMini
       ? 'seedance_2_0_mini_video'
       : (isFast ? 'seedance_2_0_fast_video' : 'seedance_2_0_video'))
-  const pointsPerSecond = getVideoUnitPoints(is25 ? 'seedance25' : (isMini ? 'seedance2Mini' : (isFast ? 'seedance2Fast' : 'seedance2')))
+  const modelKey = is25 ? 'seedance25' : (isMini ? 'seedance2Mini' : (isFast ? 'seedance2Fast' : 'seedance2'))
+  const pointsPerSecond = getVideoUnitPoints(modelKey)
   const pointsAmount = Math.round(durationParam * pointsPerSecond)
 
   const modelLabel = is25 ? 'Seedance 2.5' : (isMini ? 'Seedance 2.0 Mini' : (isFast ? 'Seedance 2.0 Fast' : 'Seedance 2.0'))
@@ -783,6 +794,7 @@ async function generateWithSeedance2(
         userId: userId,
         taskType: taskType,
         pointsAmount: pointsAmount,
+        model: modelKey,
         pointsDeducted: false,
         status: 'pending',
         projectId: projectId || null,
@@ -990,8 +1002,9 @@ async function generateWithWan(
   }
 
   const taskType = 'wan_2_7_video'
-  const pointsPerSecond = getVideoUnitPoints('wan27')
-  const pointsAmount = durationParam * pointsPerSecond
+  const modelKey = 'wan27'
+  const pointsPerSecond = getVideoUnitPoints(modelKey)
+  const pointsAmount = Math.round(durationParam * pointsPerSecond)
 
   console.log(`[generate-story-video] [Wan 2.7] 创建视频任务:`, {
     imageUrl: imageUrl.substring(0, 50) + '...',
@@ -1055,6 +1068,7 @@ async function generateWithWan(
         userId: userId,
         taskType: taskType,
         pointsAmount: pointsAmount,
+        model: modelKey,
         pointsDeducted: false,
         status: 'pending',
         projectId: projectId || null,
@@ -1229,8 +1243,9 @@ async function generateWithHappyHorse(
   }
 
   const taskType = 'happyhorse_video'
-  const pointsPerSecond = getVideoUnitPoints('happyHorse')
-  const pointsAmount = durationParam * pointsPerSecond
+  const modelKey = 'happyHorse'
+  const pointsPerSecond = getVideoUnitPoints(modelKey)
+  const pointsAmount = Math.round(durationParam * pointsPerSecond)
 
   console.log(`[generate-story-video] [HappyHorse] 创建视频任务:`, {
     imageUrl: imageUrl.substring(0, 50) + '...',
@@ -1290,6 +1305,7 @@ async function generateWithHappyHorse(
         userId: userId,
         taskType: taskType,
         pointsAmount: pointsAmount,
+        model: modelKey,
         pointsDeducted: false,
         status: 'pending',
         projectId: projectId || null,
@@ -1448,8 +1464,9 @@ async function generateWithGeminiOmni(
   const resolution = '1080p'
   const finalAspectRatio = aspectRatio || '16:9'
   const taskType = 'gemini_omni_video'
-  const pointsPerSecond = getVideoUnitPoints('geminiOmni')
-  const pointsAmount = durationSeconds * pointsPerSecond
+  const modelKey = 'geminiOmni'
+  const pointsPerSecond = getVideoUnitPoints(modelKey)
+  const pointsAmount = Math.round(durationSeconds * pointsPerSecond)
 
   // 构建 image_urls：imageUrl + additionalImageUrls（Gemini Omni 不支持首尾帧，仅作参考图）
   const allImageUrls: string[] = []
@@ -1534,6 +1551,7 @@ async function generateWithGeminiOmni(
         userId: userId,
         taskType: taskType,
         pointsAmount: pointsAmount,
+        model: modelKey,
         pointsDeducted: false,
         status: 'pending',
         projectId: projectId || null,
@@ -1620,8 +1638,9 @@ async function generateWithMinimaxH3(
   }
 
   const taskType = 'minimax_h3_video'
-  const pointsPerSecond = getVideoUnitPoints('minimaxH3')
-  const pointsAmount = durationParam * pointsPerSecond
+  const modelKey = 'minimaxH3'
+  const pointsPerSecond = getVideoUnitPoints(modelKey)
+  const pointsAmount = Math.round(durationParam * pointsPerSecond)
 
   console.log(`[generate-story-video] [MiniMax H3] 创建视频任务:`, {
     imageUrl: imageUrl ? imageUrl.substring(0, 50) + '...' : 'none',
@@ -1682,6 +1701,7 @@ async function generateWithMinimaxH3(
         userId: userId,
         taskType: taskType,
         pointsAmount: pointsAmount,
+        model: modelKey,
         pointsDeducted: false,
         status: 'pending',
         projectId: projectId || null,
@@ -1913,7 +1933,8 @@ async function generateWithKling(
   // 存储任务映射（用于 webhook 回调时扣除积分）
   if (userId) {
     const durationSeconds = parseInt(durationParam, 10)
-    const pointsAmount = computeVideoPoints('kling3', durationSeconds)
+    const modelKey = 'kling3'
+    const pointsAmount = computeVideoPoints(modelKey, durationSeconds)
     try {
       await db.insert(aiGenerationTasks).values({
         id: uuidv4(),
@@ -1921,6 +1942,7 @@ async function generateWithKling(
         userId: userId,
         taskType: 'kling_3_0_video',
         pointsAmount: pointsAmount,
+        model: modelKey,
         pointsDeducted: false,
         status: 'pending',
         projectId: projectId || null,

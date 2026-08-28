@@ -6731,7 +6731,9 @@ export function AIFunction({
   useEffect(() => {
     if (hasMedia) {
       if (videoModel !== "seedance2" && videoModel !== "seedance2Fast" && videoModel !== "seedance2Mini" && videoModel !== "seedance25") {
-        setVideoModel("seedance25")
+        // 默认落到兼容档里最便宜的 seedance2Fast（2分/秒），最贵的 seedance25（9分/秒）
+        // 保留给用户手动选择，避免上传素材即被切进高价档
+        setVideoModel("seedance2Fast")
       }
     }
   }, [hasMedia])

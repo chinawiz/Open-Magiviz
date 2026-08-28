@@ -101,3 +101,14 @@ SELECT model, fallbackApplied, COUNT(*) FROM funnel_events
 | 迁移 0010 | `DROP INDEX IF EXISTS sp_payment_intent_unique, sp_checkout_session_unique;`（删除的数据用 Neon PITR 恢复） |
 | 迁移 0011/0012 | `DROP TABLE IF EXISTS provider_routes / funnel_events;`（新表无旧依赖；router 会回落静态默认） |
 | Kie 验签 | 无开关，配置正确密钥即恢复（代码层 fail-closed 不回退） |
+
+## 8. 月度成本对账（非部署期，每月一次）
+
+1. **Kie 账单校准**：控制台 Credits 页导出 xlsx → `python3 scripts/kie_cost_audit.py <账单.xlsx>`。
+   把实测 $/s 回填 `lib/video-pricing.ts` 的 `MODEL_COST_BASIS_USD_PER_SECOND`（`verified: true`），
+   跑 `npx vitest run lib/video-pricing.test.ts`——底线守卫测试会拦住击穿 100% 毛利规则的改价。
+   重点盯：veo-3-1 的 8s 档 credits（若与 4s 同价则 Lite 成本减半，可降价）、
+   seedance-2-5 实测（当前 0.23 为市价上限估计，实测后大概率可从 9 分/秒下调）。
+2. **线上失败率与毛利**：管理员访问 `/api/admin/pricing-health?days=30`。
+   带 `warning` 的模型：失败损耗 >1.7× → 换模型或上调底线倍率；预估毛利 <100% → 重订单价。
+   注意：2026-08-28 之前的任务无 model 字段，归在 unknown 桶，新数据会自动归位。

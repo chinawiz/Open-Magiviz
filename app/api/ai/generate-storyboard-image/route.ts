@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getAuthedSession, jsonError } from '@/lib/api'
 import { trackFunnelEvent } from '@/lib/observability/track'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
+import { computeImagePoints } from '@/lib/video-pricing'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
@@ -170,7 +171,8 @@ async function generateFrameImage(
           taskId: taskId,
           userId: userId,
           taskType: 'generate_storyboard_frame',
-          pointsAmount: 1,
+          model: 'nanoBanana2',
+          pointsAmount: computeImagePoints(1),
           pointsDeducted: false,
           status: 'pending',
           projectId: projectId || null,
@@ -324,12 +326,12 @@ async function generateSingleStoryboard(
     const imageUrl = (frameResult.images as any)?.[0]?.url
     
     if (imageUrl) {
-      // 扣除积分（单个帧 1 积分）
+      // 扣除积分（单张图，单价事实源 lib/video-pricing.ts）
       if (userId) {
         try {
           await deductPoints(
             userId,
-            1,
+            computeImagePoints(1),
             undefined,
             PointsAction.GENERATE_STORYBOARD
           )
@@ -399,12 +401,12 @@ async function generateSingleStoryboard(
     
     // 至少要有一个成功
     if (Object.keys(images).length > 0) {
-      // 扣除积分（首尾帧各1积分，共2积分）- 轮询模式下立即扣除
+      // 扣除积分（首尾帧两张，单价事实源 lib/video-pricing.ts）- 轮询模式下立即扣除
       if (userId) {
         try {
           await deductPoints(
             userId,
-            2,
+            computeImagePoints(2),
             undefined,
             PointsAction.GENERATE_STORYBOARD
           )
@@ -569,7 +571,8 @@ async function generateSingleStoryboardOriginal(
         taskId: taskId,
         userId: userId,
         taskType: 'generate_storyboard',
-        pointsAmount: 1,
+        model: 'nanoBanana2',
+        pointsAmount: computeImagePoints(1),
         pointsDeducted: false,
         status: 'pending',
         projectId: projectId || null,
@@ -657,7 +660,7 @@ async function generateSingleStoryboardOriginal(
       // 扣除积分
       await deductPoints(
         userId,
-        1,
+        computeImagePoints(1),
         undefined,
         PointsAction.GENERATE_STORYBOARD
       )

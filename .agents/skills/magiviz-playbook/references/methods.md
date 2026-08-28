@@ -15,6 +15,14 @@
 
 支付记录认领（`claimPaymentRecord`/`completePaymentRecord`，`579484c`）、webhook 积分发放原子认领、积分分支事务化（`19836d8`）。原则：**并发下的正确性靠「谁先原子地 claim 到谁说话」，不靠调用方自觉幂等**。凡是「同一笔东西可能到达两次」的场景（webhook 重试、并发回调）都用这个模式。
 
+### 3a. 金额与数量只能来自服务端事实源（2026-08-28 事故审计）
+
+- 场景：定价审计发现积分购买结账金额 `amount` 由客户端请求体传入（客户端 priceId 恒为空 → 必走动态价格分支），且 webhook 发积分只认 metadata、不校验实付金额——任何人可 $0.01 买 1000 积分。
+- 教训（通用规律）：**凡是「服务端事后按客户端给过的数字发货」的路径，那个数字必须在服务端能重新推导出来**。客户端只能传「选择器」（套餐 ID/planType），金额、数量、价格一律服务端查表。订阅路由早就做对了（`getActualPriceIds` 按 planType 服务端映射），同仓库另一条路径却踩坑——好的模式要主动推广到所有同构路径，不能等出事。
+- 附带发现：同族 bug 还有「轮询扣费硬编码模型」（Veo 路径三档模型一律按 Fast 扣，应读任务创建时写入的 `pointsAmount`）和「计价不取整撞 integer 列」。共同根因：**同一事实存在多份手工拷贝**，解法是唯一事实源模块（`lib/video-pricing.ts` 导出成本依据 + 单价表 + `minUnitPoints` 底线公式，测试守卫两边不许只改一边）。
+- 解法（已验证）：`create-checkout-session` 改为按 packageId 服务端查 `POINTS_PRODUCTS`；订阅路由无条件忽略客户端 priceId；Veo 轮询读任务表 `pointsAmount`；47 测试全绿。
+- 锚点：`app/api/stripe/create-checkout-session/route.ts`、`app/api/stripe/checkout/route.ts`、`app/api/ai/generate-story-video/route.ts`（轮询扣费）、`lib/video-pricing.ts`
+
 ## 4. 可靠性做成套兜底，不打散点补丁
 
 验签 fail-closed + 健康检查 + 时长红线（`19836d8`）→ 漏回调补偿任务轮询供应商终态（`caad415`）→ 供应商适配层统一轮询语义 + 显式降级链并把 provider/model/fallbackApplied 记入埋点（`6a34072`、`42a63bf`）。
