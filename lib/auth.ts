@@ -63,13 +63,25 @@ export const authOptions: NextAuthOptions = {
 
     // 修复 Google 登录：官方 DrizzleAdapter 的 linkAccount 生成的 INSERT 把 userId
     // 留给数据库默认值（serial 假设），而本项目 accounts.userId 是 text 非空无默认 →
-    // 插入抛错导致 Google 回调失败回登录页。覆盖实现：显式 nanoid 关联到已解析用户。
+    // 插入抛错导致 OAuthAccountNotLinked 回登录页。
+    // 定位用户不依赖请求间状态（serverless 多实例不可靠）：优先从 id_token 解 email
+    // （Google 已完成认证，payload 可信），其次回退最近的 getUserByEmail 结果。
     async linkAccount(account: AdapterAccount) {
-      if (!_lastResolvedUser) {
-        throw new Error('linkAccount: 无已解析用户')
+      let email: string | null = null
+      if (account.id_token) {
+        try {
+          const payload = JSON.parse(Buffer.from(account.id_token.split('.')[1], 'base64').toString('utf-8'))
+          if (payload.email && typeof payload.email === 'string') email = payload.email
+        } catch { /* 解析失败走回退 */ }
       }
+      if (!email && _lastResolvedUser) email = _lastResolvedUser.email
+      if (!email) throw new Error('linkAccount: 无法确定归属用户邮箱')
+
+      const user = await db.query.users.findFirst({ where: eq(users.email, email) })
+      if (!user) throw new Error(`linkAccount: 用户不存在 ${email}`)
+
       await db.insert(accounts).values({
-        userId: _lastResolvedUser.id,
+        userId: user.id,
         type: account.type,
         provider: account.provider,
         providerAccountId: account.providerAccountId,
@@ -254,6 +266,10 @@ export const authOptions: NextAuthOptions = {
       }
       return session
     },
+    // OAuthAccountNotLinked 修复：该项目 chinawiz@gmail.com 等存量用户由【注册表单】创建，
+    // 无 OAuth 绑定。Google 首登时按 email 匹配到存量用户后，NextAuth 默认安全策略会因
+    // "该 OAuth 账号未与任何用户关联且未走 createUser 流程" 抛 OAuthAccountNotLinked。
+    // 显式在 signIn 回调放行 OAuth（adapter.linkAccount 已覆盖为显式 userId 写入）。
     async signIn({ user, account, profile }) {
       try {
         console.log('OAuth登录回调开始:', {
