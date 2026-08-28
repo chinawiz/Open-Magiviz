@@ -21,7 +21,8 @@ import { nanoid } from 'nanoid'
  * @param versionGroupId 版本组ID
  * @returns newVersionId 或 null（不存在）
  */
-export async function getActiveVersionId(
+/** 模块内部使用：按 versionGroupId 查找已登记的新版本ID */
+async function getActiveVersionId(
   projectId: string,
   versionGroupId: string
 ): Promise<string | null> {
@@ -63,7 +64,8 @@ export async function getActiveVersionIdForFail(
  * @param versionGroupId 版本组ID
  * @param newVersionId 新版本ID
  */
-export async function setNewVersionId(
+/** 模块内部使用：由第一个回调把 newVersionId 写入同组所有任务记录 */
+async function setNewVersionId(
   projectId: string,
   versionGroupId: string,
   newVersionId: string
@@ -94,7 +96,8 @@ export async function setNewVersionId(
  *   - final_video: 复制所有数据
  * @returns 新版本ID 和版本号
  */
-export async function createNewVersion(
+/** 模块内部使用：创建新版本并按步骤复制数据 */
+async function createNewVersion(
   projectId: string,
   oldVersionId?: string,
   versionGroupId?: string | null,

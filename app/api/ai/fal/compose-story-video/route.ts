@@ -4,7 +4,6 @@ import { fal } from "@fal-ai/client"
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
-import type { KieRequestBody } from '@/lib/ai-types'
 import { withFalWebhookToken } from '@/lib/webhook-security'
 import { composeFinalVideo } from '@/trigger/compose-final-video'
 
@@ -135,17 +134,6 @@ function calculateTotalDuration(tracks: ComposeTrack[]): number {
   })
 
   return Math.round(maxEndTime / 1000) // 转换为秒
-}
-
-/**
- * 简化宽高比（如 1920:1080 → 16:9）
- */
-function simplifyAspectRatio(width: number, height: number): string {
-  const gcd = (a: number, b: number): number => {
-    return b === 0 ? a : gcd(b, a % b)
-  }
-  const divisor = gcd(width, height)
-  return `${width / divisor}:${height / divisor}`
 }
 
 /**

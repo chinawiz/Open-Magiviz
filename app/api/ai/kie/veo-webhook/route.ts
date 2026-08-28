@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 
 // 导入 Pusher 工具
-import { pusherServer, notifyVideoSuccess, notifyTaskFail } from '@/lib/pusher'
+import { notifyVideoSuccess, notifyTaskFail } from '@/lib/pusher'
 import { db } from '@/lib/db'
 import { aiGenerationTasks, projectData, videoProjects } from '@/lib/schema'
 import { deductPoints, PointsAction } from '@/lib/points'
-import { resolveTargetVersion, getActiveVersionIdForFail } from '@/lib/versionMapper'
+import { resolveTargetVersion } from '@/lib/versionMapper'
 import { claimTaskPointsDeduction, releaseTaskPointsClaim, markTaskSuccess } from '@/lib/task-points'
 import { verifyKieWebhook } from '@/lib/webhook-security'
-import { eq, desc, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { triggerSceneVideoMigration } from '@/trigger/migrate-assets'
 import type { KieApiResponse } from '@/lib/ai-types'
 import { safeJsonCopy } from '@/lib/ai-types'
@@ -114,9 +114,7 @@ export async function POST(request: NextRequest) {
     } else if (code === 400) {
       return handleFailCallback(taskId, msg || '提示词违反内容政策', 'CONTENT_POLICY', startTime)
     } else if (code === 422) {
-      // 托底失败 - 从 msg 中提取原始错误信息
-      const errorMatch = msg?.match(/rejected by Flow\((.+?)\)/)
-      const originalError = errorMatch ? errorMatch[1] : msg
+      // 托底失败
       return handleFailCallback(taskId, msg || '托底失败', 'FALLBACK_FAILED', startTime)
     } else if (code === 500) {
       return handleFailCallback(taskId, msg || '内部错误', 'INTERNAL_ERROR', startTime)

@@ -680,7 +680,7 @@ export async function POST(request: NextRequest) {
     const session = await getAuthedSession()
     if (!session) {
       return jsonError(401, 'Unauthorized')
-19728}
+    }
 
     // 读取原始请求体
     const rawText = await request.text()

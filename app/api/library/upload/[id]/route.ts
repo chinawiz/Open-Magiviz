@@ -11,7 +11,7 @@ export async function DELETE(request: NextRequest) {
 
     if (!session) {
       return jsonError(401, 'Unauthorized')
-433}
+    }
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")
@@ -51,7 +51,7 @@ export async function PATCH(request: NextRequest) {
 
     if (!session) {
       return jsonError(401, 'Unauthorized')
-1503}
+    }
 
     const body = await request.json()
     const { id, name } = body

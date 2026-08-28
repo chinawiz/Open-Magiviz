@@ -12,7 +12,7 @@ export async function GET(request: Request) {
 
     if (!session) {
       return jsonError(401, 'Unauthorized')
-440}
+    }
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')

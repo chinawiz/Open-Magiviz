@@ -80,30 +80,6 @@ interface UseLibraryReturn<T> {
   loadItems: (page?: number, search?: string) => Promise<void>
 }
 
-// 工具函数：获取库数据
-async function fetchLibraryData<T>(
-  endpoint: string,
-  page: number = 1,
-  search: string = ''
-): Promise<{ items: T[]; pagination: Pagination }> {
-  const params = new URLSearchParams({
-    page: page.toString(),
-    limit: '30',
-  })
-  if (search) {
-    params.append('search', search)
-  }
-
-  const response = await fetch(`/api/library/${endpoint}?${params}`)
-  const data: LibraryResponse<T> = await response.json()
-
-  if (!response.ok) {
-    throw new Error(data.error || '加载数据失败')
-  }
-
-  return data.data
-}
-
 // 主角库 Hook
 export function useCharacterLibrary(): UseLibraryReturn<LibraryCharacter> & {
   loadCharacters: (page?: number, search?: string, append?: boolean) => Promise<void>

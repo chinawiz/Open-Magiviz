@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
 
       // 批量更新过期订阅
       if (expiredUserIds.length > 0) {
-        const { pointsHistory } = await import('@/lib/schema')
+        // pointsHistory 已在文件顶部静态导入；uuid 保持按需动态加载
         const { v4: uuidv4 } = await import('uuid')
 
         // 逐个更新过期订阅

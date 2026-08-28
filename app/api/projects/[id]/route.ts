@@ -16,7 +16,7 @@ export async function GET(
     
     if (!session) {
       return jsonError(401, 'Unauthorized')
-523}
+}
 
     // 获取项目信息
     const [project] = await db
@@ -100,7 +100,7 @@ export async function PUT(
     
     if (!session) {
       return jsonError(401, 'Unauthorized')
-2818}
+}
 
     // 验证项目存在和所有权
     const [existingProject] = await db
@@ -175,7 +175,7 @@ export async function DELETE(
     
     if (!session) {
       return jsonError(401, 'Unauthorized')
-4986}
+}
 
     // 验证项目存在和所有权
     const [existingProject] = await db

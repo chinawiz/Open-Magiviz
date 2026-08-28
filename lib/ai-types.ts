@@ -4,17 +4,6 @@
  * 外部 API 字段以实际返回为准，主体字段在这里声明，其余保持宽松（index signature）。
  */
 
-// —— 外部任务创建响应（Kie.ai createTask） ——
-export interface KieCreateResponse {
-  code?: number
-  msg?: string
-  data?: {
-    taskId?: string
-    [key: string]: unknown
-  }
-  [key: string]: unknown
-}
-
 // —— 外部任务状态查询 / 回调响应的统一形状 ——
 // 覆盖了 Veo / Kling / Seedance / Wan / HappyHorse / Gemini Omni 多种返回格式。
 // 注意：部分回调（如视频通用回调）会把 resultUrls / videoUrl 直接放在顶层，
@@ -166,13 +155,6 @@ export interface KieRequestBody {
 // —— 单张生成结果（角色图 / 分镜图） ——
 export interface GeneratedImage {
   url: string
-}
-
-export interface SingleGenerationResult {
-  success: boolean
-  images?: GeneratedImage[]
-  requestId?: string
-  error?: string
 }
 
 // —— 单条场景数据（剧情详情 / 分镜 / 剧情视频共用，宽松扩展） ——

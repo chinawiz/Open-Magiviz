@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { referrals, users, referralHistory } from '@/lib/schema'
-import { eq, desc, like, or, count, sum } from 'drizzle-orm'
+import { eq, desc, count, sum } from 'drizzle-orm'
 import { isAdmin } from '@/lib/auth-utils'
 
 export async function GET(request: NextRequest) {
@@ -19,7 +19,6 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
-    const search = searchParams.get('search') || ''
 
     if (action === 'stats') {
       // 获取推荐统计数据

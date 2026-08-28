@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthedSession, jsonError } from '@/lib/api'
 import { db } from '@/lib/db'
-import { affiliateProfiles, affiliateEarnings, affiliateRelations, users } from '@/lib/schema'
+import { affiliateEarnings, affiliateRelations, users } from '@/lib/schema'
 import { eq, desc, and } from 'drizzle-orm'
 import { getOrCreateAffiliateProfile, releaseFrozenFunds } from '@/lib/affiliate'
 

@@ -8,7 +8,7 @@ export async function GET() {
     
     if (!session) {
       return jsonError(401, 'Unauthorized')
-337}
+}
 
     const pointsDetail = await getUserPointsDetail(session.user.id)
     

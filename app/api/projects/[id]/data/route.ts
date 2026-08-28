@@ -23,7 +23,7 @@ export async function GET(
 
     if (!session) {
       return jsonError(401, 'Unauthorized')
-728}
+}
 
     const [existingProject] = await db
       .select({ userId: videoProjects.userId })
@@ -78,7 +78,7 @@ export async function PUT(
     const session = await getAuthedSession()
     if (!session) {
       return jsonError(401, 'Unauthorized')
-2371}
+}
 
     const [existingProject] = await db
       .select({ userId: videoProjects.userId })

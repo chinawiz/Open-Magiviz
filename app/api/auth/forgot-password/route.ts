@@ -4,19 +4,7 @@ import { users } from '@/lib/schema'
 import { sendPasswordResetEmail } from '@/lib/email'
 import { eq } from 'drizzle-orm'
 import crypto from 'crypto'
-
-// 获取客户端IP地址
-function getClientIP(request: NextRequest): string | undefined {
-  const forwarded = request.headers.get('x-forwarded-for')
-  const realIP = request.headers.get('x-real-ip')
-  const cfConnectingIP = request.headers.get('cf-connecting-ip') // Cloudflare
-  
-  if (cfConnectingIP) return cfConnectingIP
-  if (realIP) return realIP
-  if (forwarded) return forwarded.split(',')[0].trim()
-  
-  return undefined
-}
+import { getClientIP } from '@/lib/auth-utils'
 
 export async function POST(request: NextRequest) {
   try {

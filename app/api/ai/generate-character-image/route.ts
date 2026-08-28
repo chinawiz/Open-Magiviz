@@ -7,7 +7,7 @@ import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
 import { eq } from 'drizzle-orm'
-import type { KieCreateResponse, KieApiResponse, KieRequestBody, GeneratedImage, SingleGenerationResult, BatchResultItem } from '@/lib/ai-types'
+import type { KieApiResponse, KieRequestBody, GeneratedImage, BatchResultItem } from '@/lib/ai-types'
 
 /**
  * POST /api/ai/generate-character-image
@@ -43,9 +43,9 @@ const KIE_API_KEY = process.env.KIE_API_KEY!
 const WEBHOOK_URL = process.env.KIE_WEBHOOK_URL
 
 // 生成单个主角图片
+// 注：请求体的 aspectRatio 字段当前不参与生成参数（nano-banana-2 按 1:1 出图），仅记录日志
 async function generateSingleCharacter(
   prompt: string,
-  aspectRatio?: string,
   webhookUrl?: string,
   userId?: string,
   projectId?: string,
@@ -228,7 +228,7 @@ export async function POST(request: NextRequest) {
     const session = await getAuthedSession()
     if (!session) {
       return jsonError(401, 'Unauthorized')
-6385}
+    }
 
     // 读取原始请求体
     const rawText = await request.text()
@@ -296,7 +296,7 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        const result = await generateSingleCharacter(promptText, "1:1", undefined, session.user.id, body.projectId, characterId ?? undefined, body.versionId, body.versionGroupId, referenceImage)
+        const result = await generateSingleCharacter(promptText, undefined, session.user.id, body.projectId, characterId ?? undefined, body.versionId, body.versionGroupId, referenceImage)
         trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: body.projectId ?? null, success: result.success, provider: 'kieai', model: 'nano-banana-2', taskId: result.requestId, error: result.error })
 
         if (result.success) {
@@ -324,7 +324,7 @@ export async function POST(request: NextRequest) {
     const { prompt, aspectRatio, webhookUrl, projectId, itemId, versionId, versionGroupId, referenceImage } = body
     console.log('[generate-character-image] single request:', { promptLength: prompt?.length, aspectRatio, hasWebhook: !!webhookUrl, projectId, versionId, versionGroupId, hasReferenceImage: !!referenceImage })
 
-    const result = await generateSingleCharacter(prompt ?? '', aspectRatio, webhookUrl, session.user.id, projectId, itemId, versionId, versionGroupId, referenceImage)
+    const result = await generateSingleCharacter(prompt ?? '', webhookUrl, session.user.id, projectId, itemId, versionId, versionGroupId, referenceImage)
     trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: 'kieai', model: 'nano-banana-2', taskId: result.requestId, error: result.error })
 
     if (!result.success) {

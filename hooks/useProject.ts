@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import type { StoryScene, CharacterItem, StoryboardItem, SceneVideoItem } from '@/lib/types'
 
 // 项目类型定义
@@ -47,19 +47,6 @@ export interface Version {
 }
 
 // API 响应类型
-interface ProjectsListResponse {
-  success: boolean
-  data: {
-    projects: Project[]
-    pagination: {
-      page: number
-      limit: number
-      total: number
-      totalPages: number
-    }
-  }
-}
-
 interface ProjectDetailResponse {
   success: boolean
   data: {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 // 导入 Pusher 工具
-import { pusherServer, notifyImageSuccess, notifyTaskFail } from '@/lib/pusher'
+import { notifyImageSuccess, notifyTaskFail } from '@/lib/pusher'
 import { db } from '@/lib/db'
 import { aiGenerationTasks, projectData, videoProjects } from '@/lib/schema'
 import { deductPoints, PointsAction } from '@/lib/points'
@@ -129,9 +129,6 @@ export async function POST(request: NextRequest) {
                 await db.update(projectData).set({ storyboardData: storyboards, updatedAt: new Date() }).where(eq(projectData.id, latestData.id))
               } else if (failedRecord.taskType === 'generate_storyboard_frame') {
                 // 首尾帧模式失败处理
-                const originalItemId = failedRecord.itemId?.replace(/_first$|_last$/, '') || null
-                const isFirstFrame = failedRecord.itemId?.endsWith('_first')
-                const isLastFrame = failedRecord.itemId?.endsWith('_last')
                 const storyboards: StoryboardItem[] = safeJsonCopy<StoryboardItem[]>(latestData.storyboardData) || []
                 
                 // 新格式：itemId 直接作为 id 匹配

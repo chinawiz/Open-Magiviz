@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
           processedUserId = user[0].id
 
           // claim-first：并发重复投递/已处理（唯一索引冲突）直接返回；
-          // 认领成功即首次处理，后续的 hasPaymentRecord 分支恒为首次路径
+          // 认领成功即首次处理，后续发放/记录/邮件均只执行一次
           const claim = await claimPaymentRecord({
             userId: user[0].id,
             stripeCustomerId: customerId,
@@ -191,7 +191,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ received: true })
           }
           claimId = claim.id
-          const hasPaymentRecord = false
 
           // 主动使用Stripe SDK获取最新的完整订阅信息
           const latestSubscription = await stripe.subscriptions.retrieve(subscriptionId)
@@ -253,37 +252,30 @@ export async function POST(request: NextRequest) {
           }
 
           // 仅在首次处理该 session 时更新用户与赠送积分，避免重复累加
-          if (!hasPaymentRecord) {
-            // 从配置中获取订阅赠送的积分数量
-            const giftedPoints = getSubscriptionGiftedPoints(subscriptionPlan as keyof typeof SUBSCRIPTION_PRODUCTS)
-            const previousPoints = currentUser.points ?? 0
-            const previousGiftedPoints = currentUser.giftedPoints ?? 0
-            const newPointsTotal = previousPoints + giftedPoints
-            const newGiftedPointsTotal = previousGiftedPoints + giftedPoints
+          // 从配置中获取订阅赠送的积分数量
+          const giftedPoints = getSubscriptionGiftedPoints(subscriptionPlan as keyof typeof SUBSCRIPTION_PRODUCTS)
 
-            // 如果是试用订阅，标记用户已订阅过试用版
-            const updateData: Partial<NewUser> = {
-              stripeCustomerId: customerId,
-              subscriptionId: latestSubscription.id,
-              subscriptionStatus: latestSubscription.status,
-              subscriptionPlan: subscriptionPlan,
-              subscriptionCurrentPeriodEnd: finalEndDate,
-              points: sql`${users.points} + ${giftedPoints}` as unknown as number,
-              giftedPoints:  sql`${users.giftedPoints} + ${giftedPoints}` as unknown as number,
-              updatedAt: new Date(),
-            }
-
-            // 如果是试用订阅，设置hasTrialSubscription为true
-            if (subscriptionPlan === 'trial') {
-              updateData.hasTrialSubscription = true
-            }
-
-            await db
-              .update(users)
-              .set(updateData)
-              .where(eq(users.id, user[0].id))
-          } else {
+          // 如果是试用订阅，标记用户已订阅过试用版
+          const updateData: Partial<NewUser> = {
+            stripeCustomerId: customerId,
+            subscriptionId: latestSubscription.id,
+            subscriptionStatus: latestSubscription.status,
+            subscriptionPlan: subscriptionPlan,
+            subscriptionCurrentPeriodEnd: finalEndDate,
+            points: sql`${users.points} + ${giftedPoints}` as unknown as number,
+            giftedPoints:  sql`${users.giftedPoints} + ${giftedPoints}` as unknown as number,
+            updatedAt: new Date(),
           }
+
+          // 如果是试用订阅，设置hasTrialSubscription为true
+          if (subscriptionPlan === 'trial') {
+            updateData.hasTrialSubscription = true
+          }
+
+          await db
+            .update(users)
+            .set(updateData)
+            .where(eq(users.id, user[0].id))
 
           // 计算订阅时长（天数）用于推荐奖励
           // 优先使用 Stripe 的 current_period_* 字段；缺失时按价格的 recurring 维度推断
@@ -328,7 +320,7 @@ export async function POST(request: NextRequest) {
           if (typeof subscriptionPeriodStart === 'number') {
             periodStartDate = new Date(subscriptionPeriodStart * 1000)
           } else {
-            const baseEnd = hasPaymentRecord ? (currentUser.subscriptionCurrentPeriodEnd ?? finalEndDate) : finalEndDate
+            const baseEnd = finalEndDate
             periodStartDate = new Date(baseEnd.getTime() - subscriptionDays * dayMs)
           }
 
@@ -362,119 +354,112 @@ export async function POST(request: NextRequest) {
 
           // 推荐奖励处理完成后，再记录积分历史和支付记录
           // 记录赠送积分历史（仅首次处理该 session 时写入）
-          if (!hasPaymentRecord) {
-            // 从配置中获取订阅赠送的积分数量
-            const giftedPoints = getSubscriptionGiftedPoints(subscriptionPlan as keyof typeof SUBSCRIPTION_PRODUCTS)
+          // 判断是续订、升级还是新订阅
+          // 同一版本才是续订，不同版本是升级
+          const previousPlan = currentUser.subscriptionPlan
+          const isRenewal = hasActiveSubscription && previousPlan === subscriptionPlan
+          const isUpgrade = hasActiveSubscription && previousPlan && previousPlan !== subscriptionPlan
             
-            // 判断是续订、升级还是新订阅
-            // 同一版本才是续订，不同版本是升级
-            const previousPlan = currentUser.subscriptionPlan
-            const isRenewal = hasActiveSubscription && previousPlan === subscriptionPlan
-            const isUpgrade = hasActiveSubscription && previousPlan && previousPlan !== subscriptionPlan
-            
-            // 确定 action 类型
-            let action: string
-            if (isRenewal) {
-              action = 'subscription_renewal_gift'
-            } else if (isUpgrade) {
-              action = 'subscription_upgrade_gift'
-            } else {
-              action = 'subscription_gift'
-            }
-            
-            // 获取订阅计划显示名称（用于描述）
-            const getPlanDisplayName = (plan: string): string => {
-              // 简单的格式化：首字母大写
-              return plan.charAt(0).toUpperCase() + plan.slice(1)
-            }
-            const planDisplayName = getPlanDisplayName(subscriptionPlan)
-            
-            // 根据类型生成描述
-            let description: string
-            if (isRenewal) {
-              // 续订：同一版本
-              const periodDays = subscriptionPlan === 'annual' ? 365 : (subscriptionPlan === 'trial' ? 7 : 30)
-              description = `续订${planDisplayName}赠送积分（时间累加${periodDays}天）`
-            } else if (isUpgrade) {
-              // 升级：不同版本
-              description = `升级${planDisplayName}赠送积分`
-            } else {
-              // 新订阅
-              description = `订阅${planDisplayName}赠送积分`
-            }
-            
-            const pointsHistoryId = uuidv4()
-            const pointsHistoryPayload = {
-              id: pointsHistoryId,
-              userId: user[0].id,
-              points: giftedPoints,
-              pointsType: 'gifted' as const,
-              action: action,
-              description,
-              createdAt: new Date(),
-            }
-
-            await db.insert(pointsHistory).values(pointsHistoryPayload)
-
-            // 补全认领的支付记录为成功终态（claim-first）
-            await completePaymentRecord(claim.id, {
-              paymentStatus: PaymentStatus.SUCCEEDED,
-              amount: session.amount_total || 0,
-              currency: session.currency || 'usd',
-              subscriptionId: latestSubscription.id,
-              subscriptionPlan: subscriptionPlan,
-              subscriptionPeriodStart: new Date(latestSubscription.created * 1000),
-              subscriptionPeriodEnd: finalEndDate,
-              pointsAmount: giftedPoints,
-              pointsType: 'gifted',
-              productName: `${planDisplayName}订阅`,
-              productDescription: isRenewal
-                ? `续订${planDisplayName}订阅，赠送${giftedPoints}积分`
-                : isUpgrade
-                ? `升级${planDisplayName}订阅，赠送${giftedPoints}积分`
-                : `订阅${planDisplayName}，赠送${giftedPoints}积分`,
-              priceId: latestSubscription.items.data[0]?.price?.id,
-              metadata: session.metadata,
-              webhookEventId: event.id,
-            })
-
-            // 发送订阅购买成功邮件
-            try {
-              if (customerEmail) {
-                // 根据邮箱判断语言偏好（简单判断，可以根据实际需求优化）
-                const locale = customerEmail.includes('@') ? 'en' : 'en' // 默认英文，可以根据实际需求调整
-                await sendSubscriptionSuccessEmail(
-                  customerEmail,
-                  `${planDisplayName}订阅`,
-                  subscriptionPlan,
-                  finalEndDate,
-                  session.amount_total || 0,
-                  session.currency || 'usd',
-                  locale
-                )
-              }
-            } catch (emailError) {
-              logWebhookError('Failed to send subscription success email:', emailError)
-              // 邮件发送失败不影响主流程
-            }
-
-            // ========== 处理推广返利系统（完全独立于推荐系统） ==========
-            // 处理首单佣金（30%）
-            if (processedUserId && !hasPaymentRecord) {
-              try {
-                const orderAmount = session.amount_total || 0
-                // 使用 checkout session ID 作为订单ID
-                await processAffiliateCommission(
-                  processedUserId,
-                  orderAmount,
-                  session.id
-                )
-              } catch (affiliateError) {
-                logWebhookError('Affiliate commission processing failed:', affiliateError)
-                // 推广返利处理失败不影响订阅流程
-              }
-            }
+          // 确定 action 类型
+          let action: string
+          if (isRenewal) {
+            action = 'subscription_renewal_gift'
+          } else if (isUpgrade) {
+            action = 'subscription_upgrade_gift'
           } else {
+            action = 'subscription_gift'
+          }
+            
+          // 获取订阅计划显示名称（用于描述）
+          const getPlanDisplayName = (plan: string): string => {
+            // 简单的格式化：首字母大写
+            return plan.charAt(0).toUpperCase() + plan.slice(1)
+          }
+          const planDisplayName = getPlanDisplayName(subscriptionPlan)
+            
+          // 根据类型生成描述
+          let description: string
+          if (isRenewal) {
+            // 续订：同一版本
+            const periodDays = subscriptionPlan === 'annual' ? 365 : (subscriptionPlan === 'trial' ? 7 : 30)
+            description = `续订${planDisplayName}赠送积分（时间累加${periodDays}天）`
+          } else if (isUpgrade) {
+            // 升级：不同版本
+            description = `升级${planDisplayName}赠送积分`
+          } else {
+            // 新订阅
+            description = `订阅${planDisplayName}赠送积分`
+          }
+            
+          const pointsHistoryId = uuidv4()
+          const pointsHistoryPayload = {
+            id: pointsHistoryId,
+            userId: user[0].id,
+            points: giftedPoints,
+            pointsType: 'gifted' as const,
+            action: action,
+            description,
+            createdAt: new Date(),
+          }
+
+          await db.insert(pointsHistory).values(pointsHistoryPayload)
+
+          // 补全认领的支付记录为成功终态（claim-first）
+          await completePaymentRecord(claim.id, {
+            paymentStatus: PaymentStatus.SUCCEEDED,
+            amount: session.amount_total || 0,
+            currency: session.currency || 'usd',
+            subscriptionId: latestSubscription.id,
+            subscriptionPlan: subscriptionPlan,
+            subscriptionPeriodStart: new Date(latestSubscription.created * 1000),
+            subscriptionPeriodEnd: finalEndDate,
+            pointsAmount: giftedPoints,
+            pointsType: 'gifted',
+            productName: `${planDisplayName}订阅`,
+            productDescription: isRenewal
+              ? `续订${planDisplayName}订阅，赠送${giftedPoints}积分`
+              : isUpgrade
+              ? `升级${planDisplayName}订阅，赠送${giftedPoints}积分`
+              : `订阅${planDisplayName}，赠送${giftedPoints}积分`,
+            priceId: latestSubscription.items.data[0]?.price?.id,
+            metadata: session.metadata,
+            webhookEventId: event.id,
+          })
+
+          // 发送订阅购买成功邮件
+          try {
+            if (customerEmail) {
+              // 根据邮箱判断语言偏好（简单判断，可以根据实际需求优化）
+              const locale = customerEmail.includes('@') ? 'en' : 'en' // 默认英文，可以根据实际需求调整
+              await sendSubscriptionSuccessEmail(
+                customerEmail,
+                subscriptionPlan,
+                finalEndDate,
+                session.amount_total || 0,
+                session.currency || 'usd',
+                locale
+              )
+            }
+          } catch (emailError) {
+            logWebhookError('Failed to send subscription success email:', emailError)
+            // 邮件发送失败不影响主流程
+          }
+
+          // ========== 处理推广返利系统（完全独立于推荐系统） ==========
+          // 处理首单佣金（30%）
+          if (processedUserId) {
+            try {
+              const orderAmount = session.amount_total || 0
+              // 使用 checkout session ID 作为订单ID
+              await processAffiliateCommission(
+                processedUserId,
+                orderAmount,
+                session.id
+              )
+            } catch (affiliateError) {
+              logWebhookError('Affiliate commission processing failed:', affiliateError)
+              // 推广返利处理失败不影响订阅流程
+            }
           }
         } catch (error) {
           logWebhookError('Subscription processing failed:', error)
@@ -563,10 +548,6 @@ export async function POST(request: NextRequest) {
 
           // 从配置中获取订阅赠送的积分数量
           const giftedPoints = getSubscriptionGiftedPoints('trial' as keyof typeof SUBSCRIPTION_PRODUCTS)
-          const previousPoints = currentUser.points ?? 0
-          const previousGiftedPoints = currentUser.giftedPoints ?? 0
-          const newPointsTotal = previousPoints + giftedPoints
-          const newGiftedPointsTotal = previousGiftedPoints + giftedPoints
 
           // 更新用户订阅信息
           await db
@@ -619,7 +600,6 @@ export async function POST(request: NextRequest) {
               const locale = customerEmail.includes('@') ? 'en' : 'en' // 默认英文，可以根据实际需求调整
               await sendSubscriptionSuccessEmail(
                 customerEmail,
-                'Trial订阅',
                 'trial',
                 finalEndDate,
                 session.amount_total || 0,

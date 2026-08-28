@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { affiliateProfiles, affiliateRelations, affiliateEarnings, affiliateWithdrawals, users } from '@/lib/schema'
+import { affiliateProfiles, affiliateRelations, affiliateEarnings, affiliateWithdrawals } from '@/lib/schema'
 import { eq, and, gte, lte, sql, desc } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 

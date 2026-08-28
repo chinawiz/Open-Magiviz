@@ -17,17 +17,7 @@
     "pricing": {
       "title": "价格 - MeiHao",
       "description": "查看MeiHao订阅计划和价格，选择适合您AI视频创作需求的套餐。免费试用或升级到高级版本，享受无限视频生成。"
-    },
-    "landing": {
-      "title": "MeiHao - AI智能视频创作平台",
-      "description": "将故事大纲转化为AI电影级视频。支持好莱坞影视、动漫、营销广告、科普教育等各类内容。从剧本到成片，分钟级完成。"
     }
-  },
-  "demoBanner": {
-    "prefix": "这是",
-    "productName": "meihao",
-    "suffix": "演示站点，体验完整功能后",
-    "cta": "立即购买完整版"
   },
   "navbar": {
     "home": "首页",
@@ -73,32 +63,10 @@
     "count_videos": "个视频"
   },
   "hero": {
-    "title": "创意一键成片\n释放无限影视想象力",
-    "subtitle": "AI驱动的智能视频创作平台",
     "description": "AI驱动的智能视频创作平台。从创意到成片，只需数分钟——无需任何经验。",
     "badge": "一键成片，创意无限",
-    "features": {
-      "hollywood": "好莱坞影视",
-      "anime": "动漫",
-      "story": "故事剧情",
-      "ads": "广告",
-      "education": "科普"
-    },
     "cta": {
-      "primary": "开始创作",
-      "secondary": "查看作品"
-    },
-    "newsletter": {
-      "title": "订阅最新资讯",
-      "description": "获取最新的AI视频创作技巧和平台功能更新",
-      "placeholder": "请输入您的邮箱地址",
-      "button": "立即订阅",
-      "success": "订阅成功！",
-      "successMessage": "感谢您的订阅，我们会定期向您发送最新资讯",
-      "error": "请输入有效的邮箱地址",
-      "alreadySubscribed": "您已经订阅了",
-      "errorNetwork": "网络错误，请稍后重试",
-      "privacy": "我们尊重您的隐私，随时可以取消订阅"
+      "primary": "开始创作"
     },
     "titleLine1": "释放无限影视",
     "titleLine2": "想象力",
@@ -417,16 +385,6 @@
     "affiliate_code": "推广码（可选）",
     "affiliate_code_placeholder": "请输入推广码"
   },
-  "common": {
-    "cancel": "取消",
-    "confirm": "确认",
-    "save": "保存",
-    "delete": "删除",
-    "edit": "编辑",
-    "close": "关闭",
-    "back": "返回",
-    "login": "立即登录"
-  },
   "forgot_password": {
     "title": "找回密码",
     "description": "输入您的邮箱地址，我们将向您发送重置密码的链接",
@@ -634,28 +592,6 @@
     "processing": "处理中...",
     "payment_history": "支付记录",
     "payment_history_description": "查看所有支付记录和交易详情",
-    "referral": {
-      "title": "推荐好友",
-      "description": "邀请好友注册，双方都能获得奖励",
-      "total_referrals": "总推荐人数",
-      "subscribed_referrals": "已订阅人数",
-      "referral_code": "推荐码",
-      "referral_link": "推荐链接",
-      "history": "推荐历史",
-      "no_history": "暂无推荐记录",
-      "code_copied": "推荐码已复制",
-      "link_copied": "推荐链接已复制",
-      "copy_failed": "复制失败",
-      "action_register_bonus": "注册奖励",
-      "action_referrer_bonus": "推荐奖励",
-      "action_subscription_reward": "推荐好友订阅奖励",
-      "days": "天",
-      "records": "推荐记录",
-      "no_records": "暂无推荐记录",
-      "subscribed": "已订阅",
-      "not_subscribed": "未订阅",
-      "anonymous_user": "匿名用户"
-    },
     "payment_history_details": {
       "title": "支付记录",
       "stats": {
@@ -697,221 +633,6 @@
       },
       "errors": {
         "fetch_failed": "获取支付记录失败"
-      }
-    }
-  },
-  "referral_page": {
-    "title": "推荐计划",
-    "subtitle": "邀请好友注册，共享奖励",
-    "custom_code": {
-      "title": "自定义推荐码",
-      "description": "设置一个专属的推荐码，让好友更容易记住",
-      "current_code": "当前推荐码",
-      "placeholder": "输入自定义推荐码（4-20个字符）",
-      "button": "设置推荐码",
-      "button_updating": "设置中...",
-      "success": "推荐码设置成功",
-      "error": "推荐码设置失败",
-      "already_set": "推荐码已设置，不可修改",
-      "invalid_format": "推荐码格式不正确（4-20个字符，仅支持字母和数字）",
-      "already_taken": "该推荐码已被使用",
-      "note": "注意：推荐码只能设置一次，设置后不可修改"
-    },
-    "stats": {
-      "title": "推荐统计",
-      "total_invites": "累计邀请",
-      "people": "人",
-      "total_rewards": "累计奖励",
-      "points": "积分",
-      "subscribed_users": "已订阅用户",
-      "pending_users": "待订阅用户"
-    },
-    "share": {
-      "title": "分享推荐",
-      "copy_code": "复制推荐码",
-      "copy_link": "复制推荐链接",
-      "share_text": "分享给好友"
-    },
-    "rules": {
-      "title": "奖励规则",
-      "rule1_title": "注册奖励",
-      "rule1_desc": "好友通过您的推荐码注册，双方各获得 100 积分（永久有效）",
-      "rule2_title": "订阅返利",
-      "rule2_desc": "好友订阅任意方案，您将获得同等时长的订阅延长 + 对应方案的赠送积分",
-      "rule3_title": "多次奖励",
-      "rule3_desc": "好友每次续费或升级订阅，您都会获得相应奖励（不限次数）",
-      "rule4_title": "时效限制",
-      "rule4_desc": "邀请关系建立后30天内有效，超过30天将不再发放订阅奖励",
-      "note": "注：所有奖励将在好友完成注册或订阅后自动发放，无需手动操作"
-    },
-    "recent_referrals": {
-      "title": "最近推荐",
-      "view_all": "查看全部",
-      "registered_at": "注册于"
-    },
-    "records": {
-      "title": "推荐记录",
-      "description": "查看通过您的推荐码注册的用户",
-      "loading": "加载中...",
-      "empty": "暂无推荐记录",
-      "unknown_user": "未知用户",
-      "subscribed": "已订阅",
-      "pending": "待订阅",
-      "filter_all": "全部",
-      "table": {
-        "user": "用户",
-        "email": "邮箱",
-        "register_time": "注册时间",
-        "status": "状态"
-      }
-    },
-    "rewards": {
-      "title": "赠送记录",
-      "description": "查看每笔订阅赠送的积分和订阅延长记录",
-      "loading": "加载中...",
-      "empty": "暂无赠送记录",
-      "unknown_user": "未知用户",
-      "points": "积分",
-      "days": "天",
-      "filter_all": "全部",
-      "action_register_bonus": "注册奖励",
-      "action_referrer_bonus": "推荐人奖励",
-      "action_subscription_reward": "订阅返利",
-      "table": {
-        "action": "操作类型",
-        "from": "来自",
-        "reward": "奖励",
-        "create_time": "创建时间"
-      }
-    }
-  },
-  "affiliate_page": {
-    "title": "推广返利系统",
-    "subtitle": "通过推广获得返利，每单30%佣金",
-    "loading": "加载中...",
-    "stats": {
-      "total_invites": "总邀请人数",
-      "converted": "已转化人数",
-      "available_balance": "可用余额",
-      "frozen_balance": "冻结余额"
-    },
-    "code_setting": {
-      "title": "推广码设置",
-      "description": "设置您的推广码，只能修改一次",
-      "current_code": "当前推广码",
-      "placeholder": "输入新推广码（8-20个字母或数字）",
-      "placeholder_set": "输入推广码（8-20个字母或数字）",
-      "button_update": "更新推广码",
-      "button_set": "设置推广码",
-      "updating": "更新中...",
-      "setting": "设置中...",
-      "note": "注意：推广码只能修改一次，请谨慎设置",
-      "already_changed": "推广码已修改过，无法再次修改",
-      "enter_code": "请输入推广码",
-      "invalid_format": "推广码格式无效，必须为8-20个字母或数字",
-      "update_success": "推广码更新成功",
-      "update_failed": "更新推广码失败",
-      "already_taken": "该推广码已被使用",
-      "code_copied": "推广码已复制",
-      "link_copied": "推广链接已复制",
-      "copy_failed": "复制失败",
-      "set_first": "请先设置推广码"
-    },
-    "share": {
-      "title": "分享推广",
-      "link_label": "推广链接",
-      "copy_code": "复制推广码",
-      "copy_link": "复制链接"
-    },
-    "relations": {
-      "title": "邀请数据",
-      "description": "查看通过您的推广码注册的用户",
-      "loading": "加载中...",
-      "empty": "暂无邀请数据",
-      "unknown_user": "未知用户",
-      "register_time": "注册时间",
-      "converted": "已转化",
-      "expired": "已过期",
-      "pending": "待转化",
-      "filter_all": "全部",
-      "table": {
-        "user": "用户",
-        "email": "邮箱",
-        "register_time": "注册时间",
-        "status": "状态"
-      }
-    },
-    "earnings": {
-      "title": "佣金记录",
-      "description": "查看您的佣金收入和状态",
-      "loading": "加载中...",
-      "empty": "暂无佣金记录",
-      "from": "来自",
-      "create_time": "创建时间",
-      "release_time": "解冻时间",
-      "frozen": "冻结中",
-      "released": "已解冻",
-      "cancelled": "已取消",
-      "unknown_user": "未知用户",
-      "filter_all": "全部",
-      "table": {
-        "amount": "金额",
-        "from": "来自",
-        "status": "状态",
-        "create_time": "创建时间",
-        "release_time": "解冻时间"
-      }
-    },
-    "withdraw": {
-      "title": "提现申请",
-      "description": "将可用余额提现到您的账户",
-      "button": "提现",
-      "amount": "提现金额",
-      "amount_placeholder": "请输入提现金额",
-      "min_amount": "最小提现金额",
-      "min_amount_error": "最小提现金额为$10",
-      "payment_method": "支付方式",
-      "alipay": "支付宝",
-      "paypal": "PayPal",
-      "account_name": "账户姓名",
-      "account_name_placeholder": "请输入账户姓名",
-      "alipay_account": "支付宝账号",
-      "alipay_placeholder": "请输入支付宝账号或手机号",
-      "paypal_email": "PayPal邮箱",
-      "paypal_placeholder": "请输入PayPal邮箱",
-      "available_balance": "可提现金额",
-      "exceeds_balance": "提现金额超过可用余额",
-      "submit": "提交申请",
-      "processing": "处理中...",
-      "success": "提现申请已提交",
-      "failed": "提现申请失败",
-      "invalid_amount": "提现金额无效",
-      "invalid_payment_method": "支付方式无效",
-      "invalid_account_info": "账户信息无效",
-      "insufficient_balance": "可用余额不足",
-      "account_info_required": "请输入账户信息"
-    },
-    "withdrawals": {
-      "title": "提现记录",
-      "description": "查看您的提现申请记录",
-      "loading": "加载中...",
-      "empty": "暂无提现记录",
-      "pending": "待处理",
-      "processing": "处理中",
-      "completed": "已完成",
-      "failed": "失败",
-      "cancelled": "已取消",
-      "failure_reason": "失败原因",
-      "create_time": "申请时间",
-      "processed_time": "处理时间",
-      "filter_all": "全部",
-      "table": {
-        "amount": "金额",
-        "payment_method": "支付方式",
-        "account": "账户信息",
-        "status": "状态",
-        "create_time": "申请时间",
-        "processed_time": "处理时间"
       }
     }
   },
@@ -1373,83 +1094,12 @@
       }
     }
   },
-  "legal": {
-    "title": "法律条款",
-    "terms": "服务条款",
-    "privacy": "隐私政策",
-    "cookies": "Cookie政策"
-  },
   "unauthorized": {
     "title": "访问被拒绝",
     "description": "您没有权限访问此页面。此页面仅限管理员访问。",
     "errorMessage": "如果您认为这是一个错误，请联系系统管理员。",
     "backToHome": "返回首页",
     "signInAgain": "重新登录"
-  },
-  "blogPage": {
-    "title": "meihao 博客",
-    "subtitle": "探索SaaS开发的最新动态和技术分享",
-    "contactPost": {
-      "badge": "最新",
-      "date": "2024年12月",
-      "author": "meihao Team",
-      "title": "联系我们 - 让我们一起探索SaaS开发的无限可能",
-      "description": "我们很高兴与您建立联系！无论您是想了解我们的SaaS模版服务，还是有任何技术问题，我们都随时准备为您提供帮助。",
-      "contactMethods": {
-        "title": "🤝 联系方式",
-        "twitter": {
-          "title": "推特 Twitter",
-          "description": "关注我们获取最新动态",
-          "handle": "@zyailive"
-        },
-        "email": {
-          "title": "邮箱 Email",
-          "description": "商务合作与技术支持",
-          "address": "app@itusi.cn"
-        },
-        "wechat": {
-          "title": "微信 WeChat",
-          "description": "添加微信获取专属服务",
-          "id": "zyailive01"
-        }
-      },
-      "services": {
-        "title": "🎯 我们能为您做什么？",
-        "podcast": "完整的SaaS模版源码和技术文档",
-        "voiceover": "现代化的用户认证和支付系统集成",
-        "video": "多语言支持和SEO优化解决方案",
-        "support": "7×24小时专业技术支持",
-        "custom": "根据您的需求定制专属SaaS功能"
-      },
-      "cta": {
-        "title": "准备开始您的SaaS开发之旅了吗？",
-        "startNow": "立即开始",
-        "contactUs": "联系我们"
-      }
-    },
-    "otherPosts": {
-      "title": "SaaS开发技术分享",
-      "description": "探索SaaS模版的最新技术动态和深度解析",
-      "post1": {
-        "category": "技术解析",
-        "date": "2025年7月",
-        "title": "meihao可以做哪些网站？",
-        "excerpt": "深入了解meihao模版的应用场景，从电商平台到企业管理系统，再到在线教育平台的完整解决方案。"
-      },
-      "post2": {
-        "category": "产品介绍",
-        "date": "2025年7月",
-        "title": "meihao有什么功能？",
-        "excerpt": "深入了解meihao模版提供的核心功能：用户认证、支付系统、多语言支持、SEO优化等完整解决方案。"
-      },
-      "post3": {
-        "category": "行业洞察",
-        "date": "2025年7月",
-        "title": "什么是SaaS？",
-        "excerpt": "深入了解SaaS的定义、商业模式和技术架构，以及如何快速构建现代化SaaS产品。"
-      },
-      "readMore": "阅读更多"
-    }
   },
   "operate": {
     "loading": "加载中...",

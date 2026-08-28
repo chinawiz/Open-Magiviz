@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthedSession, jsonError } from '@/lib/api'
 import { db } from '@/lib/db'
-import { users } from '@/lib/schema'
+import { users, affiliateRelations } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
 import {
   findAffiliateByCode,
@@ -62,7 +62,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 检查是否已经存在推广关系
-    const { affiliateRelations } = await import('@/lib/schema')
     const existingRelation = await db
       .select()
       .from(affiliateRelations)
@@ -83,13 +82,7 @@ export async function POST(request: NextRequest) {
     const isNewUser = user.createdAt && new Date(user.createdAt) >= thirtyMinutesAgo
 
     if (!isNewUser) {
-      // 如果不是新用户，但关系已存在，直接返回成功
-      if (existingRelation.length > 0) {
-        return NextResponse.json({
-          success: true,
-          message: 'Affiliate relationship already exists'
-        })
-      }
+      // 注意：走到这里时 existingRelation 必为空（上方已提前返回），直接拒绝
       return NextResponse.json(
         { error: 'Affiliate code can only be applied for new registrations' },
         { status: 400 }

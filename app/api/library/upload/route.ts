@@ -295,7 +295,7 @@ export async function GET(request: Request) {
 
     if (!session) {
       return jsonError(401, 'Unauthorized')
-8516}
+    }
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get("page") || "1")
@@ -303,13 +303,6 @@ export async function GET(request: Request) {
     const type = searchParams.get("type") || "all" // all, image, audio, video
     const search = searchParams.get("search") || ""
     const offset = (page - 1) * limit
-
-    // Build query conditions
-    const conditions = [eq(userAssets.userId, session.user.id)]
-
-    if (type !== "all") {
-      conditions.push(eq(userAssets.type, type))
-    }
 
     // Get total count
     const allAssets = await db

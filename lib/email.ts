@@ -780,7 +780,6 @@ function getPlanDisplayName(plan: string, lang: 'zh' | 'en'): string {
 // 发送订阅购买成功邮件
 export async function sendSubscriptionSuccessEmail(
   email: string,
-  planName: string,
   planType: string,
   periodEnd: Date,
   amount: number,
@@ -803,7 +802,7 @@ export async function sendSubscriptionSuccessEmail(
     minute: '2-digit',
   }).format(periodEnd)
   
-  // 根据 locale 获取正确语言的计划名称，忽略传入的 planName（可能包含中文）
+  // 根据 locale 获取正确语言的计划名称
   const displayPlanName = getPlanDisplayName(planType, locale)
   
   const content = `

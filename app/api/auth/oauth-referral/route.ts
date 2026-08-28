@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthedSession, jsonError } from '@/lib/api'
 import { db } from '@/lib/db'
-import { users, referrals } from '@/lib/schema'
-import { eq, and, gte } from 'drizzle-orm'
+import { users } from '@/lib/schema'
+import { eq } from 'drizzle-orm'
 import {
   findReferrerByCode,
   createReferralRelation,

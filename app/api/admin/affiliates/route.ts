@@ -21,7 +21,6 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
-    const search = searchParams.get('search') || ''
 
     if (action === 'stats') {
       // 获取推广统计数据

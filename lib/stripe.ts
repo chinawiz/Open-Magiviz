@@ -1,8 +1,4 @@
-import { loadStripe } from '@stripe/stripe-js'
 import Stripe from 'stripe'
-
-// 客户端Stripe实例
-export const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
 
 // 服务端Stripe实例 - 只在有密钥时初始化
 export const stripe = process.env.STRIPE_SECRET_KEY 
@@ -29,18 +25,11 @@ export const SUBSCRIPTION_PRICE_IDS = {
   annual: getPriceId(process.env.STRIPE_ANNUAL_PRICE_ID, ''),
 } as const
 
-// 积分购买价格配置
-export const POINTS_PRICE_IDS = {
+// 积分购买价格配置（仅供 POINTS_PRODUCTS 引用，客户端金额一律以服务端为准）
+const POINTS_PRICE_IDS = {
   starter: getPriceId(process.env.STRIPE_POINTS_STARTER_PRICE_ID, ''), // 200积分 - $20
   popular: getPriceId(process.env.STRIPE_POINTS_POPULAR_PRICE_ID, ''), // 500积分 - $50
   premium: getPriceId(process.env.STRIPE_POINTS_PREMIUM_PRICE_ID, ''), // 1,000积分 - $98
-} as const
-
-// 向后兼容的价格配置
-export const PRICE_IDS = {
-  trial: SUBSCRIPTION_PRICE_IDS.trial,
-  pro: SUBSCRIPTION_PRICE_IDS.pro,
-  ...POINTS_PRICE_IDS,
 } as const
 
 // 获取实际的价格ID（服务端使用）
@@ -153,9 +142,4 @@ export const POINTS_PRODUCTS = {
   },
 } as const
 
-// 向后兼容的产品配置
-export const PRODUCTS = SUBSCRIPTION_PRODUCTS
-
 export type SubscriptionPlanType = keyof typeof SUBSCRIPTION_PRODUCTS
-export type PointsPackageType = keyof typeof POINTS_PRODUCTS
-export type PlanType = SubscriptionPlanType // 向后兼容 

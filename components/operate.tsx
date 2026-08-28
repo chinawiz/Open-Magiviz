@@ -159,7 +159,6 @@ export function AIFunction({
   const [showUploadPopover, setShowUploadPopover] = useState(false)
   const [isSignInDialogOpen, setIsSignInDialogOpen] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [pointsCost, setPointsCost] = useState(10) // 积分消耗，根据是否有图片动态设置
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false)
   const [showPricingInline, setShowPricingInline] = useState(false)
   const pricingDialogTriggerRef = useRef<HTMLButtonElement>(null)
@@ -237,9 +236,6 @@ export function AIFunction({
   const versionGroupIdRef = useRef<string | null>(null) // 版本组ID（用于关联同一批次的重新生成任务）
   const [restoredVersionHasVideo, setRestoredVersionHasVideo] = useState(false) // 恢复的版本是否有最终视频
   const [restoredProjectCompleted, setRestoredProjectCompleted] = useState(false) // 恢复的项目是否已完成
-
-  // 首尾帧编辑状态：'first' | 'last' | null
-  const [editingFrameType, setEditingFrameType] = useState<'first' | 'last' | null>(null)
 
   // 追踪每个分镜图轮播的当前位置 ('first' | 'last')
   const [storyboardCarouselPositions, setStoryboardCarouselPositions] = useState<{ [index: number]: 'first' | 'last' }>({})
@@ -719,7 +715,6 @@ export function AIFunction({
   const [isRegeneratingStoryboard, setIsRegeneratingStoryboard] = useState<number | null>(null)
   const [isGeneratingScenePlot, setIsGeneratingScenePlot] = useState(false)
   const [isRegeneratingSceneVideo, setIsRegeneratingSceneVideo] = useState<number | null>(null)
-  const [isRegeneratingVideo, setIsRegeneratingVideo] = useState(false)
   const [isRegeneratingCharacterId, setIsRegeneratingCharacterId] = useState<string | null>(null)
   const [showScriptPreview, setShowScriptPreview] = useState(false)
   const [showCharacterPreview, setShowCharacterPreview] = useState(false)
@@ -889,9 +884,8 @@ export function AIFunction({
   const [isUploadingCharacterImage, setIsUploadingCharacterImage] = useState(false)
   const [isUploadingStoryboardImage, setIsUploadingStoryboardImage] = useState(false)
 
-  // 下载状态（用于显示正在下载 / 进度）
+  // 下载状态（用于显示正在下载）
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null)
-  const [downloadProgress, setDownloadProgress] = useState<number | null>(null)
 
   // 单个主角重新生成确认弹窗
   const [showRegenerateCharacterDialog, setShowRegenerateCharacterDialog] = useState(false)
@@ -3390,7 +3384,6 @@ export function AIFunction({
 
   // 显示单个帧重新生成确认弹窗
   const handleShowRegenerateSingleFrame = (index: number, frameType: 'first' | 'last') => {
-    setEditingFrameType(frameType)
     setStoryboardToRegenerate(index)
     setShowRegenerateStoryboardDialog(true)
   }
@@ -4225,7 +4218,6 @@ export function AIFunction({
 
     const downloadKey = key || filename || url.split('/').pop() || Date.now().toString()
     setDownloadingKey(downloadKey)
-    setDownloadProgress(0)
 
     try {
       // 检查是否是 Kie.ai 的 URL（需要先转换）
@@ -4266,7 +4258,6 @@ export function AIFunction({
           description: filename || t("fileDownloading"),
         })
         setDownloadingKey(null)
-        setDownloadProgress(null)
         return
       }
 
@@ -4280,7 +4271,6 @@ export function AIFunction({
         if (value) {
           chunks.push(value)
           received += value.length
-          setDownloadProgress(Math.round((received / total) * 100))
         }
       }
 
@@ -4324,7 +4314,6 @@ export function AIFunction({
       }
     } finally {
       setDownloadingKey(null)
-      setDownloadProgress(null)
     }
   }
 

@@ -4,7 +4,7 @@
  */
 
 import type { InferSelectModel, InferInsertModel } from 'drizzle-orm'
-import type { users, videoProjects, projectData, aiGenerationTasks, affiliateWithdrawals, stripePayments, affiliateRelations, affiliateEarnings, affiliateProfiles, referrals, referralHistory } from './schema'
+import type { users, videoProjects, projectData, aiGenerationTasks, affiliateWithdrawals, stripePayments, affiliateProfiles, referralHistory } from './schema'
 
 /** 用户表行（数据库读取结果） */
 export type UserRow = InferSelectModel<typeof users>
@@ -29,18 +29,6 @@ export type NewAffiliateWithdrawal = InferInsertModel<typeof affiliateWithdrawal
 
 /** 推广资料行（数据库读取结果） */
 export type AffiliateProfileRow = InferSelectModel<typeof affiliateProfiles>
-/** 推广关系行（数据库读取结果） */
-export type AffiliateRelationRow = InferSelectModel<typeof affiliateRelations>
-/** 推广关系写入参数 */
-export type NewAffiliateRelation = InferInsertModel<typeof affiliateRelations>
-
-/** 推广佣金记录行（数据库读取结果） */
-export type AffiliateEarningRow = InferSelectModel<typeof affiliateEarnings>
-/** 推广佣金记录写入参数 */
-export type NewAffiliateEarning = InferInsertModel<typeof affiliateEarnings>
-
-/** 推荐关系记录行（数据库读取结果） */
-export type ReferralRow = InferSelectModel<typeof referrals>
 /** 推荐历史记录行（数据库读取结果） */
 export type ReferralHistoryRow = InferSelectModel<typeof referralHistory>
 

@@ -54,3 +54,13 @@ Vercel vs CF Workers 各有道理，争不出结果；做完 6 个 commit 的全
 ## 10. 安全卫生内建到流程里
 
 token 按任务最小授权、一事一发、用完撤；撤销后必须用真实请求验证死透并记台账；生产始终留一个专用冒烟账号。具体操作细则在 `references/providers-and-costs.md`。
+
+## 11. 死代码清扫：i18n 键与 state 的"假活"要用多形态证据拆穿
+
+2026-08-28 全库清扫（删 7 个零消费者组件 + 约 750 行死 i18n 键）验证的套路：i18n 键先做**命名空间普查**（`useTranslations`/`getTranslations` 的 namespace 全集），再对候选键跑多形态 grep（键全名、尾段、`t.raw`、模板串）；**只删静态证明零消费者的键，zh/en 两份必须同一批路径同步删**。另一个坑：`useState` 的"读取"可能全在 JSX 注释块里（operate.tsx 的 pointsCost 读点全在 `{/* */}` 内），判定死 state 必须 grep 到行再肉眼看上下文，不能只数出现次数。
+**规则**：删键=删契约，宁可漏删不可错删；删完 `tsc --noEmit --incremental false` + `npm test` 双门槛验证（行为零变化是硬约束）。
+
+## 12. 批量编辑工具的"数字字面量残留"要留守卫
+
+2026-08-28 全库清扫发现 18 处同一模式的历史编辑事故：`if (!session) { return jsonError(...) }` 块的收尾 `}` 被某次批量替换吃掉，残留成 `<数字>}`（数字是不可达表达式，tsc/测试/build 全都抓不到——它合法）。分布在 4 个域 9 个文件（app/api/projects、user/points-detail、ai、library 路由），全部存活了多个版本周期。
+**守卫**：CI 或本地加一条 `grep -rnE '^\s*[0-9]+\}' app/ lib/`——命中即为该模式残留；另外它证明"全绿"不等于"无伤"，静态不可达代码是所有验证门的盲区，只能靠模式化 grep 扫。

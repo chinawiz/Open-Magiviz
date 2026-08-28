@@ -45,7 +45,7 @@ psql "$DATABASE_URL" -f drizzle/0012_add_funnel_events.sql
 | `KIE_WEBHOOK_HMAC_KEY` | **必须确认** | fail-closed 已生效，缺失 Kie 图片回调全部 401 |
 | `KIE_VEO_WEBHOOK_HMAC_KEY` | **必须确认** | 同上（Veo 视频回调） |
 | `COMPOSE_PROVIDER` | 可选 | 不设=自托管合成；设 `fal` 回退旧云端合成 |
-| `FFMPEG_PATH` | 可选 | ffmpeg-static 在 Trigger 构建装不上时，指向容器自带 ffmpeg |
+| `FFMPEG_PATH` | 可选 | 由 Trigger 构建扩展 `ffmpeg()`（apt 安装系统 ffmpeg）自动注入，无需手动设置 |
 | `R2_*`（ACCESS_KEY/SECRET/ENDPOINT/BUCKET/PUBLIC_URL） | 确认 | 预签名下载依赖 |
 
 **Trigger.dev**：环境变量与 Vercel 同步（尤其 `DATABASE_URL`、`KIE_API_KEY`、`R2_*`、`FAL_WEBHOOK_TOKEN_SECRET` 不需要——合成自托管不依赖 FAL）。
@@ -53,17 +53,17 @@ psql "$DATABASE_URL" -f drizzle/0012_add_funnel_events.sql
 ## 3. Trigger.dev 任务
 
 ```bash
-npx trigger.dev@latest login   # 确认对 proj_piecdozsbqpancgoyqxc 有访问权
+npx trigger.dev@latest login   # 确认对 proj_hycyyzkdnebddnffoaak 有访问权（与 trigger.config.ts 一致）
 npm run trigger:deploy         # 发布 compensate-missed-webhooks + compose-final-video + 原迁移任务
 ```
 
 - [ ] 控制台 → Schedules → 为 `compensate-missed-webhooks` 添加 cron（每 10 分钟）
-- [ ] 观察本次构建是否成功（**风险点：ffmpeg-static postinstall**；失败则设 `FFMPEG_PATH` 后重部署）
+- [ ] 观察本次构建是否成功（ffmpeg 已由 `ffmpeg()` 构建扩展 apt 安装，无 ffmpeg-static postinstall 下载风险）
 
 ## 4. 代码部署（Vercel）
 
 - [ ] 按第 0 节决策部署（PR 合入或连 fork）
-- [ ] 构建日志确认无 ffmpeg-static 打包告警（已配 serverExternalPackages）
+- [ ] 构建日志确认无 ffmpeg 相关打包告警（ffmpeg 仅存在于 Trigger 任务侧，Vercel 不打包 ffmpeg）
 
 ## 5. 冒烟验证（部署后立即，按序）
 

@@ -36,3 +36,7 @@
 
 16. drizzle 建出的列名是 camelCase（如 `"taskId"`、`"projectId"`），手写 SQL 查询必须加双引号，否则全变小写找不到列。
 17. 生产 DB 快速核查的成熟模式：一次性子命令小工具（如 `/tmp/mgv.mjs`，subcommand task/projver/user/...），其中 neon 包要用**默认导入**再解构——CJS 包的 named export 会翻车。
+
+## UI 组件与依赖账本
+
+18. 本仓库曾**两套 toast 全都不渲染**：shadcn 的 `useToast()`（3 个消费者）依赖挂载 `<Toaster>`，sonner 的 `toast()`（7 个消费者）依赖挂载 sonner 自己的 `<Toaster>`——2026-08-28 清扫时发现全仓 0 处挂载，所有 toast 调用一直静默无效。教训：**"调用了 API"≠"UI 生效"，凡是需要 provider/挂载点的 UI 设施（toast、theme、session），验收必须走真实 GUI 流程**；从模板复制进来的 kit（50 个 ui 组件只有 19 个被用）要定期做消费者对账，不用的整件退役。

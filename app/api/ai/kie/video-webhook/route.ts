@@ -1,11 +1,11 @@
 import { NextRequest,  NextResponse } from "next/server"
 
 // 导入 Pusher 工具
-import { pusherServer, notifyVideoSuccess, notifyTaskFail } from '@/lib/pusher'
+import { notifyVideoSuccess, notifyTaskFail } from '@/lib/pusher'
 import { db } from '@/lib/db'
 import { aiGenerationTasks, projectData, videoProjects } from '@/lib/schema'
 import { deductPoints, PointsAction } from '@/lib/points'
-import { eq, desc, sql } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
 import { triggerSceneVideoMigration } from '@/trigger/migrate-assets'
 import { resolveTargetVersion, getActiveVersionIdForFail } from '@/lib/versionMapper'
 import { claimTaskPointsDeduction, releaseTaskPointsClaim, markTaskSuccess } from '@/lib/task-points'

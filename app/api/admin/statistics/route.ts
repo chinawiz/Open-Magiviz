@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import {
   users,
-  pointsHistory,
   stripePayments,
   referrals,
   referralHistory,
-  affiliateProfiles,
   affiliateRelations,
   affiliateEarnings,
   affiliateWithdrawals,
@@ -20,8 +18,6 @@ import {
   and,
   isNotNull,
   gte,
-  lte,
-  desc,
 } from 'drizzle-orm'
 import { isAdmin } from '@/lib/auth-utils'
 

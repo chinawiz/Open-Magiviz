@@ -107,9 +107,8 @@ const KIE_WAN_DETAIL_URL = "https://api.kie.ai/api/v1/jobs/get"
 const KIE_HAPPYHORSE_API_URL = "https://api.kie.ai/api/v1/jobs/createTask"
 const KIE_HAPPYHORSE_DETAIL_URL = "https://api.kie.ai/api/v1/jobs/get"
 
-  // Kie.ai Gemini Omni API 配置
+// Kie.ai Gemini Omni API 配置
 const KIE_GEMINI_OMNI_API_URL = "https://api.kie.ai/api/v1/jobs/createTask"
-const KIE_GEMINI_OMNI_DETAIL_URL = "https://api.kie.ai/api/v1/jobs/get"
 
 // Kie.ai MiniMax H3 API 配置
 const KIE_MINIMAX_API_URL = "https://api.kie.ai/api/v1/jobs/createTask"
@@ -164,27 +163,28 @@ async function generateSingleVideo(
     : null
   const routeTo = effectiveModel || styleFallbackModel || 'veo31Fast'
 
-  // 单次目标模型的提交分发（videoModel 参数传当前链上模型，保证各函数内部
-  // 的模型分支/计费单价与实际目标一致；各函数内部自带 taskType 常量）
+  // 单次目标模型的提交分发（链上模型经参数传给各提交函数——Veo 用 videoModel 区分档位、
+  // Seedance 用 routeTo 区分版本，其余在函数内写死——保证各函数内部的模型分支/计费单价
+  // 与实际目标一致；各函数内部自带 taskType 常量）
   const dispatchGeneration = async (model: string): Promise<{ success: boolean; videoUrl?: string; requestId?: string; error?: string }> => {
     if (model === 'seedance25' || model === 'seedance2Fast' || model === 'seedance2Mini' || model === 'seedance2') {
       // Seedance 支持首尾帧模式
-      return await generateWithSeedance2(imageUrl, prompt, aspectRatio, duration, model, videoStyle, webhookUrl, userId, model, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls, referenceVideoUrls, referenceAudioUrls)
+      return await generateWithSeedance2(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, model, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls, referenceVideoUrls, referenceAudioUrls)
     }
 
     if (model === 'kling3') {
       // Kling 支持首尾帧模式
-      return await generateWithKling(imageUrl, prompt, aspectRatio, duration, model, videoStyle, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
+      return await generateWithKling(imageUrl, prompt, aspectRatio, duration, videoStyle, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
     }
 
     if (model === 'wan27') {
       // Wan 支持首尾帧模式
-      return await generateWithWan(imageUrl, prompt, aspectRatio, duration, model, videoStyle, webhookUrl, userId, undefined, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
+      return await generateWithWan(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
     }
 
     // HappyHorse - 2积分/s, 默认 720p（API 实际调用 HappyHorse 1.1 接口）
     if (model === 'happyHorse') {
-      return await generateWithHappyHorse(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId)
+      return await generateWithHappyHorse(imageUrl, prompt, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId)
     }
 
     // Gemini Omni - 1积分/s, 固定 4/6/8/10s, 1080p, 不支持首尾帧
@@ -630,8 +630,6 @@ async function generateWithSeedance2(
   prompt: string,
   aspectRatio?: string,
   duration?: string,
-  videoModel?: string,
-  videoStyle?: string,
   webhookUrl?: string,
   userId?: string,
   routeTo?: string,
@@ -815,7 +813,7 @@ async function generateWithSeedance2(
   }
 
   // 轮询模式
-  const result = await pollSeedanceVideoStatus(taskId, userId, taskId, durationParam.toString(), is25, isFast, isMini, pointsPerSecond)
+  const result = await pollSeedanceVideoStatus(taskId, userId, durationParam.toString(), is25, isFast, isMini, pointsPerSecond)
   return result
 }
 
@@ -825,7 +823,6 @@ async function generateWithSeedance2(
 async function pollSeedanceVideoStatus(
   taskId: string,
   userId?: string,
-  storedTaskId?: string,
   duration?: string,
   is25?: boolean,
   isFast?: boolean,
@@ -942,11 +939,8 @@ async function generateWithWan(
   prompt: string,
   aspectRatio?: string,
   duration?: string,
-  videoModel?: string,
-  videoStyle?: string,
   webhookUrl?: string,
   userId?: string,
-  routeTo?: string,
   projectId?: string,
   sceneIndex?: number,
   sceneId?: string,
@@ -1201,7 +1195,6 @@ async function pollWanVideoStatus(
 async function generateWithHappyHorse(
   imageUrl: string,
   prompt: string,
-  aspectRatio?: string,
   duration?: string,
   webhookUrl?: string,
   userId?: string,
@@ -1810,7 +1803,6 @@ async function generateWithKling(
   prompt: string,
   aspectRatio?: string,
   duration?: string,
-  videoModel?: string,
   videoStyle?: string,
   webhookUrl?: string,
   userId?: string,
@@ -1963,7 +1955,7 @@ async function generateWithKling(
   }
 
   // 轮询模式
-  const result = await pollKlingVideoStatus(taskId, userId, taskId, durationParam)
+  const result = await pollKlingVideoStatus(taskId, userId, durationParam)
   return result
 }
 
@@ -1973,7 +1965,6 @@ async function generateWithKling(
 async function pollKlingVideoStatus(
   taskId: string,
   userId?: string,
-  storedTaskId?: string,
   duration?: string
 ): Promise<{ success: boolean; videoUrl?: string; requestId?: string; error?: string }> {
   const maxRetries = 180 // 15分钟超时
@@ -2079,7 +2070,7 @@ export async function POST(request: NextRequest) {
     const session = await getAuthedSession()
     if (!session) {
       return jsonError(401, 'Unauthorized')
-70827}
+    }
 
     // 读取原始请求体
     const rawText = await request.text()

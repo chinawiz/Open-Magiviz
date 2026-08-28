@@ -5,6 +5,7 @@
 - 最终栈 10 家、固定月费 $0：Vercel（Hobby 宿主）+ Neon（free PG）+ Cloudflare（R2 两桶 + DNS）+ Trigger.dev + Resend + Pusher + Stripe + ZenMux + Kie.ai + GitHub Actions。FAL 已移出 active set（账号保留，作 F2 跨供应商视频路由的首选候选，其上有 Wan 2.2/LTX-2 等 pay-per-use 模型）。
 - 任何平台上都替换不掉的环节：ZenMux/Kie（AI 能力）、Stripe（支付）、Resend（邮件，等 CF Email GA——私测中，值得关注）、Trigger.dev（ffmpeg 合成）。
 - 复活路径（需求变化才启用）：升级 CF Workers Paid → 重跑 `cf-deploy.yml`。此前不必重议。
+- 供应商出清要连带 SDK 出清：换掉/弃用供应商时，`package.json` 里的 SDK 是化石高发区——2026-08-28 依赖审计一次性卸下 33 个零引用包（tencentcloud-sdk、cos-nodejs-sdk-v5、openai、ws/postgres、15 个 radix、8 个 shadcn 生态件等，全是历史 POC/模板遗产）。注意区分两件事：**FAL 是"账号保留、SDK 继续用"**（`@fal-ai/client` 仍是 compose 的回退路径），不能看记忆里的"移出 active set"就删 SDK；反过来 SDK 零 import 也不代表供应商决策变了。判据只有一条：全仓精确 import 图谱。
 
 ## 免费层硬事实（2026-08-26/27 核实）
 

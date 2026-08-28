@@ -7,7 +7,8 @@ import { getSubscriptionGiftedPoints } from '@/lib/points'
 /**
  * 生成唯一的推荐码
  */
-export async function generateReferralCode(userId: string): Promise<string> {
+// 仅被 getOrCreateReferralCode 内部调用，不对外暴露
+async function generateReferralCode(userId: string): Promise<string> {
   let code: string = ''
   let isUnique = false
   let attempts = 0
@@ -192,7 +193,8 @@ export async function awardRegistrationBonus(
 /**
  * 给邀请者发放订阅返利（延长指定天数的订阅，并尽量与被邀请者保持同等订阅类型）
  */
-export async function awardSubscriptionReward(
+// 仅被 handleReferredUserSubscription 内部调用，不对外暴露
+async function awardSubscriptionReward(
   referrerId: string,
   referralId: string,
   subscriptionDays: number,

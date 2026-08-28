@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     
     if (!session) {
       return jsonError(401, 'Unauthorized')
-473}
+}
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
     
     if (!session) {
       return jsonError(401, 'Unauthorized')
-2915}
+}
 
     const body = await request.json()
     const { title, originalPrompt, aspectRatio, duration, videoStyle, videoModel, generationMode } = body

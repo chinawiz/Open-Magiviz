@@ -17,17 +17,7 @@
     "pricing": {
       "title": "Pricing - MeiHao",
       "description": "View MeiHao subscription plans and pricing. Choose the plan that fits your AI video creation needs. Start with a free trial or upgrade to premium for unlimited video generation."
-    },
-    "landing": {
-      "title": "MeiHao - AI-Powered Video Creation Platform",
-      "description": "Transform story outlines into cinematic videos with AI. Supports Hollywood films, anime, marketing videos, and educational content. From script to final render in minutes."
     }
-  },
-  "demoBanner": {
-    "prefix": "This is a",
-    "productName": "meihao",
-    "suffix": "demo site. After exploring all features,",
-    "cta": "Purchase Full Version"
   },
   "navbar": {
     "home": "Home",
@@ -73,32 +63,10 @@
     "count_videos": "videos"
   },
   "hero": {
-    "title": "Creativity to Film in One Click\nUnleash Infinite Cinematic Imagination",
-    "subtitle": "AI-Powered Intelligent Video Creation Platform",
     "description": "AI-powered intelligent video creation platform. From concept to polished film in minutes — no experience required.",
     "badge": "Creativity to Film in One Click",
-    "features": {
-      "hollywood": "Hollywood Films",
-      "anime": "Anime",
-      "story": "Story Plots",
-      "ads": "Advertisements",
-      "education": "Educational Videos"
-    },
     "cta": {
-      "primary": "Start Creating",
-      "secondary": "View Works"
-    },
-    "newsletter": {
-      "title": "Subscribe to Updates",
-      "description": "Get the latest AI video creation tips and platform feature updates",
-      "placeholder": "Enter your email address",
-      "button": "Subscribe Now",
-      "success": "Successfully subscribed!",
-      "successMessage": "Thank you for subscribing, we'll send you the latest updates regularly",
-      "error": "Please enter a valid email address",
-      "alreadySubscribed": "You are already subscribed",
-      "errorNetwork": "Network error, please try again later",
-      "privacy": "We respect your privacy, unsubscribe at any time"
+      "primary": "Start Creating"
     },
     "titleLine1": "Unleash Cinematic",
     "titleLine2": "Imagination",
@@ -125,26 +93,6 @@
       "subtitle": "Production MeiHao AI",
       "status": "READY"
     }
-  },
-  "agents": {
-    "title": "Tailored AI Agent Services for Different Scenarios",
-    "contentSummaryAgent": {
-      "title": "Audio Content Summary Agent",
-      "description": "Automatically recognizes timestamped audio content and generates structured summaries using advanced reasoning models, quickly extracting key points and essential information."
-    },
-    "podcastAgent": {
-      "title": "AI Podcast Agent",
-      "description": "Professional podcast production agent that automatically generates scripts, hosts conversations, and features human-like voice synthesis to help you create high-quality podcast shows effortlessly."
-    },
-    "voiceAgent": {
-      "title": "AI Voice Agent",
-      "description": "Intelligent voice-over service that generates professional voice-overs comparable to humans from text input. Multiple voice options, rich emotions, perfectly suited for all types of content."
-    },
-    "videoAgent": {
-      "title": "AI Video Agent",
-      "description": "One-stop video production agent, fully automated from script to finished video. Combines AI-generated content, voice-overs, and footage to quickly produce professional short videos."
-    },
-    "learnMore": "Learn More"
   },
   "features": {
     "title": "Empowering Every Visionary",
@@ -437,16 +385,6 @@
     "affiliate_code": "Affiliate Code (Optional)",
     "affiliate_code_placeholder": "Enter affiliate code"
   },
-  "common": {
-    "cancel": "Cancel",
-    "confirm": "Confirm",
-    "save": "Save",
-    "delete": "Delete",
-    "edit": "Edit",
-    "close": "Close",
-    "back": "Back",
-    "login": "Sign In Now"
-  },
   "forgot_password": {
     "title": "Forgot Password",
     "description": "Enter your email address and we'll send you a link to reset your password",
@@ -654,28 +592,6 @@
     "recommended": "Recommended",
     "processing": "Processing...",
     "payment_history": "Payment History",
-    "referral": {
-      "title": "Referral Program",
-      "description": "Invite friends to register and both of you will receive rewards",
-      "total_referrals": "Total Referrals",
-      "subscribed_referrals": "Subscribed Referrals",
-      "referral_code": "Referral Code",
-      "referral_link": "Referral Link",
-      "history": "Referral History",
-      "no_history": "No referral history yet",
-      "code_copied": "Referral code copied",
-      "link_copied": "Referral link copied",
-      "copy_failed": "Copy failed",
-      "action_register_bonus": "Registration Bonus",
-      "action_referrer_bonus": "Referrer Bonus",
-      "action_subscription_reward": "Referral Subscription Reward",
-      "days": "days",
-      "records": "Referral Records",
-      "no_records": "No referral records yet",
-      "subscribed": "Subscribed",
-      "not_subscribed": "Not Subscribed",
-      "anonymous_user": "Anonymous User"
-    },
     "payment_history_details": {
       "title": "Payment History",
       "stats": {
@@ -720,221 +636,6 @@
       }
     },
     "payment_history_description": "View all your payment records and transaction details"
-  },
-  "referral_page": {
-    "title": "Referral Program",
-    "subtitle": "Invite friends and earn rewards together",
-    "custom_code": {
-      "title": "Custom Referral Code",
-      "description": "Set a unique referral code that's easy for friends to remember",
-      "current_code": "Current Code",
-      "placeholder": "Enter custom code (4-20 characters)",
-      "button": "Set Code",
-      "button_updating": "Setting...",
-      "success": "Referral code set successfully",
-      "error": "Failed to set referral code",
-      "already_set": "Code already set and cannot be changed",
-      "invalid_format": "Invalid format (4-20 characters, letters and numbers only)",
-      "already_taken": "This code is already taken",
-      "note": "Note: Referral code can only be set once and cannot be changed"
-    },
-    "stats": {
-      "title": "Referral Statistics",
-      "total_invites": "Total Invites",
-      "people": "people",
-      "total_rewards": "Total Rewards",
-      "points": "points",
-      "subscribed_users": "Subscribed Users",
-      "pending_users": "Pending Users"
-    },
-    "share": {
-      "title": "Share Referral",
-      "copy_code": "Copy Code",
-      "copy_link": "Copy Link",
-      "share_text": "Share with friends"
-    },
-    "rules": {
-      "title": "Reward Rules",
-      "rule1_title": "Registration Bonus",
-      "rule1_desc": "When friends register with your code, both get 100 credits (permanent)",
-      "rule2_title": "Subscription Reward",
-      "rule2_desc": "When friends subscribe to any plan, you get equal subscription extension + plan's gifted credits",
-      "rule3_title": "Multiple Rewards",
-      "rule3_desc": "Every time friends renew or upgrade, you get rewards (unlimited times)",
-      "rule4_title": "Time Limit",
-      "rule4_desc": "Referral relationship is valid for 30 days, no rewards after expiration",
-      "note": "Note: All rewards are automatically granted after friends complete registration or subscription, no manual action required"
-    },
-    "recent_referrals": {
-      "title": "Recent Referrals",
-      "view_all": "View All",
-      "registered_at": "Registered at"
-    },
-    "records": {
-      "title": "Referral Records",
-      "description": "View users who registered through your referral code",
-      "loading": "Loading...",
-      "empty": "No referral records",
-      "unknown_user": "Unknown User",
-      "subscribed": "Subscribed",
-      "pending": "Pending",
-      "filter_all": "All",
-      "table": {
-        "user": "User",
-        "email": "Email",
-        "register_time": "Register Time",
-        "status": "Status"
-      }
-    },
-    "rewards": {
-      "title": "Reward Records",
-      "description": "View points and subscription extension records for each subscription",
-      "loading": "Loading...",
-      "empty": "No reward records",
-      "unknown_user": "Unknown User",
-      "points": "points",
-      "days": "days",
-      "filter_all": "All",
-      "action_register_bonus": "Registration Bonus",
-      "action_referrer_bonus": "Referrer Bonus",
-      "action_subscription_reward": "Subscription Reward",
-      "table": {
-        "action": "Action Type",
-        "from": "From",
-        "reward": "Reward",
-        "create_time": "Create Time"
-      }
-    }
-  },
-  "affiliate_page": {
-    "title": "Affiliate System",
-    "subtitle": "Earn commissions through referrals, 30% per order",
-    "loading": "Loading...",
-    "stats": {
-      "total_invites": "Total Invites",
-      "converted": "Converted",
-      "available_balance": "Available Balance",
-      "frozen_balance": "Frozen Balance"
-    },
-    "code_setting": {
-      "title": "Affiliate Code Settings",
-      "description": "Set your affiliate code, can only be changed once",
-      "current_code": "Current Code",
-      "placeholder": "Enter new code (8-20 letters or numbers)",
-      "placeholder_set": "Enter code (8-20 letters or numbers)",
-      "button_update": "Update Code",
-      "button_set": "Set Code",
-      "updating": "Updating...",
-      "setting": "Setting...",
-      "note": "Note: Affiliate code can only be changed once, please set carefully",
-      "already_changed": "Code has been changed and cannot be changed again",
-      "enter_code": "Please enter affiliate code",
-      "invalid_format": "Invalid format, must be 8-20 letters or numbers",
-      "update_success": "Code updated successfully",
-      "update_failed": "Failed to update code",
-      "already_taken": "This code is already taken",
-      "code_copied": "Code copied",
-      "link_copied": "Link copied",
-      "copy_failed": "Copy failed",
-      "set_first": "Please set affiliate code first"
-    },
-    "share": {
-      "title": "Share Affiliate",
-      "link_label": "Affiliate Link",
-      "copy_code": "Copy Code",
-      "copy_link": "Copy Link"
-    },
-    "relations": {
-      "title": "Invite Data",
-      "description": "View users who registered through your affiliate code",
-      "loading": "Loading...",
-      "empty": "No invite data",
-      "unknown_user": "Unknown User",
-      "register_time": "Register Time",
-      "converted": "Converted",
-      "expired": "Expired",
-      "pending": "Pending",
-      "filter_all": "All",
-      "table": {
-        "user": "User",
-        "email": "Email",
-        "register_time": "Register Time",
-        "status": "Status"
-      }
-    },
-    "earnings": {
-      "title": "Earnings Records",
-      "description": "View your commission income and status",
-      "loading": "Loading...",
-      "empty": "No earnings records",
-      "from": "From",
-      "create_time": "Create Time",
-      "release_time": "Release Time",
-      "frozen": "Frozen",
-      "released": "Released",
-      "cancelled": "Cancelled",
-      "unknown_user": "Unknown User",
-      "filter_all": "All",
-      "table": {
-        "amount": "Amount",
-        "from": "From",
-        "status": "Status",
-        "create_time": "Create Time",
-        "release_time": "Release Time"
-      }
-    },
-    "withdraw": {
-      "title": "Withdrawal Request",
-      "description": "Withdraw available balance to your account",
-      "button": "Withdraw",
-      "amount": "Withdrawal Amount",
-      "amount_placeholder": "Enter withdrawal amount",
-      "min_amount": "Minimum Amount",
-      "min_amount_error": "Minimum withdrawal amount is $10",
-      "payment_method": "Payment Method",
-      "alipay": "Alipay",
-      "paypal": "PayPal",
-      "account_name": "Account Name",
-      "account_name_placeholder": "Enter account name",
-      "alipay_account": "Alipay Account",
-      "alipay_placeholder": "Enter Alipay account or phone number",
-      "paypal_email": "PayPal Email",
-      "paypal_placeholder": "Enter PayPal email",
-      "available_balance": "Available Balance",
-      "exceeds_balance": "Withdrawal amount exceeds available balance",
-      "submit": "Submit Request",
-      "processing": "Processing...",
-      "success": "Withdrawal request submitted",
-      "failed": "Withdrawal request failed",
-      "invalid_amount": "Invalid withdrawal amount",
-      "invalid_payment_method": "Invalid payment method",
-      "invalid_account_info": "Invalid account information",
-      "insufficient_balance": "Insufficient balance",
-      "account_info_required": "Please enter account information"
-    },
-    "withdrawals": {
-      "title": "Withdrawal Records",
-      "description": "View your withdrawal request records",
-      "loading": "Loading...",
-      "empty": "No withdrawal records",
-      "pending": "Pending",
-      "processing": "Processing",
-      "completed": "Completed",
-      "failed": "Failed",
-      "cancelled": "Cancelled",
-      "failure_reason": "Failure Reason",
-      "create_time": "Request Time",
-      "processed_time": "Processed Time",
-      "filter_all": "All",
-      "table": {
-        "amount": "Amount",
-        "payment_method": "Payment Method",
-        "account": "Account",
-        "status": "Status",
-        "create_time": "Request Time",
-        "processed_time": "Processed Time"
-      }
-    }
   },
   "create_page": {
     "title": "Explore Video - MeiHao",
@@ -1394,83 +1095,12 @@
       }
     }
   },
-  "legal": {
-    "title": "Legal Terms",
-    "terms": "Terms of Service",
-    "privacy": "Privacy Policy",
-    "cookies": "Cookie Policy"
-  },
   "unauthorized": {
     "title": "Access Denied",
     "description": "You don't have permission to access this page. This page is restricted to administrators only.",
     "errorMessage": "If you believe this is an error, please contact the system administrator.",
     "backToHome": "Back to Home",
     "signInAgain": "Sign In Again"
-  },
-  "blogPage": {
-    "title": "meihao Blog",
-    "subtitle": "Explore the latest SaaS development trends and insights",
-    "contactPost": {
-      "badge": "Latest",
-      "date": "December 2024",
-      "author": "meihao Team",
-      "title": "Contact Us - Let's Explore the Infinite Possibilities of SaaS Together",
-      "description": "We're excited to connect with you! Whether you want to learn about our SaaS template services or have any technical questions, we're always ready to help.",
-      "contactMethods": {
-        "title": "🌍 Contact Methods",
-        "twitter": {
-          "title": "Twitter",
-          "description": "Follow us for latest updates",
-          "handle": "@zyailive"
-        },
-        "email": {
-          "title": "Email",
-          "description": "Business & Technical Support",
-          "address": "app@itusi.cn"
-        },
-        "wechat": {
-          "title": "WeChat",
-          "description": "Add WeChat for exclusive service",
-          "id": "zyailive01"
-        }
-      },
-      "services": {
-        "title": "🚀 What We Can Do For You?",
-        "podcast": "Complete SaaS template source code and technical documentation",
-        "voiceover": "Modern user authentication and payment system integration",
-        "video": "Multi-language support and SEO optimization solutions",
-        "support": "24/7 professional technical support",
-        "custom": "Tailored SaaS features according to your needs"
-      },
-      "cta": {
-        "title": "Ready to Start Your SaaS Development Journey?",
-        "startNow": "Start Now",
-        "contactUs": "Contact Us"
-      }
-    },
-    "otherPosts": {
-      "title": "SaaS Development Technology Insights",
-      "description": "Explore the latest SaaS template technology trends and in-depth analysis",
-      "post1": {
-        "category": "Technology Analysis",
-        "date": "July 2025",
-        "title": "What Websites Can meihao Build?",
-        "excerpt": "Understand meihao template application scenarios, from e-commerce platforms to enterprise management systems, to online education platforms."
-      },
-      "post2": {
-        "category": "Product Introduction",
-        "date": "July 2025",
-        "title": "What Features Does meihao Have?",
-        "excerpt": "Explore the core features provided by meihao template: user authentication, payment systems, multi-language support, SEO optimization and more."
-      },
-      "post3": {
-        "category": "Industry Insights",
-        "date": "July 2025",
-        "title": "What is SaaS?",
-        "excerpt": "Understand the definition, business model, and technical architecture of SaaS, and how to rapidly build modern SaaS products."
-      },
-      "readMore": "Read More"
-    }
   },
   "operate": {
     "loading": "Loading...",

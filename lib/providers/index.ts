@@ -22,6 +22,6 @@ export async function pollTask(taskType: string, taskId: string, timeoutMs = 150
   return pollKieTask(target.queryKind!, taskId, timeoutMs)
 }
 
-export { isKnownTaskType, getStaticDefaultRoutes } from './defaults'
+export { isKnownTaskType } from './defaults'
 export { resolveRoutes, invalidateRouteCache } from './router'
 export type { Capability, ProviderId, RouteEntry, PollResult, TaskVerdict } from './types'

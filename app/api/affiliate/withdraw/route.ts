@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthedSession, jsonError } from '@/lib/api'
+import { db } from '@/lib/db'
+import { affiliateProfiles } from '@/lib/schema'
+import { eq } from 'drizzle-orm'
 import { getOrCreateAffiliateProfile, createWithdrawal } from '@/lib/affiliate'
 import { sendWithdrawRequestAdminEmail } from '@/lib/email'
 
@@ -52,10 +55,6 @@ export async function POST(request: NextRequest) {
     const profileId = await getOrCreateAffiliateProfile(session.user.id)
 
     // 获取当前可用余额
-    const { db } = await import('@/lib/db')
-    const { affiliateProfiles } = await import('@/lib/schema')
-    const { eq } = await import('drizzle-orm')
-    
     const profile = await db
       .select()
       .from(affiliateProfiles)
