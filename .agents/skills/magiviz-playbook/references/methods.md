@@ -71,3 +71,8 @@ token 按任务最小授权、一事一发、用完撤；撤销后必须用真�
   - **hover-only 控件**（`opacity-0 group-hover:opacity-100`）在触屏上不可见但可误触、键盘用户看不到焦点——统一改成 `opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100`（移动常显、桌面 hover/focus 显示），素材删除按钮和分镜轮播箭头都是这个修法。
   - **动效尊重系统偏好**：CSS 侧把全局 transition 包进 `@media (prefers-reduced-motion: no-preference)`，motion/react 侧用 `useReducedMotion()` 把 initial/animate/whileInView 传播对象置空（`{...(reduceMotion ? {} : {...})}`），landing 五个组件一个工厂函数 `reveal(delay)` 搞定。
 - **审计→修复的验收闭环**沿用 GUI 回归铁律：tsc/vitest/build 全绿之后，仍要在真实浏览器里亮暗×中英×桌面/移动各过一遍——本次GUI 回归又抓到一处漏网（非推荐卡的 offer 胶囊 `text-primary` 桃字贴桃底），代码审查和类型检查都发现不了颜色问题。
+
+## 14. 横切拦截收敛唯一入口；无事务驱动上用「审计先行、失败即中止」替代事务（2026-08-30 管理后台 P0/P1）
+
+- **账号级封禁收敛在 `getAuthedSession()` 一处**：46 个消费者路由零改动即全覆盖（封禁=停用，代价每次鉴权多一次主键查询）。凡是「一种横切规则要管住 N 条路径」的需求（封禁、限流、审计），先找唯一必经入口，不要逐路由打补丁——补丁必有漏网。反面对照：set-admin 事故正是因为提权有多个入口。
+- **neon-http 驱动不支持事务，金钱/权限写操作的审计用顺序保证**：先 `await recordAdminAudit(...)`（插入失败抛错→业务写不发生），再执行业务写。配合 before/after 白名单脱敏（password/resetToken/cardFingerprint 绝不进审计账本）+「流水+审计双写」作为验收项。锚点：`lib/admin-audit.ts`、`lib/api.ts`（getAuthedSession 封禁拦截）、`app/api/admin/users/[userId]/route.ts`（全部写操作统一模式）、`lib/task-compensate.ts`（补偿结算语义唯一实现，cron 与手动补偿共用）。

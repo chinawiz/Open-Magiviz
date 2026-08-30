@@ -46,6 +46,10 @@
 
 22. **重复锚点文本上做脚本化插入必翻车**：operate.tsx 的「检查是否是积分不足错误」出现在 3 个 handler，`s.find()` 命中第一处把块插进了角色图 handler（引用了不存在的外层变量）。教训：多锚点文件要么用「定位唯一兄弟锚（如 fetch URL 字面量）再找其后首个目标锚」的两段式定位，要么改完立刻 tsc（本次靠 tsc 抓回）。
 
+24. **手写迁移与 drizzle-kit push 双轨漂移，库会按旧文件建出残缺表（2026-08-30 管理后台回归实证）**：本地按 `psql -f drizzle/*.sql` 灌库后，`db.select().from(aiGenerationTasks)` 整表查询直接 500——`projectId`/`versionId`/`itemId` 等 5 列当年是 drizzle-kit push 直推上线的，从没进过手写迁移 0009；同理 0011/0012 的裸 camelCase 列名会被 PG 折叠成小写，按文件新建的库与 drizzle schema（恒引号 `"userId"`）对不上。**通用规律：本仓库给 schema 加列有且只有一个正确姿势——drizzle schema 与手写幂等 SQL 同一 commit 成对改**；生产靠 push 直推过的列必须回填进编号迁移文件（`ADD COLUMN IF NOT EXISTS` 追加段，生产重跑为 no-op）。锚点：`drizzle/0009`（补 5 列+索引）、`drizzle/0011`/`0012`（列名加引号重写，种子行原样保留）。
+
+25. **IAB 内嵌浏览器对 Turbopack dev 页面的点击/evaluate 全部不可达，GUI 交互验收改走「curl 完整 NextAuth 流 + psql 对账」（2026-08-30 实证）**：页面渲染、goto、快照全正常（recharts 都能画出来），但 Playwright click（含 force）、cua 坐标点击、dom_cua、evaluate 派发的点击全部到不了 React handler——页面看起来活着，交互是死的，且没有任何报错。解法：写操作验收用 curl 走完整 NextAuth v4 credentials 流（GET `/api/auth/csrf` 拿 token → POST `/api/auth/callback/credentials` form 提交 → cookie jar），随后逐条打 API + `psql` 核对审计/流水落库；浏览器只负责「渲染正确性」（goto + domSnapshot + 截图）。锚点：admin 回归批次（lib/admin-audit.test.ts、app/api/admin/*）。
+
 19. **品牌主色亮度高（L≈74%）时，shadcn 模板默认的 `--primary-foreground: #FFF` 必挂 WCAG**：白字贴 #E6A37A 实测 2.12:1（正文要 4.5:1、大字要 3:1）。修 token 层一处（改成深色 #2C2B29，实测 6.66:1，与暗色模式既有写法一致）全站按钮同步生效，比逐组件改 class 便宜两个量级；但必须全局 grep 清掉硬编码 `text-white`/`hover:text-white` 的漏网点（本次抓到 hero CTA、定价 outline hover、offer 胶囊 text-primary 三类）。浅底上的品牌色文字用 peach-800 `#9D5E34`（白卡 5.14:1），不要用 peach-500/600。
 
 20. **next-intl 的 `t() || "中文兜底"` 全是死代码**：缺键时 next-intl 直接抛错（或渲染键名），永远不会返回 falsy，`||` 后面的兜底给人虚假的安全感。本次清了 operate/library/upload 等十余处；**键是否缺失要用 `python3 -c` 直接查 messages/*.json 而不是看组件里有没有兜底**（本次定价区三个 `offer` 键 zh/en 双双缺失、线上渲染裸键名，就是这么抓到的）。另一个可迁移点：next-intl middleware 会把当前 locale 写进请求头 `x-next-intl-locale`，root layout 拿不到 `[locale]` params 时可以 `headers().get('x-next-intl-locale')` 在服务端输出 `<html lang>`——本次就用它修了全站无 lang 属性的问题。

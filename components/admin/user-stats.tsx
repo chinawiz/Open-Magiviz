@@ -9,12 +9,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { 
-  Users, 
-  UserCheck, 
-  Shield, 
+import {
+  Users,
+  UserCheck,
+  Shield,
+  ShieldBan,
   CreditCard,
   Coins,
   DollarSign,
@@ -43,6 +54,10 @@ interface User {
   subscriptionStatus: string | null
   subscriptionPlan: string | null
   subscriptionCurrentPeriodEnd: string | null
+  signupIp: string | null
+  cardVerifiedAt: string | null
+  bannedAt: string | null
+  bannedReason: string | null
   createdAt: string
   updatedAt: string
 }
@@ -85,7 +100,7 @@ export function UserStats() {
   const [subscriptionStatusFilter, setSubscriptionStatusFilter] = useState('all')
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [actionType, setActionType] = useState<'role' | 'points' | 'subscription' | null>(null)
+  const [actionType, setActionType] = useState<'role' | 'points' | 'subscription' | 'ban' | 'unban' | null>(null)
 
   const fetchStats = async () => {
     try {
@@ -371,8 +386,16 @@ export function UserStats() {
                   <TableRow key={user.id}>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{user.name || t('user_list.table.no_name')}</div>
+                        <div className="font-medium flex items-center gap-1.5">
+                          {user.name || t('user_list.table.no_name')}
+                          {user.bannedAt && (
+                            <Badge variant="destructive" className="text-xs">{t('user_list.table.banned')}</Badge>
+                          )}
+                        </div>
                         <div className="text-sm text-muted-foreground">{user.email}</div>
+                        {user.signupIp && (
+                          <div className="text-xs text-muted-foreground font-mono">IP: {user.signupIp}</div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -385,6 +408,11 @@ export function UserStats() {
                         <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
                         <Badge variant={user.emailVerified ? 'default' : 'secondary'}>
                           {user.emailVerified ? t('user_list.table.email_verified') : t('user_list.table.email_unverified')}
+                        </Badge>
+                      </div>
+                      <div className="mt-1">
+                        <Badge variant={user.cardVerifiedAt ? 'default' : 'outline'} className="text-xs">
+                          {user.cardVerifiedAt ? t('user_list.table.card_verified') : t('user_list.table.card_unverified')}
                         </Badge>
                       </div>
                     </TableCell>
@@ -476,6 +504,18 @@ export function UserStats() {
                         >
                           <CreditCard className="h-4 w-4" />
                         </Button>
+                        <Button
+                          variant={user.bannedAt ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            setSelectedUser(user)
+                            setActionType(user.bannedAt ? 'unban' : 'ban')
+                            setDialogOpen(true)
+                          }}
+                          title={user.bannedAt ? t('user_list.table.unban_user') : t('user_list.table.ban_user')}
+                        >
+                          <ShieldBan className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -533,7 +573,7 @@ function UserActionDialog({
   onUpdate
 }: {
   user: User | null
-  actionType: 'role' | 'points' | 'subscription' | null
+  actionType: 'role' | 'points' | 'subscription' | 'ban' | 'unban' | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onUpdate: (userId: string, action: string, data: Record<string, unknown>) => Promise<void> | void
@@ -547,6 +587,8 @@ function UserActionDialog({
   const [subscriptionStatus, setSubscriptionStatus] = useState('')
   const [subscriptionPlan, setSubscriptionPlan] = useState('')
   const [subscriptionEndDate, setSubscriptionEndDate] = useState('')
+  const [banReason, setBanReason] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -605,7 +647,7 @@ function UserActionDialog({
       await onUpdate(user.id, 'updateRole', { role })
     } else if (actionType === 'points') {
       const pointsValue = parseInt(points)
-      
+
       // 验证赠送积分需要订阅到期时间
       if (pointsType === 'gifted' && pointsValue > 0) {
         if (!user.subscriptionCurrentPeriodEnd) {
@@ -619,19 +661,24 @@ function UserActionDialog({
           return
         }
       }
-      
-      await onUpdate(user.id, 'adjustPoints', { 
-        points: pointsValue, 
-        pointsType, 
-        description 
+
+      await onUpdate(user.id, 'adjustPoints', {
+        points: pointsValue,
+        pointsType,
+        description
       })
     } else if (actionType === 'subscription') {
-      await onUpdate(user.id, 'updateSubscription', { 
-        subscriptionStatus, 
-        subscriptionPlan, 
-        subscriptionEndDate 
+      await onUpdate(user.id, 'updateSubscription', {
+        subscriptionStatus,
+        subscriptionPlan,
+        subscriptionEndDate
       })
+    } else if (actionType === 'ban') {
+      await onUpdate(user.id, 'ban', { reason: banReason })
+    } else if (actionType === 'unban') {
+      await onUpdate(user.id, 'unban', {})
     }
+    setConfirmOpen(false)
   }
 
   return (
@@ -639,8 +686,10 @@ function UserActionDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {actionType === 'role' ? t('dialogs.edit_role.title') : 
-             actionType === 'points' ? t('dialogs.adjust_points.title') : 
+            {actionType === 'role' ? t('dialogs.edit_role.title') :
+             actionType === 'points' ? t('dialogs.adjust_points.title') :
+             actionType === 'ban' ? t('dialogs.ban.title') :
+             actionType === 'unban' ? t('dialogs.unban.title') :
              t('dialogs.manage_subscription.title')}
           </DialogTitle>
           <DialogDescription>
@@ -798,18 +847,68 @@ function UserActionDialog({
               )}
             </>
           )}
+          {actionType === 'ban' && (
+            <div>
+              <Label htmlFor="banReason">{t('dialogs.ban.reason_label')}</Label>
+              <Textarea
+                id="banReason"
+                placeholder={t('dialogs.ban.reason_placeholder')}
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {t('dialogs.ban.reason_hint')}
+              </p>
+            </div>
+          )}
+
+          {actionType === 'unban' && (
+            <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
+              {t('dialogs.unban.info')}
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('dialogs.cancel')}
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
+          <Button
+            onClick={() => setConfirmOpen(true)}
+            disabled={submitting || (actionType === 'ban' && !banReason.trim())}
+            variant={actionType === 'ban' || actionType === 'unban' ? 'destructive' : 'default'}
+          >
             {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />}
             {t('dialogs.confirm')}
           </Button>
         </div>
       </DialogContent>
+
+      {/* 双确认：所有写操作必须过第二道确认（docs/admin-plan.md P1），最终提交在 AlertDialogAction */}
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('dialogs.confirm.title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {actionType === 'ban' ? t('dialogs.confirm.ban_desc', { email: user?.email || '' }) : t('dialogs.confirm.description')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('dialogs.confirm.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                setSubmitting(true)
+                handleSubmit().finally(() => setSubmitting(false))
+              }}
+              disabled={submitting}
+            >
+              {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />}
+              {t('dialogs.confirm.proceed')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

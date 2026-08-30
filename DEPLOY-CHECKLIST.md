@@ -35,12 +35,24 @@ psql "$DATABASE_URL" -f drizzle/0011_add_provider_routes.sql
 psql "$DATABASE_URL" -f drizzle/0012_add_funnel_events.sql
 psql "$DATABASE_URL" -f drizzle/0013_add_ai_task_model.sql
 psql "$DATABASE_URL" -f drizzle/0014_add_pricing_redesign.sql
+psql "$DATABASE_URL" -f drizzle/0015_add_admin_audit_and_ban.sql
 ```
 
 > 0014（2026-08-30 定价重构）：users 表加 `signupIp`/`cardVerifiedAt`/`cardFingerprint` 三列 + 两个索引，纯增量、幂等。
 > 配套：Stripe Dashboard 需先建 4 个新 Price（Starter $9.9/mo、Pro $24.9/mo、Annual $249/yr、积分包 Premium $85），
 > 并配置 `STRIPE_STARTER_PRICE_ID`，更新 `STRIPE_PRO_PRICE_ID`/`STRIPE_ANNUAL_PRICE_ID`/`STRIPE_POINTS_PREMIUM_PRICE_ID`
 > 指向新价；旧 Price 保留（老订阅 grandfather 续费）。方案全文见 `docs/pricing-redesign-2026-08.md`。
+> 0015（2026-08-30 管理后台 P0）：新表 `admin_audit_logs` + users 表 `bannedAt`/`bannedReason` 列，纯增量、幂等。**必须先于含 admin 审计代码的部署执行**（缺表即 500）。
+
+**1.3 管理员引导 SQL（制度①：提权永不走 HTTP）**（Neon console 执行，新管理员/找回管理员时用）：
+
+```sql
+UPDATE users SET role='admin' WHERE email='此处填邮箱' RETURNING id, email, role;
+```
+
+> [ ] 执行人必须核对 RETURNING **恰好 1 行**——email 拼错或大小写不符会静默 0 行更新；
+> [ ] 前后各 `SELECT id, email, role FROM users WHERE email='…';` 留痕。
+> 撤销管理员：`UPDATE users SET role='user' WHERE email='…' RETURNING id, email, role;`（同样核对 1 行）。
 
 ## 2. 环境变量
 

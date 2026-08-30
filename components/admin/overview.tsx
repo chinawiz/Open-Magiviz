@@ -1,196 +1,24 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { 
-  Users, 
-  Mail, 
-  BarChart3,
-  UserCog,
-  MailOpen,
-  Gift,
-  TrendingUp,
-  DollarSign,
-  Coins,
+import {
+  Users,
   UserPlus,
   Award,
   CreditCard,
   Wallet,
+  DollarSign,
+  Coins,
+  TrendingUp,
+  ShieldAlert,
   Loader2
 } from 'lucide-react'
 import { useTranslations, useLocale } from 'next-intl'
-import { UserStats } from './user-stats'
-import { NewsletterStats } from '../newsletter/newsletter-stats'
-import { ReferralManagement } from './referral-management'
-import { AffiliateManagement } from './affiliate-management'
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-
-type AdminSection = 'overview' | 'users' | 'newsletter' | 'referral' | 'affiliate'
-
-interface MenuItem {
-  id: AdminSection
-  label: string
-  icon: React.ReactNode
-  description: string
-}
-
-export function AdminDashboard() {
-  const t = useTranslations('admin.dashboard')
-  
-  // 从 URL hash 或 localStorage 获取初始标签页，默认为 'overview'
-  const getInitialSection = (): AdminSection => {
-    if (typeof window !== 'undefined') {
-      // 优先使用 URL hash
-      const hash = window.location.hash.replace('#', '')
-      if (hash === 'newsletter' || hash === 'users' || hash === 'overview' || hash === 'referral' || hash === 'affiliate') {
-        return hash as AdminSection
-      }
-      // 其次使用 localStorage
-      const saved = localStorage.getItem('adminActiveSection')
-      if (saved === 'newsletter' || saved === 'users' || saved === 'overview' || saved === 'referral' || saved === 'affiliate') {
-        return saved as AdminSection
-      }
-    }
-    return 'overview'
-  }
-
-  const [activeSection, setActiveSection] = useState<AdminSection>('overview')
-
-  // 首次挂载后再根据 hash/localStorage 设置，避免 SSR 与 CSR 初始状态不一致
-  useEffect(() => {
-    setActiveSection(getInitialSection())
-  }, [])
-
-  // 同步状态到 URL hash 和 localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // 更新 URL hash（不使用 router.push，避免页面刷新）
-      window.history.replaceState(null, '', `${window.location.pathname}#${activeSection}`)
-      // 保存到 localStorage
-      localStorage.setItem('adminActiveSection', activeSection)
-    }
-  }, [activeSection])
-
-  // 监听 URL hash 变化（例如语言切换后页面重新加载）
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const handleHashChange = () => {
-        const hash = window.location.hash.replace('#', '')
-        if (hash === 'newsletter' || hash === 'users' || hash === 'overview' || hash === 'referral' || hash === 'affiliate') {
-          setActiveSection(hash as AdminSection)
-        }
-      }
-      
-      // 页面加载时检查 hash
-      handleHashChange()
-      
-      // 监听 hash 变化
-      window.addEventListener('hashchange', handleHashChange)
-      
-      return () => {
-        window.removeEventListener('hashchange', handleHashChange)
-      }
-    }
-  }, [])
-
-  const menuItems: MenuItem[] = [
-    {
-      id: 'overview',
-      label: t('menu.overview'),
-      icon: <BarChart3 className="h-5 w-5" />,
-      description: t('menu.overview_desc')
-    },
-    {
-      id: 'users',
-      label: t('menu.users'),
-      icon: <UserCog className="h-5 w-5" />,
-      description: t('menu.users_desc')
-    },
-    {
-      id: 'referral',
-      label: t('menu.referral'),
-      icon: <Gift className="h-5 w-5" />,
-      description: t('menu.referral_desc')
-    },
-    {
-      id: 'affiliate',
-      label: t('menu.affiliate'),
-      icon: <TrendingUp className="h-5 w-5" />,
-      description: t('menu.affiliate_desc')
-    },
-    {
-      id: 'newsletter',
-      label: t('menu.newsletter'),
-      icon: <MailOpen className="h-5 w-5" />,
-      description: t('menu.newsletter_desc')
-    }
-  ]
-
-  const renderContent = () => {
-    switch (activeSection) {
-      case 'overview':
-        return <AdminOverview />
-      case 'users':
-        return <UserStats />
-      case 'referral':
-        return <ReferralManagement />
-      case 'affiliate':
-        return <AffiliateManagement />
-      case 'newsletter':
-        return <NewsletterStats />
-      default:
-        return <AdminOverview />
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* 顶部导航标签 */}
-      <Card>
-        <CardContent className="p-3">
-          <div className="flex flex-wrap gap-2">
-            {menuItems.map((item) => (
-              <Button
-                key={item.id}
-                variant={activeSection === item.id ? 'default' : 'outline'}
-                size="sm"
-                aria-label={item.label}
-                aria-current={activeSection === item.id ? 'page' : undefined}
-                className="flex items-center gap-2"
-                onClick={() => {
-                  setActiveSection(item.id)
-                  // 更新 URL hash
-                  if (typeof window !== 'undefined') {
-                    window.history.replaceState(null, '', `${window.location.pathname}#${item.id}`)
-                  }
-                }}
-              >
-                {item.icon}
-                <span className="hidden sm:inline" aria-hidden="true">{item.label}</span>
-              </Button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 内容区域 */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="mb-4">
-            <h1 className="text-xl font-semibold">
-              {menuItems.find(item => item.id === activeSection)?.label}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {menuItems.find(item => item.id === activeSection)?.description}
-            </p>
-          </div>
-          {renderContent()}
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts'
 
 interface OverviewStats {
   totalUsers: number
@@ -213,17 +41,26 @@ interface TrendsData {
   revenueTrends: Array<{ date: string; revenue: number }>
 }
 
-function AdminOverview() {
+// 防薅两指标（docs/pricing-redesign-2026-08.md §4.6 承诺）
+interface AntifraudData {
+  totalUsers: number
+  convertedUsers: number // 有至少一次成功生成事件的去重用户数
+  topSignupIps: Array<{ ip: string; count: number; cardVerified: number }>
+}
+
+export function AdminOverview() {
   const t = useTranslations('admin.dashboard')
   const locale = useLocale()
   const [stats, setStats] = useState<OverviewStats | null>(null)
   const [trends, setTrends] = useState<TrendsData | null>(null)
+  const [antifraud, setAntifraud] = useState<AntifraudData | null>(null)
   const [loading, setLoading] = useState(true)
   const [trendsLoading, setTrendsLoading] = useState(true)
   const [days, setDays] = useState(30)
 
   useEffect(() => {
     fetchStats()
+    fetchAntifraud()
   }, [])
 
   // days 变化时刷新趋势；首次挂载由本 effect 触发（原来两个 effect 各跑一次）
@@ -260,6 +97,18 @@ function AdminOverview() {
     }
   }
 
+  const fetchAntifraud = async () => {
+    try {
+      const response = await fetch('/api/admin/statistics?type=antifraud')
+      if (response.ok) {
+        const data = await response.json()
+        setAntifraud(data)
+      }
+    } catch (error) {
+      console.error('获取防薅指标失败:', error)
+    }
+  }
+
   const formatCurrency = (cents: number) => {
     return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
@@ -291,6 +140,10 @@ function AdminOverview() {
       </div>
     )
   }
+
+  const conversionRate = antifraud && antifraud.totalUsers > 0
+    ? ((antifraud.convertedUsers / antifraud.totalUsers) * 100).toFixed(1)
+    : null
 
   return (
     <div className="space-y-6">
@@ -342,6 +195,63 @@ function AdminOverview() {
           </div>
         </div>
 
+        {/* 防薅监控（pricing doc §4.6）：封号前先看这两个数 */}
+        <div>
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+            {t('overview.antifraud.title')}
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{t('overview.antifraud.conversion')}</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {conversionRate !== null ? `${conversionRate}%` : '-'}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t('overview.antifraud.conversion_desc', {
+                    converted: formatNumber(antifraud?.convertedUsers || 0),
+                    total: formatNumber(antifraud?.totalUsers || 0),
+                  })}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="md:col-span-1 lg:col-span-2 xl:col-span-3">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{t('overview.antifraud.top_ips')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(antifraud?.topSignupIps?.length || 0) === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">{t('overview.antifraud.empty')}</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-muted-foreground">
+                        <th className="pb-2 font-medium">{t('overview.antifraud.ip_col')}</th>
+                        <th className="pb-2 font-medium text-right">{t('overview.antifraud.count_col')}</th>
+                        <th className="pb-2 font-medium text-right">{t('overview.antifraud.verified_col')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(antifraud?.topSignupIps || []).map((row) => (
+                        <tr key={row.ip} className="border-t">
+                          <td className="py-1.5 font-mono text-xs">{row.ip}</td>
+                          <td className="py-1.5 text-right font-medium">{row.count}</td>
+                          <td className="py-1.5 text-right text-muted-foreground">{row.cardVerified}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
         {/* 推荐与推广 */}
         <div>
           <h3 className="text-lg font-semibold mb-4">{t('overview.categories.referral_affiliate')}</h3>
@@ -359,7 +269,7 @@ function AdminOverview() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">{t('overview.stats.referral_subscribed')}</CardTitle>
-                <Gift className="h-4 w-4 text-muted-foreground" />
+                <Award className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatNumber(stats?.referralSubscribedCount || 0)}</div>
@@ -453,8 +363,8 @@ function AdminOverview() {
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={trends?.registrationTrends || []}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
+                    <XAxis
+                      dataKey="date"
                       tickFormatter={formatDate}
                     />
                     <YAxis />
@@ -475,24 +385,24 @@ function AdminOverview() {
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={trends?.subscriptionTrends || []}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
+                    <XAxis
+                      dataKey="date"
                       tickFormatter={formatDate}
                     />
                     <YAxis yAxisId="left" />
-                    <YAxis 
-                      yAxisId="right" 
+                    <YAxis
+                      yAxisId="right"
                       orientation="right"
                       tickFormatter={(value) => `$${(value / 100).toFixed(0)}`}
                     />
-                    <Tooltip 
+                    <Tooltip
                       labelFormatter={formatDate}
                       formatter={(value: number, name: string) => {
                         if (name === 'revenue' || name === t('overview.trends.subscription_revenue')) {
                           return formatCurrency(value)
                         }
                         return value
-                      }} 
+                      }}
                     />
                     <Legend />
                     <Bar yAxisId="left" dataKey="count" fill="#8884d8" name={t('overview.trends.subscription_count')} />
@@ -511,14 +421,11 @@ function AdminOverview() {
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={trends?.revenueTrends || []}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickFormatter={formatDate}
-                    />
+                    <XAxis dataKey="date" tickFormatter={formatDate} />
                     <YAxis tickFormatter={(value) => `$${(value / 100).toFixed(0)}`} />
-                    <Tooltip 
+                    <Tooltip
                       labelFormatter={formatDate}
-                      formatter={(value: number) => formatCurrency(value)} 
+                      formatter={(value: number) => formatCurrency(value)}
                     />
                     <Legend />
                     <Line type="monotone" dataKey="revenue" stroke="#82ca9d" name={t('overview.trends.revenue')} />
@@ -532,4 +439,3 @@ function AdminOverview() {
     </div>
   )
 }
-

@@ -756,7 +756,13 @@
         "affiliate": "推广管理",
         "affiliate_desc": "管理所有用户的推广记录和佣金",
         "newsletter": "邮件订阅",
-        "newsletter_desc": "管理邮件订阅用户"
+        "newsletter_desc": "管理邮件订阅用户",
+        "tasks": "任务监控",
+        "tasks_desc": "按用户查询生成任务，手动补偿漏回调任务",
+        "finance": "财务查询",
+        "finance_desc": "按邮箱查询支付记录与积分流水（只读）",
+        "growth": "增长运营",
+        "growth_desc": "推荐系统与推广返利运营、提现审批"
       },
       "overview": {
         "title": "系统概览",
@@ -808,6 +814,16 @@
           "subscription_revenue": "订阅收入",
           "total_revenue": "总收入趋势",
           "revenue": "收入"
+        },
+        "antifraud": {
+          "title": "防薅监控",
+          "conversion": "注册→首生成转化率",
+          "conversion_desc": "{converted} / {total} 名注册用户产生过成功生成",
+          "top_ips": "同 IP 注册 top 10",
+          "empty": "暂无带 IP 的注册记录",
+          "ip_col": "注册 IP",
+          "count_col": "注册数",
+          "verified_col": "其中已验卡"
         }
       }
     },
@@ -922,7 +938,12 @@
           "status_paused": "暂停",
           "status_expired": "已过期",
           "expired": "已过期",
-          "expiring_soon": "即将到期"
+          "expiring_soon": "即将到期",
+          "banned": "已封禁",
+          "card_verified": "已验卡",
+          "card_unverified": "未验卡",
+          "ban_user": "封禁用户",
+          "unban_user": "解封用户"
         }
       },
       "actions": {
@@ -937,7 +958,13 @@
         "user_info": "用户: {name} ({email})",
         "no_name": "未设置",
         "cancel": "取消",
-        "confirm": "确认",
+        "confirm": {
+          "title": "确认执行？",
+          "description": "该操作将写入审计日志，请在确认前核对目标用户与参数。",
+          "ban_desc": "确认封禁 {email}？封禁后该账号立即无法使用任何需登录的功能。",
+          "cancel": "再想想",
+          "proceed": "确认执行"
+        },
         "edit_role": {
           "title": "修改用户角色",
           "description": "修改用户的系统角色权限",
@@ -983,6 +1010,16 @@
           "cumulative_calculated": "在现有订阅基础上累计增加时间",
           "select_plan_first": "请选择订阅计划",
           "plan_starter": "Starter"
+        },
+        "ban": {
+          "title": "封禁用户",
+          "reason_label": "封禁原因",
+          "reason_placeholder": "例如：同 IP 批量注册薅积分",
+          "reason_hint": "原因将写入审计日志；封禁后该账号立即无法使用任何需登录的功能。"
+        },
+        "unban": {
+          "title": "解封用户",
+          "info": "解封后该账号立即恢复全部功能。"
         }
       },
       "pagination": {
@@ -1147,6 +1184,91 @@
           "submit": "提交",
           "cancel": "取消"
         }
+      }
+    },
+    "tasks": {
+      "list": {
+        "title": "生成任务",
+        "description": "按用户邮箱筛选任务；pending 任务可用「补偿」按供应商终态结算一次",
+        "search_placeholder": "按用户邮箱筛选…",
+        "all_statuses": "全部状态",
+        "col_task": "任务 ID",
+        "col_type": "类型",
+        "col_model": "模型",
+        "col_status": "状态",
+        "col_points": "积分",
+        "col_user": "用户",
+        "col_created": "创建时间",
+        "col_actions": "操作",
+        "empty": "没有符合条件的任务",
+        "deducted": "已扣",
+        "not_deducted": "未扣"
+      },
+      "status_pending": "处理中",
+      "status_success": "成功",
+      "status_failed": "失败",
+      "actions": {
+        "refresh": "刷新",
+        "search": "查询",
+        "settle": "手动补偿"
+      },
+      "settle_confirm": {
+        "title": "确认手动补偿？",
+        "description": "将对任务 {taskId} 查询供应商终态并结算：已完成未扣费的会补扣积分，已失败的会标记关闭。",
+        "cancel": "取消",
+        "proceed": "执行补偿"
+      },
+      "messages": {
+        "fetch_failed": "获取任务列表失败",
+        "settle_failed": "补偿执行失败"
+      }
+    },
+    "finance": {
+      "lookup": {
+        "title": "工单查询",
+        "description": "按邮箱查询用户的支付记录与积分流水，用于处理「付了钱没到账」类工单",
+        "search_placeholder": "user@example.com",
+        "search_button": "查询"
+      },
+      "summary": {
+        "title": "用户概况",
+        "email": "邮箱",
+        "points": "当前积分",
+        "purchased": "购买",
+        "gifted": "赠送",
+        "subscription": "订阅",
+        "no_subscription": "无订阅",
+        "card_verified": "验卡状态",
+        "yes": "已验卡",
+        "no": "未验卡"
+      },
+      "payments": {
+        "title": "支付记录（最近 20 条）",
+        "description": "金额为网关侧实收，与积分流水核对是否一致",
+        "col_intent": "支付意向 ID",
+        "col_type": "类型",
+        "col_status": "状态",
+        "col_amount": "金额",
+        "col_points": "积分",
+        "col_created": "时间",
+        "empty": "该用户没有支付记录"
+      },
+      "status_succeeded": "成功",
+      "status_failed": "失败",
+      "status_refunded": "已退款",
+      "status_pending": "处理中",
+      "history": {
+        "title": "积分流水（最近 20 条）",
+        "description": "积分变动的完整台账",
+        "col_change": "变动",
+        "col_type": "类型",
+        "col_action": "动作",
+        "col_description": "说明",
+        "col_created": "时间",
+        "empty": "该用户没有积分流水"
+      },
+      "messages": {
+        "fetch_failed": "查询失败"
       }
     }
   },

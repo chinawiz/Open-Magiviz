@@ -757,7 +757,13 @@
         "affiliate": "Affiliate Management",
         "affiliate_desc": "Manage all user affiliate records and commissions",
         "newsletter": "Newsletter",
-        "newsletter_desc": "Manage newsletter subscribers"
+        "newsletter_desc": "Manage newsletter subscribers",
+        "tasks": "Tasks",
+        "tasks_desc": "Search tasks by user and manually settle missed callbacks",
+        "finance": "Finance",
+        "finance_desc": "Look up payments and points ledger by email (read-only)",
+        "growth": "Growth",
+        "growth_desc": "Referral & affiliate operations, withdrawal approval"
       },
       "overview": {
         "title": "System Overview",
@@ -809,6 +815,16 @@
           "subscription_revenue": "Subscription Revenue",
           "total_revenue": "Total Revenue Trends",
           "revenue": "Revenue"
+        },
+        "antifraud": {
+          "title": "Anti-abuse",
+          "conversion": "Signup → First Generation",
+          "conversion_desc": "{converted} / {total} registered users have made a successful generation",
+          "top_ips": "Top 10 Signup IPs",
+          "empty": "No signups with recorded IP yet",
+          "ip_col": "Signup IP",
+          "count_col": "Signups",
+          "verified_col": "Card Verified"
         }
       }
     },
@@ -923,7 +939,12 @@
           "status_paused": "Paused",
           "status_expired": "Expired",
           "expired": "Expired",
-          "expiring_soon": "Expiring Soon"
+          "expiring_soon": "Expiring Soon",
+          "banned": "Banned",
+          "card_verified": "Card verified",
+          "card_unverified": "Card unverified",
+          "ban_user": "Ban user",
+          "unban_user": "Unban user"
         }
       },
       "actions": {
@@ -938,7 +959,13 @@
         "user_info": "User: {name} ({email})",
         "no_name": "Not Set",
         "cancel": "Cancel",
-        "confirm": "Confirm",
+        "confirm": {
+          "title": "Confirm execution?",
+          "description": "This action will be written to the audit log. Double-check the target user and parameters.",
+          "ban_desc": "Ban {email}? The account loses access to all signed-in features immediately.",
+          "cancel": "Cancel",
+          "proceed": "Confirm"
+        },
         "edit_role": {
           "title": "Edit User Role",
           "description": "Modify user's system role permissions",
@@ -984,6 +1011,16 @@
           "cumulative_calculated": "Time is added cumulatively to existing subscription",
           "select_plan_first": "Please select a subscription plan",
           "plan_starter": "Starter"
+        },
+        "ban": {
+          "title": "Ban User",
+          "reason_label": "Reason",
+          "reason_placeholder": "e.g. bulk signups from the same IP to farm credits",
+          "reason_hint": "The reason is written to the audit log. A banned account loses access to all signed-in features immediately."
+        },
+        "unban": {
+          "title": "Unban User",
+          "info": "The account regains full access immediately."
         }
       },
       "pagination": {
@@ -1148,6 +1185,91 @@
           "submit": "Submit",
           "cancel": "Cancel"
         }
+      }
+    },
+    "tasks": {
+      "list": {
+        "title": "Generation Tasks",
+        "description": "Filter by user email; settle pending tasks against the provider final state",
+        "search_placeholder": "Filter by user email…",
+        "all_statuses": "All statuses",
+        "col_task": "Task ID",
+        "col_type": "Type",
+        "col_model": "Model",
+        "col_status": "Status",
+        "col_points": "Points",
+        "col_user": "User",
+        "col_created": "Created",
+        "col_actions": "Actions",
+        "empty": "No matching tasks",
+        "deducted": "charged",
+        "not_deducted": "uncharged"
+      },
+      "status_pending": "Pending",
+      "status_success": "Success",
+      "status_failed": "Failed",
+      "actions": {
+        "refresh": "Refresh",
+        "search": "Search",
+        "settle": "Settle"
+      },
+      "settle_confirm": {
+        "title": "Settle this task?",
+        "description": "Task {taskId} will be settled against the provider final state: success without charge will be charged, failure will be closed.",
+        "cancel": "Cancel",
+        "proceed": "Settle"
+      },
+      "messages": {
+        "fetch_failed": "Failed to load tasks",
+        "settle_failed": "Settle failed"
+      }
+    },
+    "finance": {
+      "lookup": {
+        "title": "Ticket Lookup",
+        "description": "Look up a user's payments and points ledger by email to handle \"paid but no credits\" tickets",
+        "search_placeholder": "user@example.com",
+        "search_button": "Search"
+      },
+      "summary": {
+        "title": "User Summary",
+        "email": "Email",
+        "points": "Current Points",
+        "purchased": "purchased",
+        "gifted": "gifted",
+        "subscription": "Subscription",
+        "no_subscription": "None",
+        "card_verified": "Card Verification",
+        "yes": "Verified",
+        "no": "Not verified"
+      },
+      "payments": {
+        "title": "Payments (last 20)",
+        "description": "Amounts are gateway-side receipts; cross-check with the points ledger",
+        "col_intent": "Payment Intent",
+        "col_type": "Type",
+        "col_status": "Status",
+        "col_amount": "Amount",
+        "col_points": "Points",
+        "col_created": "Created",
+        "empty": "No payments for this user"
+      },
+      "status_succeeded": "Succeeded",
+      "status_failed": "Failed",
+      "status_refunded": "Refunded",
+      "status_pending": "Pending",
+      "history": {
+        "title": "Points Ledger (last 20)",
+        "description": "Full points change history",
+        "col_change": "Change",
+        "col_type": "Type",
+        "col_action": "Action",
+        "col_description": "Description",
+        "col_created": "Created",
+        "empty": "No points history for this user"
+      },
+      "messages": {
+        "fetch_failed": "Lookup failed"
       }
     }
   },

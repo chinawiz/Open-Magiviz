@@ -9,6 +9,7 @@ import {
   affiliateEarnings,
   affiliateWithdrawals,
   newsletterSubscriptions,
+  funnelEvents,
 } from '@/lib/schema'
 import {
   eq,
@@ -18,6 +19,7 @@ import {
   and,
   isNotNull,
   gte,
+  desc,
 } from 'drizzle-orm'
 import { isAdmin } from '@/lib/auth-utils'
 
@@ -238,6 +240,42 @@ export async function GET(request: NextRequest) {
         registrationTrends,
         subscriptionTrends,
         revenueTrends,
+      })
+    }
+
+    // 防薅两指标（docs/pricing-redesign-2026-08.md §4.6）：
+    // 注册→首生成转化率 + 同 signupIp 注册 top 榜。封号前先看这两个数。
+    if (type === 'antifraud') {
+      const [totalUsersQ, convertedQ, topIpsQ] = await Promise.all([
+        // 总注册数
+        db.select({ count: count() }).from(users),
+        // 有至少一次成功生成事件（funnel_events 任意 stage）的去重用户数
+        db
+          .select({ count: sql<number>`count(distinct ${funnelEvents.userId})` })
+          .from(funnelEvents)
+          .where(and(eq(funnelEvents.success, true), isNotNull(funnelEvents.userId))),
+        // 同 signupIp 注册 top 10（含其中已验卡数，识别卡农）
+        db
+          .select({
+            ip: users.signupIp,
+            count: count(),
+            cardVerified: sql<number>`count(case when ${users.cardVerifiedAt} is not null then 1 end)`,
+          })
+          .from(users)
+          .where(isNotNull(users.signupIp))
+          .groupBy(users.signupIp)
+          .orderBy(desc(count()))
+          .limit(10),
+      ])
+
+      return NextResponse.json({
+        totalUsers: totalUsersQ[0]?.count || 0,
+        convertedUsers: Number(convertedQ[0]?.count || 0),
+        topSignupIps: topIpsQ.map((row) => ({
+          ip: row.ip,
+          count: Number(row.count),
+          cardVerified: Number(row.cardVerified),
+        })),
       })
     }
 
