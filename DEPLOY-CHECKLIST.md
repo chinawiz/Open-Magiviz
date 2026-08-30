@@ -53,6 +53,8 @@ UPDATE users SET role='admin' WHERE email='此处填邮箱' RETURNING id, email,
 > [ ] 执行人必须核对 RETURNING **恰好 1 行**——email 拼错或大小写不符会静默 0 行更新；
 > [ ] 前后各 `SELECT id, email, role FROM users WHERE email='…';` 留痕。
 > 撤销管理员：`UPDATE users SET role='user' WHERE email='…' RETURNING id, email, role;`（同样核对 1 行）。
+> **专用冒烟账号**（methods#10）：`smoke-admin@mhhao.com`（id `smoke-admin-001`，role=admin，密码默认锁空）。用时先置密：
+> `UPDATE users SET password='<bcrypt hash>', "emailVerified"=now() WHERE email='smoke-admin@mhhao.com';`（生成 hash：`node -e "console.log(require('bcryptjs').hashSync('新密码',10))"`），用完务必 `UPDATE users SET password=NULL WHERE id='smoke-admin-001';` 锁回。
 
 ## 2. 环境变量
 
