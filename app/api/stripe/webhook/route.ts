@@ -906,6 +906,20 @@ export async function POST(request: NextRequest) {
             .limit(1)
         }
 
+        // 退款事实回写支付记录（2026-08-30 管理后台 P2：finance 对账页退款单可见的前提）。
+        // 幂等：重复事件写同一值；积分回收走 admin finance 页手动调减（审计兜底），webhook 不动积分。
+        if (paymentRecord && paymentRecord.length > 0) {
+          await db
+            .update(stripePayments)
+            .set({
+              paymentStatus: PaymentStatus.REFUNDED,
+              refundAmount: charge.amount_refunded,
+              refundedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(stripePayments.id, paymentRecord[0].id))
+        }
+
         // 如果通过 payment_intent 没找到，尝试通过 charge.id 查找（某些情况下可能直接存储 charge.id）
         if (!paymentRecord || paymentRecord.length === 0) {
           // 尝试直接使用 charge.id 作为订单ID查找推广返利记录

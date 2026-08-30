@@ -1182,7 +1182,13 @@
           "failed": "处理失败",
           "processing": "处理中...",
           "submit": "提交",
-          "cancel": "取消"
+          "cancel": "取消",
+          "confirm": {
+            "title": "确认执行？",
+            "description": "确认将提现 {amount} 的申请置为「{status}」？该操作写入审计日志；置为失败/取消会恢复推广人余额。",
+            "cancel": "再想想",
+            "proceed": "确认执行"
+          }
         }
       }
     },
@@ -1251,7 +1257,9 @@
         "col_amount": "金额",
         "col_points": "积分",
         "col_created": "时间",
-        "empty": "该用户没有支付记录"
+        "empty": "该用户没有支付记录",
+        "col_actions": "操作",
+        "refund_amount": "退款 {amount}"
       },
       "status_succeeded": "成功",
       "status_failed": "失败",
@@ -1269,6 +1277,38 @@
       },
       "messages": {
         "fetch_failed": "查询失败"
+      },
+      "recon": {
+        "title": "收支对账",
+        "description": "网关侧实收 vs 台账侧实发，全生命周期口径",
+        "sub_revenue": "订阅收入",
+        "points_revenue": "积分收入",
+        "points_sold": "售出积分（应发）",
+        "points_delivered": "已发积分（实发）",
+        "diff": "差异（应发-实发）",
+        "diff_hint": "≠0 即存在漏发，用下方查询定位到人",
+        "refunded": "退款",
+        "stuck_pending": "{count} 笔 pending 超 1 小时，疑似漏回调"
+      },
+      "actions": {
+        "refresh": "刷新"
+      },
+      "clawback": {
+        "title": "退款调减积分",
+        "description": "支付 {intent} 已退款。charge.refunded 只回收推广返利，不回扣积分——请在此手动调减（走审计 + 积分流水）。",
+        "points_label": "调减积分（负数）",
+        "points_hint": "已按该单售出积分预填负数；订阅退款无积分可改小或取消",
+        "note_label": "备注（可选，写入积分流水描述）",
+        "note_placeholder": "如：订单全额退款，回收积分",
+        "default_note": "退款回收积分（订单 {intent}）",
+        "invalid_points": "必须填负数积分",
+        "success": "积分调减成功",
+        "failed": "调减失败",
+        "cancel": "取消",
+        "submit": "调减",
+        "open_title": "退款调减积分",
+        "confirm_title": "确认调减？",
+        "confirm_description": "将为 {email} 调减 {points} 积分（购买积分类型），操作写入审计日志且不可自动撤销。"
       }
     }
   },

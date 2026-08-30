@@ -17,6 +17,16 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { 
   Select,
   SelectContent,
@@ -72,6 +82,7 @@ export function AffiliateManagement() {
   
   // 处理提现相关状态
   const [showProcessDialog, setShowProcessDialog] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<(AdminAffiliateWithdrawal & { userName?: string; userEmail?: string }) | null>(null)
   const [processStatus, setProcessStatus] = useState<string>('')
   const [transactionId, setTransactionId] = useState<string>('')
@@ -766,14 +777,41 @@ export function AffiliateManagement() {
             >
               {t('withdrawals.process.cancel')}
             </Button>
+            {/* 双确认：提现状态变更是金钱路径（FAILED/CANCELLED 会恢复余额），最终提交在 AlertDialogAction */}
             <Button
-              onClick={handleProcessWithdrawal}
+              onClick={() => setConfirmOpen(true)}
               disabled={isProcessing || !processStatus}
             >
               {isProcessing ? t('withdrawals.process.processing') : t('withdrawals.process.submit')}
             </Button>
           </DialogFooter>
         </DialogContent>
+
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('withdrawals.process.confirm.title')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('withdrawals.process.confirm.description', {
+                  amount: selectedWithdrawal ? formatAmount(selectedWithdrawal.amount) : '',
+                  status: processStatus ? t(`withdrawals.${processStatus.toLowerCase()}`) : '',
+                })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t('withdrawals.process.confirm.cancel')}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault()
+                  handleProcessWithdrawal()
+                }}
+                disabled={isProcessing}
+              >
+                {t('withdrawals.process.confirm.proceed')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </Dialog>
     </div>
   )

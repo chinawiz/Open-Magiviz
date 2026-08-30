@@ -1183,7 +1183,13 @@
           "failed": "Failed to process withdrawal",
           "processing": "Processing...",
           "submit": "Submit",
-          "cancel": "Cancel"
+          "cancel": "Cancel",
+          "confirm": {
+            "title": "Confirm execution?",
+            "description": "Set the withdrawal of {amount} to \"{status}\"? This is written to the audit log; FAILED/CANCELLED restores the affiliate balance.",
+            "cancel": "Cancel",
+            "proceed": "Confirm"
+          }
         }
       }
     },
@@ -1252,7 +1258,9 @@
         "col_amount": "Amount",
         "col_points": "Points",
         "col_created": "Created",
-        "empty": "No payments for this user"
+        "empty": "No payments for this user",
+        "col_actions": "Actions",
+        "refund_amount": "Refunded {amount}"
       },
       "status_succeeded": "Succeeded",
       "status_failed": "Failed",
@@ -1270,6 +1278,38 @@
       },
       "messages": {
         "fetch_failed": "Lookup failed"
+      },
+      "recon": {
+        "title": "Revenue Reconciliation",
+        "description": "Gateway-side receipts vs ledger-side deliveries, lifetime totals",
+        "sub_revenue": "Subscription Revenue",
+        "points_revenue": "Points Revenue",
+        "points_sold": "Points Sold (due)",
+        "points_delivered": "Points Delivered (actual)",
+        "diff": "Diff (due - actual)",
+        "diff_hint": "non-zero = missed delivery, locate the user below",
+        "refunded": "Refunded",
+        "stuck_pending": "{count} payments pending over 1h, possible missed webhook"
+      },
+      "actions": {
+        "refresh": "Refresh"
+      },
+      "clawback": {
+        "title": "Claw Back Points for Refund",
+        "description": "Payment {intent} was refunded. charge.refunded only reverses affiliate commission — claw back points here manually (audited + points ledger).",
+        "points_label": "Points to deduct (negative)",
+        "points_hint": "Pre-filled with the negative of points sold on this order; edit or cancel for subscription refunds",
+        "note_label": "Note (optional, goes to ledger description)",
+        "note_placeholder": "e.g. full refund, points reclaimed",
+        "default_note": "Points reclaimed for refund (order {intent})",
+        "invalid_points": "Points must be a negative number",
+        "success": "Points adjusted",
+        "failed": "Clawback failed",
+        "cancel": "Cancel",
+        "submit": "Deduct",
+        "open_title": "Claw back points",
+        "confirm_title": "Confirm deduction?",
+        "confirm_description": "This will deduct {points} points from {email} (purchased type). The action is audited and cannot be auto-undone."
       }
     }
   },

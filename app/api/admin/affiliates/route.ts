@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { affiliateProfiles, affiliateRelations, affiliateEarnings, affiliateWithdrawals, users } from '@/lib/schema'
 import { eq, desc, count, sum, sql } from 'drizzle-orm'
-import { isAdmin } from '@/lib/auth-utils'
+import { isAdmin, requireAdminUser, getClientIP } from '@/lib/auth-utils'
+import { recordAdminAudit } from '@/lib/admin-audit'
 import { sendWithdrawStatusEmail } from '@/lib/email'
 import type { NewAffiliateWithdrawal } from '@/lib/types'
 
@@ -323,9 +324,9 @@ export async function GET(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    // 验证管理员权限
-    const adminAccess = await isAdmin()
-    if (!adminAccess) {
+    // 验证管理员权限（requireAdminUser：审计需要管理员 id）
+    const adminUser = await requireAdminUser()
+    if (!adminUser) {
       return NextResponse.json(
         { error: '需要管理员权限' },
         { status: 403 }
@@ -375,6 +376,26 @@ export async function PATCH(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // 审计先行（fail-closed）：提现状态变更是金钱路径，FAILED/CANCELLED 会连带恢复推广人余额
+    await recordAdminAudit({
+      adminUserId: adminUser.id,
+      action: 'update_withdrawal',
+      targetType: 'withdrawal',
+      targetId: withdrawalId,
+      before: {
+        status: currentWithdrawal.status,
+        transactionId: currentWithdrawal.transactionId,
+        failureReason: currentWithdrawal.failureReason,
+        amount: currentWithdrawal.amount,
+      },
+      after: {
+        status,
+        transactionId: transactionId ?? null,
+        failureReason: failureReason ?? null,
+      },
+      ip: getClientIP(request),
+    })
 
     // 如果设置为失败或取消，需要恢复余额
     if (status === 'FAILED' || status === 'CANCELLED') {

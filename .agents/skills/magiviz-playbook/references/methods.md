@@ -76,3 +76,9 @@ token 按任务最小授权、一事一发、用完撤；撤销后必须用真�
 
 - **账号级封禁收敛在 `getAuthedSession()` 一处**：46 个消费者路由零改动即全覆盖（封禁=停用，代价每次鉴权多一次主键查询）。凡是「一种横切规则要管住 N 条路径」的需求（封禁、限流、审计），先找唯一必经入口，不要逐路由打补丁——补丁必有漏网。反面对照：set-admin 事故正是因为提权有多个入口。
 - **neon-http 驱动不支持事务，金钱/权限写操作的审计用顺序保证**：先 `await recordAdminAudit(...)`（插入失败抛错→业务写不发生），再执行业务写。配合 before/after 白名单脱敏（password/resetToken/cardFingerprint 绝不进审计账本）+「流水+审计双写」作为验收项。锚点：`lib/admin-audit.ts`、`lib/api.ts`（getAuthedSession 封禁拦截）、`app/api/admin/users/[userId]/route.ts`（全部写操作统一模式）、`lib/task-compensate.ts`（补偿结算语义唯一实现，cron 与手动补偿共用）。
+## 15. 对账口径：「应发」必须包含后来退款的单（2026-08-30 finance 对账实证）
+
+- 场景：finance 对账视图 v1 把 `pointsAmount` 合计限定在 `succeeded`，一笔单转 `refunded` 后应发骤减、差异变负——但该单的积分实际发过（退款回收走的是手动调减，台账里是负数 manual 行）。
+- 教训（通用规律）：**「应发」的口径是「曾经承诺过的数」，退款是事后事件，不应从应发里剔除**——否则每次退款都会制造假差异，掩盖真漏发。回收动作在台账侧（负数流水+审计）单独可见，两侧各记各的事实，不做双向抵消。
+- 解法（已验证）：应发 = `paymentStatus IN ('succeeded','refunded')` 的 pointsAmount 合计；实发 = pointsHistory `action='purchase'` 正数合计；差异 ≠ 0 即漏发。锚点：`app/api/admin/finance/recon/route.ts`。
+
