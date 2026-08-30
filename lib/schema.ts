@@ -27,6 +27,9 @@ export const users = pgTable('users', {
   signupIp: text('signupIp'), // 注册来源 IP（按 IP 限速与聚类监控用；仅凭据注册路径记录）
   cardVerifiedAt: timestamp('cardVerifiedAt', { mode: 'date' }), // 支付方式验证时间（解锁一次性成片额度）
   cardFingerprint: text('cardFingerprint'), // Stripe 卡指纹（同卡终身只送一部成片的去重键）
+  // 2026-08-30 管理后台（docs/admin-plan.md）：用户级封禁（bannedAt 非空即停用，getAuthedSession 统一拦截）
+  bannedAt: timestamp('bannedAt', { mode: 'date' }),
+  bannedReason: text('bannedReason'),
   // 推荐码相关字段
   referralCode: text('referralCode').unique(), // 用户的推荐码（唯一）
   referralCodeChanged: boolean('referralCodeChanged').default(false), // 是否已经修改过推荐码一次
@@ -529,4 +532,22 @@ export const funnelEvents = pgTable('funnel_events', {
   stageCreatedIdx: index('fe_stage_created_idx').on(table.stage, table.createdAt),
   projectIdx: index('fe_project_idx').on(table.projectId),
   userCreatedIdx: index('fe_user_created_idx').on(table.userId, table.createdAt),
+}))
+
+// ========== 管理后台审计日志（docs/admin-plan.md 制度②）==========
+// 写操作 fail-closed：先插审计行、失败即中止业务写（neon-http 无事务，靠顺序保证）。
+// adminUserId 不设 FK——审计是 append-only 账本，用户被删后记录必须存活。
+export const adminAuditLogs = pgTable('admin_audit_logs', {
+  id: text('id').primaryKey(),
+  adminUserId: text('adminUserId').notNull(),  // 执行操作的管理员（users.id 快照，不 FK）
+  action: text('action').notNull(),            // adjust_points | update_role | update_subscription | ban_user | unban_user | settle_task
+  targetType: text('targetType').notNull(),    // user | task | withdrawal
+  targetId: text('targetId').notNull(),        // 目标对象 ID
+  before: jsonb('before'),                     // 变更前快照（白名单字段，禁止 password/resetToken/cardFingerprint）
+  after: jsonb('after'),                       // 变更后快照（同上）
+  ip: text('ip'),                              // 管理员操作来源 IP（getClientIP）
+  createdAt: timestamp('createdAt', { mode: 'date' }).defaultNow(),
+}, (table) => ({
+  targetIdx: index('aal_target_idx').on(table.targetType, table.targetId, table.createdAt),
+  adminIdx: index('aal_admin_idx').on(table.adminUserId, table.createdAt),
 }))

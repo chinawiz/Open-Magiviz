@@ -27,10 +27,20 @@ export async function isAdmin() {
   return user?.role === 'admin'
 }
 
-export async function requireAdmin() {
+/** 供 admin API 路由使用：一次查询同时拿到鉴权结论与管理员 id（审计需要） */
+export async function requireAdminUser() {
+  const user = await getCurrentUser()
+  if (user?.role !== 'admin') {
+    return null
+  }
+  return user
+}
+
+/** 页面守卫用；redirect 必须带 locale，此前硬编码 /zh 会让英文站跳中文页 */
+export async function requireAdmin(locale = 'zh') {
   const admin = await isAdmin()
   if (!admin) {
-    redirect('/zh/unauthorized')
+    redirect(`/${locale}/unauthorized`)
   }
   return true
 }

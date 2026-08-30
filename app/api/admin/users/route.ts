@@ -110,6 +110,10 @@ export async function GET(request: NextRequest) {
           subscriptionStatus: users.subscriptionStatus,
           subscriptionPlan: users.subscriptionPlan,
           subscriptionCurrentPeriodEnd: users.subscriptionCurrentPeriodEnd,
+          signupIp: users.signupIp,
+          cardVerifiedAt: users.cardVerifiedAt,
+          bannedAt: users.bannedAt,
+          bannedReason: users.bannedReason,
           createdAt: users.createdAt,
           updatedAt: users.updatedAt,
         })
@@ -242,56 +246,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
     console.error('Admin users API error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    // 验证管理员权限
-    const adminAccess = await isAdmin()
-    if (!adminAccess) {
-      return NextResponse.json(
-        { error: '需要管理员权限' },
-        { status: 403 }
-      )
-    }
-
-    const { userId, updates } = await request.json()
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: '用户ID是必需的' },
-        { status: 400 }
-      )
-    }
-
-    // 更新用户信息
-    const result = await db
-      .update(users)
-      .set({
-        ...updates,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId))
-      .returning()
-
-    if (result.length === 0) {
-      return NextResponse.json(
-        { error: '用户不存在' },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json({
-      message: '用户信息更新成功',
-      user: result[0]
-    })
-  } catch (error) {
-    console.error('Update user error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -311,5 +311,5 @@ export const authOptions: NextAuthOptions = {
     error: '/auth/error',
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: true, // 临时开启：定位 OAuth 回调失败原因，定位后关闭
-} 
+  debug: false, // 2026-08-30 关闭：debug=true 会在生产日志打印 email/OAuth 细节（OAuth 回调已验证通过）
+}
