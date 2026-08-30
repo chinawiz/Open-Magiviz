@@ -16,7 +16,8 @@ export enum PaymentStatus {
 export enum PaymentType {
   SUBSCRIPTION = 'subscription',
   POINTS_PURCHASE = 'points_purchase',
-  ONE_TIME = 'one_time'
+  ONE_TIME = 'one_time',
+  CARD_VERIFICATION = 'card_verification'
 }
 
 /**

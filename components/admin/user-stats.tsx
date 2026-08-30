@@ -15,16 +15,17 @@ import {
   Users, 
   UserCheck, 
   Shield, 
-  CreditCard, 
-  Coins, 
-  DollarSign, 
-  RefreshCw, 
+  CreditCard,
+  Coins,
+  DollarSign,
+  RefreshCw,
   Search,
   Edit,
   Eye,
   Calendar,
   Mail,
-  MoreHorizontal
+  MoreHorizontal,
+  Loader2
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { useTranslations, useLocale } from 'next-intl'
@@ -110,7 +111,7 @@ export function UserStats() {
         limit: pagination.limit.toString(),
       })
       
-      if (search) params.append('search', search)
+      if (debouncedSearch) params.append('search', debouncedSearch)
       if (roleFilter && roleFilter !== 'all') params.append('role', roleFilter)
       if (emailVerifiedFilter && emailVerifiedFilter !== 'all') params.append('emailVerified', emailVerifiedFilter)
       if (subscriptionStatusFilter && subscriptionStatusFilter !== 'all') params.append('subscriptionStatus', subscriptionStatusFilter)
@@ -141,9 +142,17 @@ export function UserStats() {
     fetchData()
   }, [])
 
+  // 搜索防抖：此前每敲一个字符就发一次 /api/admin/users 请求
+  const [debouncedSearch, setDebouncedSearch] = useState(search)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400)
+    return () => clearTimeout(timer)
+  }, [search])
+
   useEffect(() => {
     fetchUsers(1)
-  }, [search, roleFilter, emailVerifiedFilter, subscriptionStatusFilter])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, roleFilter, emailVerifiedFilter, subscriptionStatusFilter])
 
   const handleUpdateUser = async (userId: string, action: string, data: Record<string, unknown>) => {
     try {
@@ -157,7 +166,7 @@ export function UserStats() {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || '更新失败')
+        throw new Error(errorData.error || t('update_failed'))
       }
 
       const result = await response.json()
@@ -165,7 +174,7 @@ export function UserStats() {
       fetchUsers(pagination.page)
       setDialogOpen(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '更新失败')
+      toast.error(error instanceof Error ? error.message : t('update_failed'))
     }
   }
 
@@ -343,7 +352,7 @@ export function UserStats() {
           </div>
 
           {/* 用户表格 */}
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -527,7 +536,7 @@ function UserActionDialog({
   actionType: 'role' | 'points' | 'subscription' | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onUpdate: (userId: string, action: string, data: Record<string, unknown>) => void
+  onUpdate: (userId: string, action: string, data: Record<string, unknown>) => Promise<void> | void
 }) {
   const t = useTranslations('admin.users')
   const locale = useLocale()
@@ -538,6 +547,7 @@ function UserActionDialog({
   const [subscriptionStatus, setSubscriptionStatus] = useState('')
   const [subscriptionPlan, setSubscriptionPlan] = useState('')
   const [subscriptionEndDate, setSubscriptionEndDate] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (user && actionType === 'role') {
@@ -588,11 +598,11 @@ function UserActionDialog({
     setSubscriptionEndDate(formattedDate)
   }
 
-  const handleSubmit = () => {
-    if (!user) return
+  const handleSubmit = async () => {
+    if (!user || submitting) return
 
     if (actionType === 'role') {
-      onUpdate(user.id, 'updateRole', { role })
+      await onUpdate(user.id, 'updateRole', { role })
     } else if (actionType === 'points') {
       const pointsValue = parseInt(points)
       
@@ -610,13 +620,13 @@ function UserActionDialog({
         }
       }
       
-      onUpdate(user.id, 'adjustPoints', { 
+      await onUpdate(user.id, 'adjustPoints', { 
         points: pointsValue, 
         pointsType, 
         description 
       })
     } else if (actionType === 'subscription') {
-      onUpdate(user.id, 'updateSubscription', { 
+      await onUpdate(user.id, 'updateSubscription', { 
         subscriptionStatus, 
         subscriptionPlan, 
         subscriptionEndDate 
@@ -762,6 +772,7 @@ function UserActionDialog({
                     <SelectValue placeholder={t('dialogs.manage_subscription.plan_placeholder')} />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="starter">{t('dialogs.manage_subscription.plan_starter')}</SelectItem>
                     <SelectItem value="trial">{t('dialogs.manage_subscription.plan_trial')}</SelectItem>
                     <SelectItem value="pro">{t('dialogs.manage_subscription.plan_pro')}</SelectItem>
                     <SelectItem value="annual">{t('dialogs.manage_subscription.plan_annual')}</SelectItem>
@@ -793,7 +804,8 @@ function UserActionDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('dialogs.cancel')}
           </Button>
-          <Button onClick={handleSubmit}>
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />}
             {t('dialogs.confirm')}
           </Button>
         </div>

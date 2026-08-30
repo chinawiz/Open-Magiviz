@@ -19,6 +19,8 @@ import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { cookies } from 'next/headers'
 import { getClientIP } from '@/lib/auth-utils'
+import { isDisposableEmail } from '@/lib/disposable-email-domains'
+import { and, gte, count } from 'drizzle-orm'
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,6 +56,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 防薅第②层：一次性邮箱域名黑名单（docs/pricing-redesign-2026-08.md §4.6）
+    if (isDisposableEmail(email)) {
+      return NextResponse.json(
+        { errorKey: 'disposable_email' },
+        { status: 400 }
+      )
+    }
+
+    // 防薅第③层：按 IP 限速——24h ≤3 号、7d ≤10 号（迁移 0014 的 signupIp 列）
+    const signupIP = getClientIP(request)
+    if (signupIP) {
+      const now = new Date()
+      const [dayWindow] = await db
+        .select({ n: count() })
+        .from(users)
+        .where(and(
+          eq(users.signupIp, signupIP),
+          gte(users.createdAt, new Date(now.getTime() - 24 * 60 * 60 * 1000))
+        ))
+      const [weekWindow] = await db
+        .select({ n: count() })
+        .from(users)
+        .where(and(
+          eq(users.signupIp, signupIP),
+          gte(users.createdAt, new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000))
+        ))
+      if ((dayWindow?.n ?? 0) >= 3 || (weekWindow?.n ?? 0) >= 10) {
+        return NextResponse.json(
+          { errorKey: 'signup_rate_limited' },
+          { status: 429 }
+        )
+      }
+    }
+
     // 处理推荐码
     let referrerId: string | null = null
     if (referralCode) {
@@ -82,6 +118,7 @@ export async function POST(request: NextRequest) {
       email,
       password: hashedPassword,
       referredBy: referrerId || undefined,
+      signupIp: signupIP || undefined,
     })
 
     // 赠送注册积分（所有新用户都获得注册积分）
@@ -152,11 +189,8 @@ export async function POST(request: NextRequest) {
       expires,
     })
 
-    // 获取客户端IP地址
-    const clientIP = getClientIP(request)
-
     // 发送验证邮件（根据语言）
-    const emailResult = await sendVerificationEmail(email, verificationToken, language as 'zh' | 'en', clientIP)
+    const emailResult = await sendVerificationEmail(email, verificationToken, language as 'zh' | 'en', signupIP)
 
     if (!emailResult.success) {
       // 如果是频率限制错误，返回429状态码

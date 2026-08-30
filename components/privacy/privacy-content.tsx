@@ -1,12 +1,11 @@
 "use client"
 
-import { useParams } from 'next/navigation'
+import { useLocale } from 'next-intl'
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 
 export function PrivacyContent() {
-  const params = useParams()
-  const locale = params.locale as string
+  const locale = useLocale()
   const isZh = locale === 'zh'
 
   return (

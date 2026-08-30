@@ -23,6 +23,10 @@ export const users = pgTable('users', {
   subscriptionStatus: text('subscriptionStatus'), // active, cancelled, past_due, etc.
   subscriptionPlan: text('subscriptionPlan'), // pro, enterprise
   subscriptionCurrentPeriodEnd: timestamp('subscriptionCurrentPeriodEnd', { mode: 'date' }),
+  // 2026-08-30 定价重构（docs/pricing-redesign-2026-08.md）：防薅与验卡
+  signupIp: text('signupIp'), // 注册来源 IP（按 IP 限速与聚类监控用；仅凭据注册路径记录）
+  cardVerifiedAt: timestamp('cardVerifiedAt', { mode: 'date' }), // 支付方式验证时间（解锁一次性成片额度）
+  cardFingerprint: text('cardFingerprint'), // Stripe 卡指纹（同卡终身只送一部成片的去重键）
   // 推荐码相关字段
   referralCode: text('referralCode').unique(), // 用户的推荐码（唯一）
   referralCodeChanged: boolean('referralCodeChanged').default(false), // 是否已经修改过推荐码一次

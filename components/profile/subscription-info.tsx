@@ -19,6 +19,7 @@ import {
   User
 } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
+import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN, enUS } from 'date-fns/locale'
 
@@ -81,15 +82,15 @@ export function SubscriptionInfo() {
 
       if (response.ok) {
         const { url } = await response.json()
-        window.open(url, '_blank')
+        window.open(url, '_blank', 'noopener,noreferrer')
       } else {
         const errorData = await response.json()
         console.error('Failed to create customer portal session:', errorData)
-        alert(t('error.manage_subscription_failed'))
+        toast.error(t('error.manage_subscription_failed'))
       }
     } catch (error) {
       console.error('Error creating customer portal session:', error)
-      alert(t('error.manage_subscription_failed'))
+      toast.error(t('error.manage_subscription_failed'))
     } finally {
       setManagingSubscription(false)
     }
@@ -113,7 +114,7 @@ export function SubscriptionInfo() {
         )
       case 'past_due':
         return (
-          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">
+          <Badge className="bg-warning/15 text-warning border-warning/40">
             <AlertTriangle className="h-3 w-3 mr-1" />
             {t('subscription_past_due')}
           </Badge>
@@ -145,6 +146,8 @@ export function SubscriptionInfo() {
 
   const getPlanName = (plan: string | null) => {
     switch (plan) {
+      case 'starter':
+        return t('plan_starter')
       case 'trial':
         return t('plan_trial')
       case 'pro':
@@ -160,6 +163,8 @@ export function SubscriptionInfo() {
 
   const getPlanDescription = (plan: string | null) => {
     switch (plan) {
+      case 'starter':
+        return t('plan_starter_description')
       case 'trial':
         return t('plan_trial_description')
       case 'pro':
@@ -238,9 +243,10 @@ export function SubscriptionInfo() {
             size="sm"
             onClick={handleRefresh}
             disabled={refreshing}
+            aria-label={t('refresh')}
             className="h-8 px-3 border-primary/50 text-primary hover:bg-primary hover:text-primary-foreground"
           >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
           </Button>
         </div>
         <CardDescription className="text-muted-foreground">
@@ -289,8 +295,8 @@ export function SubscriptionInfo() {
                   </div>
                   {isExpiringSoon(subscriptionData.subscriptionCurrentPeriodEnd) && (
                     <div className="flex items-center space-x-1 mt-2 p-2 bg-yellow-500/20 border border-yellow-500/50 rounded">
-                      <AlertTriangle className="h-4 w-4 text-yellow-400" />
-                      <span className="text-sm text-yellow-300 font-medium">{t('subscription_expiring_soon')}</span>
+                      <AlertTriangle className="h-4 w-4 text-warning" aria-hidden="true" />
+                      <span className="text-sm text-warning font-medium">{t('subscription_expiring_soon')}</span>
                     </div>
                   )}
                   {isExpired(subscriptionData.subscriptionCurrentPeriodEnd) && (

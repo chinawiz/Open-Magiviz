@@ -31,7 +31,10 @@
     "affiliate": "推广计划",
     "referral": "推荐计划",
     "accountSettings": "账户设置",
-    "signOut": "退出登录"
+    "signOut": "退出登录",
+    "toggleTheme": "切换明暗主题",
+    "openMenu": "打开菜单",
+    "closeMenu": "关闭菜单"
   },
   "sidebar": {
     "exploreVideo": "探索视频",
@@ -89,7 +92,7 @@
       }
     },
     "finalRender": {
-      "title": "鬼灭之刃",
+      "title": "奇幻短片",
       "subtitle": "MeiHao AI 作品",
       "status": "已完成"
     }
@@ -143,6 +146,7 @@
         "license": "商业许可"
       },
       "cta": "开始试用",
+      "offer": "新用户专享：7 天全功能体验",
       "trial_only_once": "仅限试用一次",
       "not_available_for_pro": "Pro用户不可购买试用订阅",
       "not_available_for_annual": "Annual用户不可购买试用订阅"
@@ -150,42 +154,42 @@
     "pro": {
       "name": "Pro",
       "period": "/月",
-      "originalPrice": "$55",
-      "price": "$49.9",
-      "discountPercent": "9",
-      "savings": "省 $5.1",
-      "discountBadge": "限时9%折扣",
+      "price": "$24.9",
       "description": "专业创作者的理想选择",
       "features": {
         "period": "30天订阅期",
-        "points": "赠送550积分",
+        "points": "每月 290 积分",
         "upload_size": "上传大小: 100MB",
         "storage": "存储空间: 100GB",
         "template": "模板免费用",
-        "license": "商业许可"
+        "license": "商业许可",
+        "shorts": "≈6 部完整成片/月"
       },
       "cta": "立即订阅",
+      "offer": "单片低至 $4.15，比包价省 14%",
       "renew": "续费Pro"
     },
     "annual": {
       "name": "Annual",
       "period": "/年",
-      "badge": "最佳选择 - 节省17%",
-      "originalPrice": "$600",
-      "price": "$499",
+      "badge": "年付立省 $50",
+      "originalPrice": "$299",
+      "price": "$249",
       "discountPercent": "17",
-      "savings": "省 $101",
+      "savings": "省 $50",
       "discountBadge": "限时17%折扣",
       "description": "年度订阅，超高性价比，专为创作者打造",
       "features": {
         "period": "365天订阅期",
-        "points": "赠送6600积分",
+        "points": "每年 3,000 积分",
         "upload_size": "上传大小: 无限制",
         "storage": "存储空间: 无限制",
         "template": "模板免费用",
-        "license": "商业许可"
+        "license": "商业许可",
+        "shorts": "≈62 部完整成片/年"
       },
       "cta": "立即订阅",
+      "offer": "合每月 $20.75，积分赠送最多的档位",
       "upgrade": "升级到Annual",
       "renew": "续费Annual",
       "already_active": "已在Pro计划中",
@@ -211,7 +215,40 @@
       },
       "cta": "咨询方案"
     },
-    "upgrade_to_pro": "升级到Pro"
+    "upgrade_to_pro": "升级到Pro",
+    "freeBanner": {
+      "badge": "免费开始",
+      "title": "免费体验完整创作流程",
+      "description": "注册即送 6 点体验额度，跑通前三个步骤，看到你的故事变成画面。",
+      "stepScript": "✓ AI 剧本 ×1",
+      "stepCharacter": "✓ 主角定妆图 ×1",
+      "stepStoryboard": "✓ 首个场景分镜",
+      "lockedSteps": "视频与合成需升级或验卡解锁",
+      "signupCta": "免费注册开始",
+      "verifyCta": "验证支付方式，免费做一部成片",
+      "verifyNote": "仅验证不扣费，验证后赠送 48 点完成一部完整成片",
+      "note": "免费额度无需绑卡；升级订阅解锁全部功能",
+      "verifiedNote": "已解锁成片额度",
+      "verifyFailed": "验证会话创建失败，请稍后重试",
+      "pointsNote": "验证支付方式后赠送 {points} 点（约一部 3 场景成片的用量），同一张卡仅限一次"
+    },
+    "starter": {
+      "name": "Starter",
+      "period": "/月",
+      "price": "$9.9",
+      "description": "轻度创作者的入门之选",
+      "features": {
+        "period": "30天订阅期",
+        "points": "每月 110 积分",
+        "shorts": "≈2 部完整成片/月",
+        "upload_size": "上传大小: 50MB",
+        "storage": "存储空间: 50GB",
+        "license": "商业许可"
+      },
+      "cta": "开始创作",
+      "offer": "订阅比按包买点省 10%",
+      "currentPlan": "当前计划"
+    }
   },
   "faq": {
     "title": "常见问题",
@@ -285,7 +322,8 @@
         "backToHome": "返回首页",
         "networkError": "网络错误，请稍后重试",
         "unsubscribeError": "取消订阅失败"
-      }
+      },
+      "subscribing": "订阅中..."
     },
     "copyright": "MeiHao. 版权所有."
   },
@@ -383,7 +421,12 @@
     "referral_code": "推荐码（可选）",
     "referral_code_placeholder": "请输入推荐码",
     "affiliate_code": "推广码（可选）",
-    "affiliate_code_placeholder": "请输入推广码"
+    "affiliate_code_placeholder": "请输入推广码",
+    "or_continue_with_email": "或使用邮箱登录",
+    "show_password": "显示密码",
+    "hide_password": "隐藏密码",
+    "disposable_email": "不支持一次性/临时邮箱注册，请使用常用邮箱",
+    "signup_rate_limited": "该网络注册过于频繁，请稍后再试或更换网络"
   },
   "forgot_password": {
     "title": "找回密码",
@@ -422,9 +465,14 @@
     "token_invalid": "重置链接无效或已过期",
     "token_expired": "重置链接已过期，请重新申请",
     "reset_failed": "重置失败，请稍后重试",
-    "back_to_forgot": "返回找回密码"
+    "back_to_forgot": "返回找回密码",
+    "show_password": "显示密码",
+    "hide_password": "隐藏密码"
   },
   "profile": {
+    "go_signin": "去登录",
+    "payment_success_toast": "积分购买成功！积分已添加到您的账户",
+    "payment_cancelled_toast": "支付已取消",
     "title": "个人中心",
     "description": "查看和管理您的账户信息",
     "menu": "功能菜单",
@@ -634,7 +682,11 @@
       "errors": {
         "fetch_failed": "获取支付记录失败"
       }
-    }
+    },
+    "refresh": "刷新",
+    "no_accounts": "暂未检测到第三方账号",
+    "plan_starter": "Starter",
+    "plan_starter_description": "轻度创作者的入门计划：每月 110 积分"
   },
   "create_page": {
     "title": "探索视频 - MeiHao",
@@ -655,7 +707,9 @@
       "verifying_description": "正在确认您的购买...",
       "success_toast": "🎉 购买成功！您已获得完整的SaaS模版和技术支持",
       "success_toast_with_plan": "🎉 {plan}购买成功！您已获得完整的SaaS模版和技术支持",
-      "no_session_toast": "💡 您已到达购买成功页面，请使用下方按钮导航"
+      "no_session_toast": "💡 您已到达购买成功页面，请使用下方按钮导航",
+      "no_session_title": "未能确认支付结果",
+      "no_session_description": "链接中缺少支付凭证（session_id）。如果您刚完成付款，请稍后在个人中心查看订阅与积分状态；订单已确认的情况下权益会自动到账。"
     },
     "subscription_info": {
       "title": "订阅信息",
@@ -927,7 +981,8 @@
           "end_date_placeholder": "选择到期日期",
           "auto_calculated": "到期时间根据订阅计划自动计算",
           "cumulative_calculated": "在现有订阅基础上累计增加时间",
-          "select_plan_first": "请选择订阅计划"
+          "select_plan_first": "请选择订阅计划",
+          "plan_starter": "Starter"
         }
       },
       "pagination": {
@@ -943,7 +998,8 @@
         "update_failed": "更新失败",
         "fetch_stats_failed": "获取统计数据失败",
         "fetch_users_failed": "获取用户列表失败"
-      }
+      },
+      "update_failed": "更新失败"
     },
     "referral": {
       "stats": {
@@ -1226,6 +1282,9 @@
       "view": "查看",
       "deleteProject": "删除项目",
       "deleteConfirm": "确定要删除项目\"{title}\"吗？此操作不可恢复。",
+      "moreActions": "更多操作",
+      "cancel": "取消",
+      "deleting": "删除中...",
       "deleteSuccess": "删除成功",
       "deleteSuccessDesc": "项目已删除",
       "completed": "已完成",
@@ -1549,7 +1608,9 @@
         "title": "分镜图列表",
         "storyboard": "分镜 {index}",
         "scene": "场景 {index}",
-        "noData": "暂无分镜图数据"
+        "noData": "暂无分镜图数据",
+        "prevFrame": "上一帧",
+        "nextFrame": "下一帧"
       },
       "videos": {
         "title": "剧情视频列表",
@@ -1584,7 +1645,19 @@
       "failed": "恢复项目失败",
       "noScript": "缺少剧情数据",
       "alreadyCompleted": "项目已完成"
-    }
+    },
+    "durationSeconds": "{count}秒",
+    "examplePrompts": {
+      "a": "制作一段 30 秒的太空探索科普短片，画面震撼、节奏感强",
+      "b": "为一个手工咖啡品牌做一条温馨的广告视频，突出手作质感",
+      "c": "把「小王子来到地球」改编成 5 个分镜的动画短片"
+    },
+    "videoLockedTitle": "解锁视频生成",
+    "videoLockedDesc": "视频与合成是付费功能。验证一张支付方式即可免费完成一部成片（不扣费），或直接升级订阅。你的剧本和分镜已保存，解锁后继续创作。",
+    "verifyCardCta": "验证支付方式 · 免费出片",
+    "cardAlreadyVerified": "支付方式已验证，请重新开始生成",
+    "cardVerifyFailed": "验证会话创建失败，请稍后重试",
+    "upgradeCtaShort": "升级订阅"
   },
   "library": {
     "title": "素材库",
@@ -1622,6 +1695,14 @@
     "prompt": "提示词",
     "fromProject": "来自项目",
     "untitled": "未命名",
+    "loadMore": "加载更多...",
+    "noMore": "没有更多了",
+    "delete": "删除",
+    "view": {
+      "grid": "网格视图",
+      "list": "列表视图"
+    },
+    "filterTypeLabel": "按素材类型筛选",
     "empty": {
       "title": "暂无数据",
       "description": "您还没有创建任何内容，开始创作吧！",
@@ -1673,6 +1754,8 @@
       }
     },
     "please_login": "请先登录",
-    "please_login_description": "登录后即可浏览和管理您的素材库"
+    "please_login_description": "登录后即可浏览和管理您的素材库",
+    "removeFile": "移除已选文件",
+    "uploadFailed": "上传失败"
   }
 }

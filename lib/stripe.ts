@@ -18,9 +18,10 @@ function getPriceId(envVar: string | undefined, fallback: string = ''): string {
   return fallback
 }
 
-// 订阅价格配置
+// 订阅价格配置（starter 为 2026-08-30 定价新增的入门档，见 docs/pricing-redesign-2026-08.md）
 export const SUBSCRIPTION_PRICE_IDS = {
   trial: getPriceId(process.env.STRIPE_TRIAL_PRICE_ID, ''),
+  starter: getPriceId(process.env.STRIPE_STARTER_PRICE_ID, ''),
   pro: getPriceId(process.env.STRIPE_PRO_PRICE_ID, ''),
   annual: getPriceId(process.env.STRIPE_ANNUAL_PRICE_ID, ''),
 } as const
@@ -29,23 +30,25 @@ export const SUBSCRIPTION_PRICE_IDS = {
 const POINTS_PRICE_IDS = {
   starter: getPriceId(process.env.STRIPE_POINTS_STARTER_PRICE_ID, ''), // 200积分 - $20
   popular: getPriceId(process.env.STRIPE_POINTS_POPULAR_PRICE_ID, ''), // 500积分 - $50
-  premium: getPriceId(process.env.STRIPE_POINTS_PREMIUM_PRICE_ID, ''), // 1,000积分 - $98
+  premium: getPriceId(process.env.STRIPE_POINTS_PREMIUM_PRICE_ID, ''), // 1,000积分 - $85
 } as const
 
-// 获取实际的价格ID（服务端使用）
+// 获取实际的价格ID（服务端使用）。注意：points* 前缀是积分包，避免与订阅 starter 混淆
 export function getActualPriceIds() {
   return {
     trial: process.env.STRIPE_TRIAL_PRICE_ID || '',
+    starter: process.env.STRIPE_STARTER_PRICE_ID || '',
     pro: process.env.STRIPE_PRO_PRICE_ID || '',
     annual: process.env.STRIPE_ANNUAL_PRICE_ID || '',
-    starter: process.env.STRIPE_POINTS_STARTER_PRICE_ID || '',
-    popular: process.env.STRIPE_POINTS_POPULAR_PRICE_ID || '',
-    premium: process.env.STRIPE_POINTS_PREMIUM_PRICE_ID || '',
+    pointsStarter: process.env.STRIPE_POINTS_STARTER_PRICE_ID || '',
+    pointsPopular: process.env.STRIPE_POINTS_POPULAR_PRICE_ID || '',
+    pointsPremium: process.env.STRIPE_POINTS_PREMIUM_PRICE_ID || '',
   }
 }
 
 // 订阅产品配置
 export const SUBSCRIPTION_PRODUCTS = {
+  // trial 为 2026-08 定价重构前的遗留档：仅用于老订阅续费的 webhook 映射，checkout UI 已下架
   trial: {
     name: 'Trial Plan',
     priceId: SUBSCRIPTION_PRICE_IDS.trial,
@@ -64,16 +67,35 @@ export const SUBSCRIPTION_PRODUCTS = {
       'Commercial license',
     ],
   },
+  // 2026-08-30 定价重构三档（docs/pricing-redesign-2026-08.md）：
+  // Starter $9.9/110 点、Pro $24.9/290 点、Annual $249/3000 点。
+  // 价格只能由 Stripe 新 Price 承载（环境变量 STRIPE_*_PRICE_ID），勿在代码里改老 Price。
+  starter: {
+    name: 'Starter Plan',
+    priceId: SUBSCRIPTION_PRICE_IDS.starter,
+    price: 9.9,
+    interval: 'month',
+    giftedPoints: 110, // 订阅赠送的积分（≈2 部 24s 成片 + 修改余量）
+    features: [
+      '30-day subscription',
+      '110 credits included',
+      '≈2 full short films / month',
+      '50GB storage space',
+      'Max upload: 50MB',
+      'Templates free',
+      'Commercial license',
+    ],
+  },
   pro: {
     name: 'Professional Plan',
     priceId: SUBSCRIPTION_PRICE_IDS.pro,
-    price: 49.9,
-    originalPrice: 55,
+    price: 24.9,
     interval: 'month',
-    giftedPoints: 550, // 订阅赠送的积分
+    giftedPoints: 290, // 订阅赠送的积分（≈6 部 24s 成片）
     features: [
       '30-day subscription',
-      '550 credits included',
+      '290 credits included',
+      '≈6 full short films / month',
       '100GB storage space',
       'Max upload: 100MB',
       'Templates free',
@@ -83,14 +105,15 @@ export const SUBSCRIPTION_PRODUCTS = {
   annual: {
     name: 'Annual Plan',
     priceId: SUBSCRIPTION_PRICE_IDS.annual,
-    price: 499,
-    originalPrice: 600,
+    price: 249,
+    originalPrice: 299, // Pro 月付 ×12 的原价锚，badge「立省 $50」
     interval: 'year',
     intervalCount: 1,
-    giftedPoints: 6600, // 订阅赠送的积分
+    giftedPoints: 3000, // 订阅赠送的积分（≈62 部 24s 成片/年）
     features: [
       '365-day subscription',
-      '6,600 credits included',
+      '3,000 credits included',
+      '≈62 full short films / year',
       'Unlimited storage space',
       'Max upload: 500MB',
       'Templates free',
@@ -136,7 +159,7 @@ export const POINTS_PRODUCTS = {
     id: 'premium',
     name: '高级套餐',
     points: 1000,
-    price: 98,
+    price: 85,
     priceId: POINTS_PRICE_IDS.premium,
     description: '适合重度用户',
   },

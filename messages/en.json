@@ -31,7 +31,10 @@
     "affiliate": "Affiliate",
     "referral": "Referral",
     "accountSettings": "Account Settings",
-    "signOut": "Sign Out"
+    "signOut": "Sign Out",
+    "toggleTheme": "Toggle light/dark theme",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
   },
   "sidebar": {
     "exploreVideo": "Explore Video",
@@ -89,7 +92,7 @@
       }
     },
     "finalRender": {
-      "title": "Demon Slayer",
+      "title": "Fantasy Short Film",
       "subtitle": "Production MeiHao AI",
       "status": "READY"
     }
@@ -143,6 +146,7 @@
         "license": "Commercial license"
       },
       "cta": "Start Trial",
+      "offer": "New user exclusive: all features for 7 days",
       "trial_only_once": "Trial available once only",
       "not_available_for_pro": "Trial not available for Pro users",
       "not_available_for_annual": "Trial not available for Annual users"
@@ -150,42 +154,42 @@
     "pro": {
       "name": "Pro",
       "period": "/mo",
-      "originalPrice": "$55",
-      "price": "$49.9",
-      "discountPercent": "9",
-      "savings": "Save $5.1",
-      "discountBadge": "Limited Time 9% OFF",
+      "price": "$24.9",
       "description": "Ideal choice for professional creators",
       "features": {
         "period": "30-day subscription",
-        "points": "550 credits included",
+        "points": "290 credits monthly",
         "upload_size": "Upload size: 100MB",
         "storage": "Storage: 100GB",
         "template": "Templates free",
-        "license": "Commercial license"
+        "license": "Commercial license",
+        "shorts": "≈6 full short films / month"
       },
       "cta": "Subscribe Now",
+      "offer": "As low as $4.15 per film — 14% off pack price",
       "renew": "Renew Pro"
     },
     "annual": {
       "name": "Annual",
       "period": "/yr",
-      "badge": "BEST VALUE - 17% OFF",
-      "originalPrice": "$600",
-      "price": "$499",
+      "badge": "SAVE $50 YEARLY",
+      "originalPrice": "$299",
+      "price": "$249",
       "discountPercent": "17",
-      "savings": "Save $101",
+      "savings": "Save $50",
       "discountBadge": "Limited Time 17% OFF",
       "description": "Annual subscription, best for dedicated creators",
       "features": {
         "period": "365-day subscription",
-        "points": "6600 credits included",
+        "points": "3,000 credits yearly",
         "upload_size": "Upload size: Unlimited",
         "storage": "Storage: Unlimited",
         "template": "Templates free",
-        "license": "Commercial license"
+        "license": "Commercial license",
+        "shorts": "≈62 full short films / year"
       },
       "cta": "Subscribe Now",
+      "offer": "Works out to $20.75/mo — biggest credit bonus",
       "upgrade": "Upgrade to Annual",
       "renew": "Renew Annual Plan",
       "already_active": "Already on Pro plan",
@@ -211,7 +215,40 @@
       },
       "cta": "Contact Sales"
     },
-    "upgrade_to_pro": "Upgrade to Pro"
+    "upgrade_to_pro": "Upgrade to Pro",
+    "freeBanner": {
+      "badge": "Start free",
+      "title": "Try the full creation pipeline for free",
+      "description": "Get 6 free credits on signup — enough to run the first three steps and watch your story become visuals.",
+      "stepScript": "✓ AI script ×1",
+      "stepCharacter": "✓ Character design ×1",
+      "stepStoryboard": "✓ First-scene storyboard",
+      "lockedSteps": "Video & final cut require upgrade or card verification",
+      "signupCta": "Sign up free",
+      "verifyCta": "Verify a payment method — make one film free",
+      "verifyNote": "Verification only, never charged. 48 credits included for one full short film",
+      "note": "Free credits need no card; upgrade any time for full access",
+      "verifiedNote": "Film credit unlocked",
+      "verifyFailed": "Could not start verification. Please try again",
+      "pointsNote": "{points} credits (about one 3-scene short film) included after verifying a payment method. One card, one free film"
+    },
+    "starter": {
+      "name": "Starter",
+      "period": "/mo",
+      "price": "$9.9",
+      "description": "Perfect entry for light creators",
+      "features": {
+        "period": "30-day subscription",
+        "points": "110 credits monthly",
+        "shorts": "≈2 full short films / month",
+        "upload_size": "Upload size: 50MB",
+        "storage": "Storage: 50GB",
+        "license": "Commercial license"
+      },
+      "cta": "Start Creating",
+      "offer": "10% cheaper than buying credit packs",
+      "currentPlan": "Current plan"
+    }
   },
   "faq": {
     "title": "Frequently Asked Questions",
@@ -285,7 +322,8 @@
         "backToHome": "Back to Home",
         "networkError": "Network error, please try again later",
         "unsubscribeError": "Failed to unsubscribe"
-      }
+      },
+      "subscribing": "Subscribing..."
     },
     "copyright": "MeiHao. All rights reserved."
   },
@@ -383,7 +421,12 @@
     "referral_code": "Referral Code (Optional)",
     "referral_code_placeholder": "Enter referral code",
     "affiliate_code": "Affiliate Code (Optional)",
-    "affiliate_code_placeholder": "Enter affiliate code"
+    "affiliate_code_placeholder": "Enter affiliate code",
+    "or_continue_with_email": "Or continue with email",
+    "show_password": "Show password",
+    "hide_password": "Hide password",
+    "disposable_email": "Disposable/temporary email addresses are not supported. Please use a regular email",
+    "signup_rate_limited": "Too many signups from this network. Please try again later or use a different network"
   },
   "forgot_password": {
     "title": "Forgot Password",
@@ -422,9 +465,14 @@
     "token_invalid": "Reset link is invalid or expired",
     "token_expired": "Reset link has expired, please request a new one",
     "reset_failed": "Reset failed, please try again later",
-    "back_to_forgot": "Back to Forgot Password"
+    "back_to_forgot": "Back to Forgot Password",
+    "show_password": "Show password",
+    "hide_password": "Hide password"
   },
   "profile": {
+    "go_signin": "Sign in",
+    "payment_success_toast": "Purchase successful! Credits have been added to your account",
+    "payment_cancelled_toast": "Payment cancelled",
     "title": "Profile",
     "description": "View and manage your account information",
     "menu": "Menu",
@@ -635,7 +683,11 @@
         "fetch_failed": "Failed to fetch payment records"
       }
     },
-    "payment_history_description": "View all your payment records and transaction details"
+    "payment_history_description": "View all your payment records and transaction details",
+    "refresh": "Refresh",
+    "no_accounts": "No connected accounts found",
+    "plan_starter": "Starter",
+    "plan_starter_description": "Entry plan for light creators: 110 credits monthly"
   },
   "create_page": {
     "title": "Explore Video - MeiHao",
@@ -656,7 +708,9 @@
       "verifying_description": "Confirming your purchase...",
       "success_toast": "🎉 Purchase successful! You have received complete SaaS template and technical support",
       "success_toast_with_plan": "🎉 {plan} purchase successful! You have received complete SaaS template and technical support",
-      "no_session_toast": "💡 You have reached the purchase success page, please use the navigation buttons below"
+      "no_session_toast": "💡 You have reached the purchase success page, please use the navigation buttons below",
+      "no_session_title": "Payment status could not be confirmed",
+      "no_session_description": "The payment reference (session_id) is missing from this link. If you just completed a purchase, check your subscription and credits in the profile area shortly — confirmed orders are credited automatically."
     },
     "subscription_info": {
       "title": "Subscription Info",
@@ -928,7 +982,8 @@
           "end_date_placeholder": "Select End Date",
           "auto_calculated": "End date is automatically calculated based on subscription plan",
           "cumulative_calculated": "Time is added cumulatively to existing subscription",
-          "select_plan_first": "Please select a subscription plan"
+          "select_plan_first": "Please select a subscription plan",
+          "plan_starter": "Starter"
         }
       },
       "pagination": {
@@ -944,7 +999,8 @@
         "update_failed": "Update failed",
         "fetch_stats_failed": "Failed to fetch statistics",
         "fetch_users_failed": "Failed to fetch user list"
-      }
+      },
+      "update_failed": "Update failed"
     },
     "referral": {
       "stats": {
@@ -1228,6 +1284,9 @@
       "view": "View",
       "deleteProject": "Delete Project",
       "deleteConfirm": "Are you sure you want to delete project \"{title}\"? This action cannot be undone.",
+      "moreActions": "More actions",
+      "cancel": "Cancel",
+      "deleting": "Deleting...",
       "deleteSuccess": "Deleted successfully",
       "deleteSuccessDesc": "Project has been deleted",
       "completed": "Completed",
@@ -1548,7 +1607,9 @@
         "title": "Storyboard List",
         "storyboard": "Storyboard {index}",
         "scene": "Scene {index}",
-        "noData": "No storyboard data available"
+        "noData": "No storyboard data available",
+        "prevFrame": "Previous frame",
+        "nextFrame": "Next frame"
       },
       "videos": {
         "title": "Scene Video List",
@@ -1583,7 +1644,19 @@
       "failed": "Failed to restore project",
       "noScript": "Missing script data",
       "alreadyCompleted": "Project already completed"
-    }
+    },
+    "durationSeconds": "{count}s",
+    "examplePrompts": {
+      "a": "Create a 30-second educational short about space exploration with cinematic shots",
+      "b": "Make a cozy ad for a handmade coffee brand, highlighting craft details",
+      "c": "Adapt 'The Little Prince arrives on Earth' into a 5-scene animated short"
+    },
+    "videoLockedTitle": "Unlock video generation",
+    "videoLockedDesc": "Video generation and final composition are paid features. Verify a payment method to make one full film free (never charged), or upgrade to a plan. Your script and storyboards are saved — continue right after unlocking.",
+    "verifyCardCta": "Verify card · Free film",
+    "cardAlreadyVerified": "Payment method verified — please start generation again",
+    "cardVerifyFailed": "Could not start verification. Please try again",
+    "upgradeCtaShort": "Upgrade"
   },
   "library": {
     "title": "Library",
@@ -1619,8 +1692,16 @@
     "viewProject": "View Project",
     "preview": "Preview",
     "prompt": "Prompt",
-    "fromProject": "From Project",
+    "fromProject": "From project",
     "untitled": "Untitled",
+    "loadMore": "Loading more...",
+    "noMore": "No more items",
+    "delete": "Delete",
+    "view": {
+      "grid": "Grid view",
+      "list": "List view"
+    },
+    "filterTypeLabel": "Filter by asset type",
     "empty": {
       "title": "No Data",
       "description": "You haven't created any content yet. Start creating!",
@@ -1675,6 +1756,8 @@
       }
     },
     "please_login": "Please Login",
-    "please_login_description": "Login to browse and manage your library"
+    "please_login_description": "Login to browse and manage your library",
+    "removeFile": "Remove selected file",
+    "uploadFailed": "Upload failed"
   }
 }

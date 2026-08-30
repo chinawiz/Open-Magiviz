@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import { db } from '@/lib/db'
-import { getSubscriptionGiftedPoints } from '@/lib/points'
+import { getSubscriptionGiftedPoints, POINTS_CONFIG } from '@/lib/points'
 import { users, pointsHistory, stripePayments, referrals, referralHistory } from '@/lib/schema'
 import { eq, sql, and, gte } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { claimPaymentRecord, completePaymentRecord, PaymentStatus, PaymentType } from '@/lib/payments'
 import type { NewUser } from '@/lib/types'
-import { handleReferredUserSubscription } from '@/lib/referral'
+import { handleReferredUserSubscription, awardFirstPurchaseReward } from '@/lib/referral'
 import { SUBSCRIPTION_PRODUCTS } from '@/lib/stripe'
 import { processAffiliateCommission, handleAffiliateRefund } from '@/lib/affiliate'
 import { sendPointsPurchaseEmail, sendSubscriptionSuccessEmail } from '@/lib/email'
@@ -124,6 +124,12 @@ export async function POST(request: NextRequest) {
             // 邮件发送失败不影响主流程
           }
 
+          // 首购推荐奖励（幂等，仅被邀请用户的第一次付费触发；失败不影响主流程）
+          try {
+            await awardFirstPurchaseReward(userId)
+          } catch (firstPurchaseError) {
+            logWebhookError('First-purchase referral reward failed:', firstPurchaseError)
+          }
         } catch (error) {
           logWebhookError('Points purchase failed:', error)
           await completePaymentRecord(claim.id, { paymentStatus: PaymentStatus.FAILED }).catch((e) => {
@@ -445,6 +451,13 @@ export async function POST(request: NextRequest) {
             // 邮件发送失败不影响主流程
           }
 
+          // 首购推荐奖励（幂等；订阅也是「首笔付费」的一种）
+          try {
+            await awardFirstPurchaseReward(user[0].id)
+          } catch (firstPurchaseError) {
+            logWebhookError('First-purchase referral reward failed:', firstPurchaseError)
+          }
+
           // ========== 处理推广返利系统（完全独立于推荐系统） ==========
           // 处理首单佣金（30%）
           if (processedUserId) {
@@ -471,6 +484,136 @@ export async function POST(request: NextRequest) {
             } catch (updateError) {
               logWebhookError('Failed to mark claim as failed:', updateError)
             }
+          }
+        }
+      } else if (session.mode === 'setup' && session.metadata?.type === 'card_verification') {
+        // ============ 支付方式验证（验卡解锁一次性成片额度，docs/pricing-redesign-2026-08.md §4.2）============
+        const userId = session.metadata.userId || ''
+        let claimId: string | null = null
+
+        try {
+          // 解析用户：优先 metadata.userId，回落 customer 邮箱
+          let user = null as typeof users.$inferSelect | null
+          if (userId) {
+            const rows = await db.select().from(users).where(eq(users.id, userId)).limit(1)
+            user = rows[0] ?? null
+          }
+          if (!user && session.customer_email) {
+            const rows = await db.select().from(users).where(eq(users.email, session.customer_email)).limit(1)
+            user = rows[0] ?? null
+          }
+          if (!user) {
+            logWebhookError('Card verification: user not found', { userId: userId || null })
+            return NextResponse.json({ received: true, warning: 'User not found for card verification' })
+          }
+
+          // 已验过卡：直接确认，避免重复发放
+          if (user.cardVerifiedAt) {
+            return NextResponse.json({ received: true, warning: 'User already card-verified' })
+          }
+
+          // claim-first：以 checkoutSessionId 唯一索引为锁
+          const claim = await claimPaymentRecord({
+            userId: user.id,
+            stripeCustomerId: session.customer as string,
+            checkoutSessionId: session.id,
+            paymentType: PaymentType.CARD_VERIFICATION,
+          }).catch((claimError) => {
+            logWebhookError('Card verification claim failed:', claimError)
+            return null
+          })
+          if (!claim) {
+            return NextResponse.json({ received: true })
+          }
+          claimId = claim.id
+
+          // 读取卡的指纹与资金类型：预付卡不发放（最便宜的虚拟卡农场段）
+          const setupIntentId = typeof session.setup_intent === 'string'
+            ? session.setup_intent
+            : session.setup_intent?.id
+          let cardFingerprint: string | null = null
+          if (setupIntentId) {
+            const setupIntent = await stripe.setupIntents.retrieve(setupIntentId)
+            const pmId = typeof setupIntent.payment_method === 'string'
+              ? setupIntent.payment_method
+              : setupIntent.payment_method?.id
+            if (pmId) {
+              const pm = await stripe.paymentMethods.retrieve(pmId)
+              if (pm.card) {
+                if (pm.card.funding === 'prepaid') {
+                  logWebhookError('Card verification: prepaid card rejected', { userId: user.id })
+                  await completePaymentRecord(claim.id, {
+                    paymentStatus: PaymentStatus.FAILED,
+                    metadata: { rejected: 'prepaid_card' },
+                    webhookEventId: event.id,
+                  })
+                  return NextResponse.json({ received: true, warning: 'Prepaid card not eligible' })
+                }
+                cardFingerprint = pm.card.fingerprint ?? null
+              }
+            }
+          }
+
+          // 卡指纹去重：同一张卡在任何账户上只送一次成片额度
+          if (cardFingerprint) {
+            const fingerprintOwner = await db
+              .select({ id: users.id })
+              .from(users)
+              .where(eq(users.cardFingerprint, cardFingerprint))
+              .limit(1)
+            if (fingerprintOwner.length > 0 && fingerprintOwner[0].id !== user.id) {
+              logWebhookError('Card verification: fingerprint already used', { userId: user.id })
+              await completePaymentRecord(claim.id, {
+                paymentStatus: PaymentStatus.FAILED,
+                metadata: { rejected: 'fingerprint_duplicate' },
+                webhookEventId: event.id,
+              })
+              return NextResponse.json({ received: true, warning: 'Card fingerprint already used for free film' })
+            }
+          }
+
+          // 发放：标记验卡 + 一次性 48 点（≈1 部 3 场景 24s 成片）
+          // 用 gifted 类型：订阅到期清零机制可能顺带清掉它——可接受的边缘（届时用户已有订阅点数）
+          const giftPoints = POINTS_CONFIG.CARD_VERIFICATION_GIFT
+          const now = new Date()
+          await db
+            .update(users)
+            .set({
+              cardVerifiedAt: now,
+              cardFingerprint: cardFingerprint,
+              points: sql`${users.points} + ${giftPoints}` as unknown as number,
+              giftedPoints: sql`${users.giftedPoints} + ${giftPoints}` as unknown as number,
+              updatedAt: now,
+            })
+            .where(eq(users.id, user.id))
+
+          await db.insert(pointsHistory).values({
+            id: uuidv4(),
+            userId: user.id,
+            points: giftPoints,
+            pointsType: 'gifted',
+            action: 'card_verification_gift',
+            description: 'Payment method verified - one free short film credit',
+            createdAt: now,
+          })
+
+          await completePaymentRecord(claim.id, {
+            paymentStatus: PaymentStatus.SUCCEEDED,
+            amount: 0,
+            currency: session.currency || 'usd',
+            pointsAmount: giftPoints,
+            pointsType: 'gifted',
+            productName: 'Card verification',
+            productDescription: '支付方式验证赠送一次性成片积分',
+            metadata: session.metadata,
+            webhookEventId: event.id,
+          })
+        } catch (error) {
+          logWebhookError('Card verification processing failed:', error)
+          if (claimId) {
+            await completePaymentRecord(claimId, { paymentStatus: PaymentStatus.FAILED }).catch((e) => {
+              logWebhookError('Failed to mark card verification claim as failed:', e)
+            })
           }
         }
       } else if (session.mode === 'payment' && session.metadata?.planType === 'trial') {

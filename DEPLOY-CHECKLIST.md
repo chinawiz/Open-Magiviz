@@ -33,7 +33,14 @@ SELECT checkoutSessionId, COUNT(*) FROM stripePayments
 psql "$DATABASE_URL" -f drizzle/0010_add_payment_idempotency_indexes.sql
 psql "$DATABASE_URL" -f drizzle/0011_add_provider_routes.sql
 psql "$DATABASE_URL" -f drizzle/0012_add_funnel_events.sql
+psql "$DATABASE_URL" -f drizzle/0013_add_ai_task_model.sql
+psql "$DATABASE_URL" -f drizzle/0014_add_pricing_redesign.sql
 ```
+
+> 0014（2026-08-30 定价重构）：users 表加 `signupIp`/`cardVerifiedAt`/`cardFingerprint` 三列 + 两个索引，纯增量、幂等。
+> 配套：Stripe Dashboard 需先建 4 个新 Price（Starter $9.9/mo、Pro $24.9/mo、Annual $249/yr、积分包 Premium $85），
+> 并配置 `STRIPE_STARTER_PRICE_ID`，更新 `STRIPE_PRO_PRICE_ID`/`STRIPE_ANNUAL_PRICE_ID`/`STRIPE_POINTS_PREMIUM_PRICE_ID`
+> 指向新价；旧 Price 保留（老订阅 grandfather 续费）。方案全文见 `docs/pricing-redesign-2026-08.md`。
 
 ## 2. 环境变量
 

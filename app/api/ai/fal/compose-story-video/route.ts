@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuthedSession, jsonError } from '@/lib/api'
+import { isPaidPlan } from '@/lib/plan-limits'
+import { users as usersTable } from '@/lib/schema'
 import { fal } from "@fal-ai/client"
 import { db } from '@/lib/db'
+import { eq } from 'drizzle-orm'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
 import { withFalWebhookToken } from '@/lib/webhook-security'
@@ -225,6 +228,22 @@ export async function POST(request: NextRequest) {
     const session = await getAuthedSession()
     if (!session) {
       return jsonError(401, 'Unauthorized')
+    }
+
+    // 高成本步骤门控：合成仅对付费计划或已验卡用户开放（2026-08-30 定价重构 §4.2）
+    const composeUserRows = await db
+      .select({
+        subscriptionPlan: usersTable.subscriptionPlan,
+        cardVerifiedAt: usersTable.cardVerifiedAt,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.id, session.user.id))
+      .limit(1)
+    const composeUser = composeUserRows[0]
+    if (!isPaidPlan(composeUser?.subscriptionPlan) && !composeUser?.cardVerifiedAt) {
+      return jsonError(403, 'Final composition requires a paid plan or verified payment method', {
+        errorKey: 'upgrade_required',
+      })
     }
 
     const body = await request.json()

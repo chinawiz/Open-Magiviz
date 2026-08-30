@@ -64,3 +64,10 @@ token 按任务最小授权、一事一发、用完撤；撤销后必须用真�
 
 2026-08-28 全库清扫发现 18 处同一模式的历史编辑事故：`if (!session) { return jsonError(...) }` 块的收尾 `}` 被某次批量替换吃掉，残留成 `<数字>}`（数字是不可达表达式，tsc/测试/build 全都抓不到——它合法）。分布在 4 个域 9 个文件（app/api/projects、user/points-detail、ai、library 路由），全部存活了多个版本周期。
 **守卫**：CI 或本地加一条 `grep -rnE '^\s*[0-9]+\}' app/ lib/`——命中即为该模式残留；另外它证明"全绿"不等于"无伤"，静态不可达代码是所有验证门的盲区，只能靠模式化 grep 扫。
+
+## 13. UI 批量整改：hover-only 与触屏先行的修法模板（2026-08-30）
+
+- 全库审计（`docs/ui-ux-audit-2026-08.md`）后按三批次修完 40+ 项。两个复用价值最高的模式：
+  - **hover-only 控件**（`opacity-0 group-hover:opacity-100`）在触屏上不可见但可误触、键盘用户看不到焦点——统一改成 `opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100`（移动常显、桌面 hover/focus 显示），素材删除按钮和分镜轮播箭头都是这个修法。
+  - **动效尊重系统偏好**：CSS 侧把全局 transition 包进 `@media (prefers-reduced-motion: no-preference)`，motion/react 侧用 `useReducedMotion()` 把 initial/animate/whileInView 传播对象置空（`{...(reduceMotion ? {} : {...})}`），landing 五个组件一个工厂函数 `reveal(delay)` 搞定。
+- **审计→修复的验收闭环**沿用 GUI 回归铁律：tsc/vitest/build 全绿之后，仍要在真实浏览器里亮暗×中英×桌面/移动各过一遍——本次GUI 回归又抓到一处漏网（非推荐卡的 offer 胶囊 `text-primary` 桃字贴桃底），代码审查和类型检查都发现不了颜色问题。

@@ -39,4 +39,11 @@
 
 ## UI 组件与依赖账本
 
-18. 本仓库曾**两套 toast 全都不渲染**：shadcn 的 `useToast()`（3 个消费者）依赖挂载 `<Toaster>`，sonner 的 `toast()`（7 个消费者）依赖挂载 sonner 自己的 `<Toaster>`——2026-08-28 清扫时发现全仓 0 处挂载，所有 toast 调用一直静默无效。教训：**"调用了 API"≠"UI 生效"，凡是需要 provider/挂载点的 UI 设施（toast、theme、session），验收必须走真实 GUI 流程**；从模板复制进来的 kit（50 个 ui 组件只有 19 个被用）要定期做消费者对账，不用的整件退役。
+18. 本仓库曾**两套 toast 全都不渲染**：shadcn 的 `useToast()`（3 个消费者）依赖挂载 `<Toaster>`，sonner 的 `toast()`（7 个消费者）依赖挂载 sonner 自己的 `<Toaster>`——2026-08-28 清扫时发现全仓 0 处挂载，所有 toast 调用一直静默无效。教训：**"调用了 API"≠"UI 生效"，凡是需要 provider/挂载点的 UI 设施（toast、theme、session），验收必须走真实 GUI 流程**；从模板复制进来的 kit（50 个 ui 组件只有 19 个被用）要定期做消费者对账，不用的整件退役。2026-08-30 UI 审计后已修复：补建 `components/ui/toaster.tsx` 并在 `[locale]/layout.tsx` 同时挂载 shadcn 与 sonner 两个 Toaster——修复后支付成功/管理操作的 toast 才第一次真正可见。
+
+21. **neon-http 驱动连不了本机 Postgres**（`ERR_INVALID_URL`→`api.0.0.1/sql`），且 drizzle-kit push 同病——本地回归要么用不到 DB，要么假空库。2026-08-30 起的解法：`lib/db.ts` 按 URL 判断本机地址回落 node-postgres（pg 为 devDependency、动态 import，生产零加载）；本地建库用 `psql -f drizzle/*.sql` 按序灌（drizzle/ 里有 kit 双胞胎历史文件，重复报错无碍，以最终 schema 为准）。本地回归金钱路径（注册闸门/限速）从此可行。
+22. **重复锚点文本上做脚本化插入必翻车**：operate.tsx 的「检查是否是积分不足错误」出现在 3 个 handler，`s.find()` 命中第一处把块插进了角色图 handler（引用了不存在的外层变量）。教训：多锚点文件要么用「定位唯一兄弟锚（如 fetch URL 字面量）再找其后首个目标锚」的两段式定位，要么改完立刻 tsc（本次靠 tsc 抓回）。
+
+19. **品牌主色亮度高（L≈74%）时，shadcn 模板默认的 `--primary-foreground: #FFF` 必挂 WCAG**：白字贴 #E6A37A 实测 2.12:1（正文要 4.5:1、大字要 3:1）。修 token 层一处（改成深色 #2C2B29，实测 6.66:1，与暗色模式既有写法一致）全站按钮同步生效，比逐组件改 class 便宜两个量级；但必须全局 grep 清掉硬编码 `text-white`/`hover:text-white` 的漏网点（本次抓到 hero CTA、定价 outline hover、offer 胶囊 text-primary 三类）。浅底上的品牌色文字用 peach-800 `#9D5E34`（白卡 5.14:1），不要用 peach-500/600。
+
+20. **next-intl 的 `t() || "中文兜底"` 全是死代码**：缺键时 next-intl 直接抛错（或渲染键名），永远不会返回 falsy，`||` 后面的兜底给人虚假的安全感。本次清了 operate/library/upload 等十余处；**键是否缺失要用 `python3 -c` 直接查 messages/*.json 而不是看组件里有没有兜底**（本次定价区三个 `offer` 键 zh/en 双双缺失、线上渲染裸键名，就是这么抓到的）。另一个可迁移点：next-intl middleware 会把当前 locale 写进请求头 `x-next-intl-locale`，root layout 拿不到 `[locale]` params 时可以 `headers().get('x-next-intl-locale')` 在服务端输出 `<html lang>`——本次就用它修了全站无 lang 属性的问题。

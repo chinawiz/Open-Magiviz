@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import type { KieRequestBody, KieApiResponse } from '@/lib/ai-types'
 import { getAuthedSession, jsonError } from '@/lib/api'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
+import { isPaidPlan } from '@/lib/plan-limits'
+import { users as usersTable } from '@/lib/schema'
 import { getVideoUnitPoints, computeVideoPoints } from '@/lib/video-pricing'
 import { getVideoFallbackChain } from '@/lib/providers/defaults'
 import { trackFunnelEvent } from '@/lib/observability/track'
@@ -2070,6 +2072,23 @@ export async function POST(request: NextRequest) {
     const session = await getAuthedSession()
     if (!session) {
       return jsonError(401, 'Unauthorized')
+    }
+
+    // 高成本步骤门控（2026-08-30 定价重构 §4.2）：仅付费计划或已验卡用户可生成视频。
+    // free 用户在 freeFilm 额度（验卡赠送 48 点）内仍可消费——点数是预算，这里是能力闸。
+    const planUserRows = await db
+      .select({
+        subscriptionPlan: usersTable.subscriptionPlan,
+        cardVerifiedAt: usersTable.cardVerifiedAt,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.id, session.user.id))
+      .limit(1)
+    const planUser = planUserRows[0]
+    if (!isPaidPlan(planUser?.subscriptionPlan) && !planUser?.cardVerifiedAt) {
+      return jsonError(403, 'Video generation requires a paid plan or verified payment method', {
+        errorKey: 'upgrade_required',
+      })
     }
 
     // 读取原始请求体

@@ -118,29 +118,30 @@ export async function checkIfAlreadyReferred(
 }
 
 /**
- * 给新注册用户和邀请人发放注册奖励（各100积分，永久有效）
+ * 注册时给新用户和邀请人各发 20 点纪念性奖励（2026-08-30 起，原 100 点可被多号农场套利）。
+ * 大额奖励（200/200）改为被推荐者首笔付费后发放，见 awardFirstPurchaseReward。
  */
 export async function awardRegistrationBonus(
   userId: string,
   referralId: string,
   referrerId: string
 ): Promise<void> {
-  // 给新用户发放100积分（永久有效）
+  // 给新用户发放20点（永久有效）
   await db
     .update(users)
     .set({
-      purchasedPoints: sql`${users.purchasedPoints} + 100`,
-      points: sql`${users.points} + 100`,
+      purchasedPoints: sql`${users.purchasedPoints} + 20`,
+      points: sql`${users.points} + 20`,
       updatedAt: new Date(),
     })
     .where(eq(users.id, userId))
 
-  // 给邀请人发放100积分（永久有效）
+  // 给邀请人发放20点（永久有效）
   await db
     .update(users)
     .set({
-      purchasedPoints: sql`${users.purchasedPoints} + 100`,
-      points: sql`${users.points} + 100`,
+      purchasedPoints: sql`${users.purchasedPoints} + 20`,
+      points: sql`${users.points} + 20`,
       updatedAt: new Date(),
     })
     .where(eq(users.id, referrerId))
@@ -150,7 +151,7 @@ export async function awardRegistrationBonus(
   await db.insert(pointsHistory).values({
     id: newUserPointsHistoryId,
     userId,
-    points: 100,
+    points: 20,
     pointsType: 'purchased',
     action: 'referral',
     createdAt: new Date(),
@@ -161,7 +162,7 @@ export async function awardRegistrationBonus(
   await db.insert(pointsHistory).values({
     id: referrerPointsHistoryId,
     userId: referrerId,
-    points: 100,
+    points: 20,
     pointsType: 'purchased',
     action: 'referral',
     createdAt: new Date(),
@@ -392,3 +393,87 @@ export async function getReferralStats(userId: string) {
   }
 }
 
+/**
+ * 被推荐者完成首笔付费后的双向奖励（2026-08-30 定价重构 §4.3）：
+ * 邀请人 +200 购买型积分，被推荐者 +200 赠送型积分。
+ * 以 pointsHistory(action='referral_first_purchase', userId=被推荐者) 作幂等键，
+ * 每次 webhook 成功路径调用，重复投递/多笔支付只发一次。
+ * 返回 true 表示本次实际发放。
+ */
+export async function awardFirstPurchaseReward(userId: string): Promise<boolean> {
+  const referralCheck = await db
+    .select()
+    .from(referrals)
+    .where(eq(referrals.referredId, userId))
+    .limit(1)
+
+  if (referralCheck.length === 0) return false
+  const { id: referralId, referrerId } = referralCheck[0]
+
+  const alreadyAwarded = await db
+    .select({ id: pointsHistory.id })
+    .from(pointsHistory)
+    .where(
+      and(
+        eq(pointsHistory.userId, userId),
+        eq(pointsHistory.action, 'referral_first_purchase')
+      )
+    )
+    .limit(1)
+
+  if (alreadyAwarded.length > 0) return false
+
+  // 邀请人 +200 购买型（永久有效）
+  await db
+    .update(users)
+    .set({
+      purchasedPoints: sql`${users.purchasedPoints} + 200`,
+      points: sql`${users.points} + 200`,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, referrerId))
+
+  // 被推荐者 +200 赠送型（永久有效，与订阅赠送清零机制无关）
+  await db
+    .update(users)
+    .set({
+      giftedPoints: sql`${users.giftedPoints} + 200`,
+      points: sql`${users.points} + 200`,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+
+  const firstPurchaseHistoryId = nanoid()
+  await db.insert(pointsHistory).values({
+    id: firstPurchaseHistoryId,
+    userId,
+    points: 200,
+    pointsType: 'gifted',
+    action: 'referral_first_purchase',
+    description: 'Referral first-purchase reward',
+    createdAt: new Date(),
+  })
+
+  const referrerFirstPurchaseHistoryId = nanoid()
+  await db.insert(pointsHistory).values({
+    id: referrerFirstPurchaseHistoryId,
+    userId: referrerId,
+    points: 200,
+    pointsType: 'purchased',
+    action: 'referral_first_purchase',
+    description: 'Referral first-purchase reward (referrer)',
+    createdAt: new Date(),
+  })
+
+  const historyId = nanoid()
+  await db.insert(referralHistory).values({
+    id: historyId,
+    userId,
+    referralId,
+    action: 'first_purchase_reward',
+    pointsAwarded: 200,
+    createdAt: new Date(),
+  })
+
+  return true
+}

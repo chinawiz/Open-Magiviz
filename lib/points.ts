@@ -5,16 +5,18 @@ import { eq, desc, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
 // 积分配置 - 可以在这里修改各种奖励积分
+// 2026-08-30 定价重构：注册赠送 6 点 = 剧本(1)+角色(2)+首个场景分镜(3)，
+// 免费层只覆盖前三步；视频/合成按计划能力门控（见 docs/pricing-redesign-2026-08.md §4.2）
 export const POINTS_CONFIG = {
-  REGISTER_BONUS: 10, // 注册赠送积分
-  DAILY_LOGIN_BONUS: 10, // 每日登录奖励
-  REFERRAL_BONUS: 200, // 推荐用户奖励
+  REGISTER_BONUS: 6, // 注册赠送积分（三步体验预算）
+  REFERRAL_BONUS: 200, // 推荐用户奖励（被推荐者首笔付费后发放）
+  // 验卡一次性赠送：48 点 ≈ 1 部 3 场景 24s 成片（docs/pricing-redesign-2026-08.md §4.2）
+  CARD_VERIFICATION_GIFT: 48,
 } as const
 
 // 积分操作类型
 export enum PointsAction {
   REGISTER = 'register',
-  DAILY_LOGIN = 'daily_login',
   REFERRAL = 'referral',
   MANUAL = 'manual',
   GENERATE_STORY = 'generate_story',
@@ -33,7 +35,6 @@ export enum PointsType {
 // 操作描述映射
 const ACTION_DESCRIPTIONS = {
   [PointsAction.REGISTER]: 'Registration bonus',
-  [PointsAction.DAILY_LOGIN]: 'Daily login bonus',
   [PointsAction.REFERRAL]: 'Referral bonus',
   [PointsAction.MANUAL]: 'Manual operation',
   [PointsAction.GENERATE_STORY]: 'Generate story',

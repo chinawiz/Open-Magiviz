@@ -12,7 +12,7 @@ import { PricingSection } from "@/components/pricing-section"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
-import { Plus, Sparkles, X, Zap, ChevronLeft, ChevronRight, Link, Upload, Loader2, Eye, Clock, Trash2, Download, Film, SlidersHorizontal, Play, CheckCircle2, HardDrive, Image as ImageIcon, FolderOpen, Music, Video } from "lucide-react"
+import { Plus, Sparkles, X, Zap, ChevronLeft, ChevronRight, Link, Upload, Loader2, Eye, Clock, Trash2, Download, Film, SlidersHorizontal, Play, CheckCircle2, HardDrive, Image as ImageIcon, FolderOpen, Music, Video, CreditCard } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type {
   CharacterItem,
@@ -30,7 +30,7 @@ import {
   SEEDANCE_LIMITS,
   type MediaMeta,
 } from "@/lib/media-validation"
-import { useTranslations } from "next-intl"
+import { useTranslations, useLocale } from "next-intl"
 import { useSession } from "next-auth/react"
 import { SignInDialog } from "@/components/auth/signin-dialog"
 import { useToast } from "@/hooks/use-toast"
@@ -163,7 +163,8 @@ export function AIFunction({
   const [showPricingInline, setShowPricingInline] = useState(false)
   const pricingDialogTriggerRef = useRef<HTMLButtonElement>(null)
   const [currentPoints, setCurrentPoints] = useState<number | null>(null)
-  const [purchaseDialogType, setPurchaseDialogType] = useState<'points' | 'subscription'>('points') // 区分积分不足还是订阅不足
+  const [purchaseDialogType, setPurchaseDialogType] = useState<'points' | 'subscription' | 'card_verify'>('points') // 积分不足 / 订阅不足 / 免费用户视频能力锁（验卡或升级）
+  const [isVerifyingCard, setIsVerifyingCard] = useState(false)
   const { data: session, status } = useSession()
   const { toast } = useToast()
 
@@ -211,6 +212,7 @@ export function AIFunction({
     fetchStorage()
   }, [status, session?.user?.id])
 
+  const locale = useLocale()
   const t = useTranslations("operate")
   const tAi = useTranslations("aiImage")
   const tWorkflow = useTranslations("operate.workflow")
@@ -1937,11 +1939,39 @@ export function AIFunction({
         errorText = `HTTP ${sceneResponse.status}`
         console.error(`${logPrefix} API 失败:`, sceneResponse.status)
       }
-      let errorData: { code?: string; error?: string | null; currentPoints?: number } = {}
+      let errorData: { code?: string; error?: string | null; errorKey?: string; currentPoints?: number } = {}
       try {
-        errorData = errorText ? (JSON.parse(errorText) as { code?: string; error?: string | null; currentPoints?: number }) : {}
+        errorData = errorText ? (JSON.parse(errorText) as { code?: string; error?: string | null; errorKey?: string; currentPoints?: number }) : {}
       } catch (e) {
         errorData = { error: errorText }
+      }
+
+      // 免费用户视频能力锁：验卡（免费一部成片）或升级（2026-08-30 定价重构 §4.2）
+      if (sceneResponse.status === 403 && errorData.errorKey === 'upgrade_required') {
+        setPurchaseDialogType('card_verify')
+        setShowPurchaseDialog(true)
+
+        workflowPausedRef.current = true
+        setWorkflowPaused(true)
+        workflowInterruptedRef.current = true
+
+        const errorMessage = t('videoLockedDesc')
+        const errorResult = {
+          videoUrl: '',
+          sceneId: scene.id,
+          sceneIndex,
+          storyboardImage,
+          prompt: basePrompt,
+          error: errorMessage,
+          code: 'UPGRADE_REQUIRED'
+        }
+        setSceneVideos((prev: any[]) => {
+          const newItems = [...prev]
+          newItems[sceneIndex] = errorResult
+          return newItems
+        })
+
+        return errorResult
       }
 
       // 检查是否是积分不足错误（只有在响应体非空时才检查）
@@ -2288,7 +2318,7 @@ export function AIFunction({
     const hasMedia = mediaItems.length > 0
     if (hasMedia && videoModel !== "seedance2" && videoModel !== "seedance2Fast" && videoModel !== "seedance2Mini" && videoModel !== "seedance25") {
       toast({
-        title: t("videoModelMediaLockedTitle") || "模型不兼容",
+        title: t("videoModelMediaLockedTitle"),
         description: t("videoModelMediaLockedHint"),
         variant: "destructive",
       })
@@ -7100,6 +7130,25 @@ export function AIFunction({
             onPaste={handlePaste}
               />
 
+              {/* 冷启动示例：输入为空时展示可一键填充的创作示例 */}
+              {!message && !isGenerating && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {(['a', 'b', 'c'] as const).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        setMessage(t(`examplePrompts.${key}`))
+                        textareaRef.current?.focus()
+                      }}
+                      className="px-3 py-1.5 rounded-full border border-border bg-card text-xs text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer"
+                    >
+                      {t(`examplePrompts.${key}`)}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {characterCount > 0 && (
                 <div className="mb-3 flex justify-end">
                   <span
@@ -7149,7 +7198,7 @@ export function AIFunction({
                         <div className="flex items-center justify-between text-xs">
                           <div className="flex items-center gap-1.5 text-muted-foreground">
                             <HardDrive className="w-3.5 h-3.5" />
-                            <span>{t("storageUsed") || "存储空间"}</span>
+                            <span>{t("storageUsed")}</span>
                           </div>
                           <span className="font-medium">
                             {storageLimitInfo ? `${formatBytes(storageLimitInfo.usedStorage)} / ${formatBytes(storageLimitInfo.storageLimit)}` : '...'}
@@ -7179,7 +7228,7 @@ export function AIFunction({
                         className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-primary hover:text-primary-foreground border border-border hover:border-primary transition-all duration-200"
                       >
                         <FolderOpen className="w-4 h-4" />
-                        {t("selectFromLibrary") || "从素材库选择"}
+                        {t("selectFromLibrary")}
                       </button>
                       <button
                         onClick={() => {
@@ -7622,7 +7671,7 @@ export function AIFunction({
                             <div className="flex items-center gap-2 text-sm">
                               <span className="font-medium">{t("sceneNumberDisplay", { number: scene.id })}</span>
                               <span className="text-muted-foreground">•</span>
-                              <span className="text-muted-foreground">{scene.duration}秒</span>
+                              <span className="text-muted-foreground">{t("durationSeconds", { count: scene.duration })}</span>
                             </div>
                           </div>
                         </div>
@@ -8479,8 +8528,8 @@ export function AIFunction({
                 <FolderOpen className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <DialogTitle className="text-lg font-semibold">{t("selectFromLibrary") || "从素材库选择"}</DialogTitle>
-                <p className="text-sm text-muted-foreground mt-1">{t("selectFromLibraryDesc") || "选择已上传或生成的素材"}</p>
+                <DialogTitle className="text-lg font-semibold">{t("selectFromLibrary")}</DialogTitle>
+                <p className="text-sm text-muted-foreground mt-1">{t("selectFromLibraryDesc")}</p>
               </div>
             </div>
           </DialogHeader>
@@ -8571,12 +8620,18 @@ export function AIFunction({
                   </div>
                   <div>
                     <DialogTitle className="text-lg font-semibold">
-                      {purchaseDialogType === 'points' ? t("pointsInsufficient") : t("upgradeTitle")}
+                      {purchaseDialogType === 'points'
+                        ? t("pointsInsufficient")
+                        : purchaseDialogType === 'card_verify'
+                          ? t("videoLockedTitle")
+                          : t("upgradeTitle")}
                     </DialogTitle>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {purchaseDialogType === 'points' 
+                      {purchaseDialogType === 'points'
                         ? t("pointsInsufficientDesc", { points: currentPoints || 0 })
-                        : t("subscriptionDialogMessage")
+                        : purchaseDialogType === 'card_verify'
+                          ? t("videoLockedDesc")
+                          : t("subscriptionDialogMessage")
                       }
                     </p>
                   </div>
@@ -8586,9 +8641,44 @@ export function AIFunction({
 
             <div className="px-6 pb-6">
               <div className="space-y-4">
-                <div className="flex items-center justify-end gap-3 pt-2">
+                <div className="flex items-center justify-end gap-3 pt-2 flex-wrap">
+                  {purchaseDialogType === 'card_verify' && (
+                    <Button
+                      variant="outline"
+                      autoFocus
+                      disabled={isVerifyingCard}
+                      onClick={async () => {
+                        setIsVerifyingCard(true)
+                        try {
+                          const res = await fetch('/api/stripe/verify-card', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ locale }),
+                          })
+                          const data = await res.json()
+                          if (res.ok && data.url) {
+                            window.location.href = data.url
+                            return
+                          }
+                          toast({
+                            title: data.alreadyVerified ? t('cardAlreadyVerified') : t('cardVerifyFailed'),
+                            description: data.alreadyVerified ? undefined : data.error,
+                          })
+                          if (data.alreadyVerified) setShowPurchaseDialog(false)
+                        } catch {
+                          toast({ title: t('cardVerifyFailed') })
+                        } finally {
+                          setIsVerifyingCard(false)
+                        }
+                      }}
+                      className="px-4 flex items-center gap-2"
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      {t('verifyCardCta')}
+                    </Button>
+                  )}
                   <Button
-                    autoFocus
+                    autoFocus={purchaseDialogType !== 'card_verify'}
                     onClick={() => {
                       // 关闭当前提示弹窗，触发订阅弹窗
                       setShowPurchaseDialog(false)
@@ -8600,7 +8690,7 @@ export function AIFunction({
                     className="px-6 flex items-center gap-2"
                   >
                     <Sparkles className="w-4 h-4" />
-                    {t("upgrade")}
+                    {purchaseDialogType === 'card_verify' ? t('upgradeCtaShort') : t("upgrade")}
                   </Button>
                   <Button
                     variant="ghost"
@@ -8984,7 +9074,7 @@ export function AIFunction({
                   {isEditingCharacter && (
                     <div>
                       <p className="text-sm font-medium mb-1">
-                        {t("characterPrompt") || "提示词"}
+                        {t("characterPrompt")}
                         {characterEditMode === 'image' && (
                           <span className="ml-2 text-xs text-muted-foreground">
                             ({t("imageSelected")})
@@ -9006,7 +9096,7 @@ export function AIFunction({
                         }}
                         disabled={characterEditMode === 'image'}
                         className={`text-sm min-h-[80px] ${characterEditMode === 'image' ? 'bg-muted/30 cursor-not-allowed' : ''}`}
-                        placeholder={characterEditMode === 'image' ? t("clearImageToEditPrompt") : (t("characterPromptPlaceholder") || "请输入生成主角图片的提示词...")}
+                        placeholder={characterEditMode === 'image' ? t("clearImageToEditPrompt") : (t("characterPromptPlaceholder"))}
                       />
                     </div>
                   )}
@@ -9237,7 +9327,7 @@ export function AIFunction({
                   {isEditingStoryboard && (
                     <div>
                       <div className="text-sm font-medium mb-1">
-                        {t("prompt") || "Prompt"}
+                        {t("prompt")}
                         {storyboardEditMode === 'image' && (
                           <span className="ml-2 text-xs text-muted-foreground">
                             ({t("imageSelected")})
@@ -9258,7 +9348,7 @@ export function AIFunction({
                         }}
                         disabled={storyboardEditMode === 'image'}
                         className={`min-h-[100px] ${storyboardEditMode === 'image' ? 'bg-muted/30 cursor-not-allowed' : ''}`}
-                        placeholder={storyboardEditMode === 'image' ? t("clearImageToEditPrompt") : (t("enterPrompt") || "Enter prompt for image generation...")}
+                        placeholder={storyboardEditMode === 'image' ? t("clearImageToEditPrompt") : (t("enterPrompt"))}
                       />
                     </div>
                   )}

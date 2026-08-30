@@ -98,11 +98,13 @@ export async function POST(request: NextRequest) {
     const finalPriceId =
       planType === 'trial'
         ? actualPriceIds.trial
-        : planType === 'pro'
-          ? actualPriceIds.pro
-          : planType === 'annual'
-            ? actualPriceIds.annual
-            : ''
+        : planType === 'starter'
+          ? actualPriceIds.starter
+          : planType === 'pro'
+            ? actualPriceIds.pro
+            : planType === 'annual'
+              ? actualPriceIds.annual
+              : ''
 
     // 验证最终的价格ID
     if (!finalPriceId || finalPriceId.trim() === '') {
