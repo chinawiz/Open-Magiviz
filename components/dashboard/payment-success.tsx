@@ -36,6 +36,7 @@ export function PaymentSuccess() {
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null)
   const [pointsData, setPointsData] = useState<PointsDetail | null>(null)
   const [verificationComplete, setVerificationComplete] = useState(false)
+  const [missingSession, setMissingSession] = useState(false)
 
   const sessionId = searchParams.get('session_id')
 
@@ -68,8 +69,9 @@ export function PaymentSuccess() {
 
   const handlePaymentSuccess = async () => {
     if (!sessionId) {
-      // 移除自动跳转逻辑，显示提示信息
+      // 缺少 session_id 时给出明确的失败态，避免停在「正在验证」死循环（UI 审计 P0-3）
       setLoading(false)
+      setMissingSession(true)
       toast.info(t('payment_success.no_session_toast'))
       return
     }
@@ -139,6 +141,42 @@ export function PaymentSuccess() {
   }
 
   if (!verificationComplete) {
+    if (missingSession) {
+      // 无法确认支付来源：不再转圈，直接给用户出口
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center px-4">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="mx-auto mb-4 h-16 w-16 bg-warning/10 rounded-full flex items-center justify-center">
+                  <CheckCircle className="h-10 w-10 text-warning" aria-hidden="true" />
+                </div>
+                <h2 className="text-xl font-semibold mb-2 text-foreground">
+                  {t('payment_success.no_session_title')}
+                </h2>
+                <p className="text-muted-foreground mb-6">
+                  {t('payment_success.no_session_description')}
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button asChild className="flex-1">
+                    <Link href={getLocalizedPath('/profile')} className="flex items-center justify-center gap-2">
+                      {t('actions.view_profile')}
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button variant="outline" asChild className="flex-1">
+                    <Link href={getLocalizedPath('/')} className="flex items-center justify-center gap-2">
+                      {t('actions.back_home')}
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )
+    }
+
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="w-full max-w-md">
@@ -231,19 +269,19 @@ export function PaymentSuccess() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div className="text-center">
                       <div className="text-2xl font-bold text-primary">
-                        {pointsData.totalPoints.toLocaleString()}
+                        {pointsData.totalPoints.toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US')}
                       </div>
                       <div className="text-muted-foreground">{t('points_reward.total_points')}</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                        {pointsData.purchasedPoints.toLocaleString()}
+                        {pointsData.purchasedPoints.toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US')}
                       </div>
                       <div className="text-muted-foreground">{t('points_reward.purchased_points')}</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                        {pointsData.giftedPoints.toLocaleString()}
+                        {pointsData.giftedPoints.toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US')}
                       </div>
                       <div className="text-muted-foreground">{t('points_reward.gifted_points')}</div>
                     </div>
@@ -251,7 +289,7 @@ export function PaymentSuccess() {
                   {pointsData.giftedPoints > 0 && (
                     <div className="mt-4 p-3 bg-primary/10 rounded-lg border border-primary/20">
                       <p className="text-sm text-foreground">
-                        {t('points_reward.gift_notice', { points: pointsData.giftedPoints.toLocaleString() })}
+                        {t('points_reward.gift_notice', { points: pointsData.giftedPoints.toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US') })}
                       </p>
                     </div>
                   )}

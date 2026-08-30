@@ -84,6 +84,7 @@ export function PaymentHistory() {
   const [payments, setPayments] = useState<PaymentRecord[]>([])
   const [stats, setStats] = useState<PaymentStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [filter, setFilter] = useState<{
     paymentType: string
     paymentStatus: string
@@ -353,9 +354,11 @@ export function PaymentHistory() {
         setStats(data.data.stats)
       } else {
         console.error(t('errors.fetch_failed'))
+        setFetchError(t('errors.fetch_failed'))
       }
     } catch (error) {
       console.error(t('errors.fetch_failed'), error)
+      setFetchError(t('errors.fetch_failed'))
     } finally {
       setLoading(false)
     }
@@ -366,7 +369,7 @@ export function PaymentHistory() {
   }, [filter])
 
   const formatAmount = (amount: number, currency: string) => {
-    return new Intl.NumberFormat('zh-CN', {
+    return new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
       style: 'currency',
       currency: currency.toUpperCase(),
       minimumFractionDigits: 2,
@@ -385,7 +388,7 @@ export function PaymentHistory() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <Card className="bg-secondary/80 border-cyber-500/30 cyber-glow-subtle">
+        <Card className="bg-secondary/80 border-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
               <CreditCard className="w-5 h-5 text-primary" />
@@ -404,7 +407,7 @@ export function PaymentHistory() {
           </CardContent>
         </Card>
 
-        <Card className="bg-secondary/80 border-cyber-500/30 cyber-glow-subtle">
+        <Card className="bg-secondary/80 border-border">
           <CardHeader>
             <CardTitle className="text-foreground">{t('title')}</CardTitle>
           </CardHeader>
@@ -422,9 +425,15 @@ export function PaymentHistory() {
 
   return (
     <div className="space-y-6">
+      {/* 拉取失败提示：不再让用户对着空表格猜 */}
+      {fetchError && (
+        <div role="alert" className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">
+          {fetchError}
+        </div>
+      )}
       {/* 统计卡片 */}
       {stats && (
-        <Card className="bg-secondary/80 border-cyber-500/30 cyber-glow-subtle">
+        <Card className="bg-secondary/80 border-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
               <TrendingUp className="w-5 h-5 text-primary" />
@@ -476,7 +485,7 @@ export function PaymentHistory() {
       )}
 
       {/* 支付记录 */}
-      <Card className="bg-secondary/80 border-cyber-500/30 cyber-glow-subtle">
+      <Card className="bg-secondary/80 border-border">
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <CardTitle className="flex items-center gap-2 text-foreground">

@@ -78,10 +78,10 @@ export function ProjectDetail() {
   const [currentVersion, setCurrentVersion] = useState<number | null>(null)
   const [loadingVersion, setLoadingVersion] = useState<number | null>(null)
 
-  // 格式化时间
+  // 格式化时间（跟随界面语言，勿硬编码 zh-CN）
   const formatTime = (date: Date | string | null | undefined) => {
     if (!date) return ""
-    return new Date(date).toLocaleString("zh-CN")
+    return new Date(date).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US')
   }
 
   // 加载项目详情
@@ -745,9 +745,10 @@ export function ProjectDetail() {
                                         container.scrollBy({ left: -container.clientWidth, behavior: 'smooth' });
                                       }
                                     }}
-                                    className="absolute left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60"
+                                    aria-label={tDetail("storyboards.prevFrame")}
+                                    className="absolute left-1 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 text-white flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-opacity hover:bg-black/60"
                                   >
-                                    <span style={{ fontSize: '16px' }}>‹</span>
+                                    <span aria-hidden="true" style={{ fontSize: '16px' }}>‹</span>
                                   </button>
                                   <button
                                     onClick={(e) => {
@@ -756,9 +757,10 @@ export function ProjectDetail() {
                                         container.scrollBy({ left: container.clientWidth, behavior: 'smooth' });
                                       }
                                     }}
-                                    className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60"
+                                    aria-label={tDetail("storyboards.nextFrame")}
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 text-white flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-opacity hover:bg-black/60"
                                   >
-                                    <span style={{ fontSize: '16px' }}>›</span>
+                                    <span aria-hidden="true" style={{ fontSize: '16px' }}>›</span>
                                   </button>
                                 </>
                               )}

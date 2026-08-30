@@ -255,11 +255,11 @@ export function UnifiedLibraryPage() {
     setPreviewType(isVideo ? 'video' : 'image')
   }
 
-  // 格式化时间
+  // 格式化时间（跟随界面语言，勿硬编码 zh-CN）
   const formatTime = (date: string | Date | null | undefined) => {
     if (!date) return ""
     const d = new Date(date)
-    return d.toLocaleDateString("zh-CN")
+    return d.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US')
   }
 
   // 获取总数量文本
@@ -286,13 +286,15 @@ export function UnifiedLibraryPage() {
           </div>
 
           {/* 标签页切换 */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+          <div role="tablist" aria-label={t("title")} className="flex items-center gap-2 overflow-x-auto pb-2">
             {tabs.map((tab) => {
               const TabIcon = tab.icon
               const isActive = activeTab === tab.key
               return (
                 <button
                   key={tab.key}
+                  role="tab"
+                  aria-selected={isActive}
                   onClick={() => handleTabChange(tab.key)}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-all",
@@ -327,12 +329,13 @@ export function UnifiedLibraryPage() {
               <select
                 value={assetTypeFilter}
                 onChange={(e) => setAssetTypeFilter(e.target.value)}
+                aria-label={t("filterTypeLabel")}
                 className="h-10 px-3 rounded-lg border border-input bg-background text-sm"
               >
-                <option value="all">{t("filter.all") || "全部"}</option>
-                <option value="image">{t("filter.images") || "图片"}</option>
-                <option value="audio">{t("filter.audio") || "音频"}</option>
-                <option value="video">{t("filter.videos") || "视频"}</option>
+                <option value="all">{t("filter.all")}</option>
+                <option value="image">{t("filter.images")}</option>
+                <option value="audio">{t("filter.audio")}</option>
+                <option value="video">{t("filter.videos")}</option>
               </select>
             )}
 
@@ -342,12 +345,14 @@ export function UnifiedLibraryPage() {
               className="gap-2"
             >
               <Upload className="w-4 h-4" />
-              {t("upload.button") || "上传素材"}
+              {t("upload.button")}
             </Button>
 
             <div className="flex border rounded-lg overflow-hidden">
               <button
                 onClick={() => setViewMode('grid')}
+                aria-label={t("view.grid")}
+                aria-pressed={viewMode === 'grid'}
                 className={cn(
                   "p-2",
                   viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
@@ -357,6 +362,8 @@ export function UnifiedLibraryPage() {
               </button>
               <button
                 onClick={() => setViewMode('list')}
+                aria-label={t("view.list")}
+                aria-pressed={viewMode === 'list'}
                 className={cn(
                   "p-2",
                   viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
@@ -374,9 +381,9 @@ export function UnifiedLibraryPage() {
             <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
               <LayoutGrid className="w-8 h-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">{t("please_login") || "请先登录"}</h3>
+            <h3 className="text-lg font-semibold mb-2">{t("please_login")}</h3>
             <p className="text-muted-foreground mb-4">
-              {t("please_login_description") || "登录后即可浏览和管理您的素材库"}
+              {t("please_login_description")}
             </p>
           </div>
         )}
@@ -386,7 +393,7 @@ export function UnifiedLibraryPage() {
           <>
             {/* 错误提示 */}
             {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
+              <div role="alert" className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive">
                 {error}
               </div>
             )}
@@ -512,11 +519,11 @@ export function UnifiedLibraryPage() {
                     {isLoadingMoreUploads && (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        <span className="text-sm">加载更多...</span>
+                        <span className="text-sm">{t("loadMore")}</span>
                       </div>
                     )}
                     {!isLoadingMoreUploads && userAssets.pagination && userAssets.pagination.page >= userAssets.pagination.totalPages && userAssets.assets.length > 0 && (
-                      <span className="text-sm text-muted-foreground">没有更多了</span>
+                      <span className="text-sm text-muted-foreground">{t("noMore")}</span>
                     )}
                   </div>
                 </>
@@ -815,11 +822,11 @@ export function UnifiedLibraryPage() {
               {isLoadingMore && (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span className="text-sm">加载更多...</span>
+                  <span className="text-sm">{t("loadMore")}</span>
                 </div>
               )}
               {!isLoadingMore && pagination && pagination.page >= pagination.totalPages && items.length > 0 && (
-                <span className="text-sm text-muted-foreground">没有更多了</span>
+                <span className="text-sm text-muted-foreground">{t("noMore")}</span>
               )}
             </div>
           </>
@@ -929,6 +936,7 @@ function UserAssetCard({
   onDelete: () => void
 }) {
   const t = useTranslations("library")
+  const locale = useLocale()
 
   const getFileIcon = () => {
     switch (asset.type) {
@@ -953,17 +961,26 @@ function UserAssetCard({
   const formatTime = (date: string | Date | null) => {
     if (!date) return ""
     const d = new Date(date)
-    return d.toLocaleDateString("zh-CN")
+    return d.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US')
   }
 
   if (viewMode === 'grid') {
     return (
       <Card className="overflow-hidden group">
         <div
+          role="button"
+          tabIndex={0}
+          aria-label={`${t("preview")}: ${asset.name}`}
           className={`bg-muted relative overflow-hidden cursor-pointer ${
             asset.type === 'video' ? 'aspect-video' : 'aspect-square'
           }`}
           onClick={onPreview}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              onPreview()
+            }
+          }}
         >
           {asset.type === 'image' ? (
             <img
@@ -1000,11 +1017,12 @@ function UserAssetCard({
             </div>
           )}
 
-          {/* 操作按钮 */}
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* 操作按钮：移动端常显（触屏没有 hover）；桌面端 hover 或键盘 focus 时显示 */}
+          <div className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
             <Button
               variant="destructive"
               size="icon"
+              aria-label={`${t("delete")}: ${asset.name}`}
               className="w-8 h-8 bg-black/50 hover:bg-black/70"
               onClick={(e) => {
                 e.stopPropagation()
@@ -1038,10 +1056,19 @@ function UserAssetCard({
     <Card className="overflow-hidden group">
       <CardContent className="p-3 flex gap-3 items-center">
         <div
+          role="button"
+          tabIndex={0}
+          aria-label={`${t("preview")}: ${asset.name}`}
           className={`rounded-lg bg-muted overflow-hidden flex-shrink-0 cursor-pointer relative ${
             asset.type === 'video' ? 'w-28 aspect-video' : 'w-20 h-20'
           }`}
           onClick={onPreview}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              onPreview()
+            }
+          }}
         >
           {asset.type === 'image' ? (
             <img
@@ -1064,10 +1091,10 @@ function UserAssetCard({
         </div>
 
         <div className="flex gap-1">
-          <Button variant="ghost" size="sm" onClick={onPreview}>
+          <Button variant="ghost" size="sm" aria-label={t("preview")} onClick={onPreview}>
             <Eye className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={onDelete}>
+          <Button variant="ghost" size="sm" aria-label={t("delete")} onClick={onDelete}>
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>

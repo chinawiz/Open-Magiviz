@@ -1,9 +1,14 @@
 import { Clapperboard, Sparkles, BookOpen, Megaphone, GraduationCap, Wand2, Film, Zap, Users, Play, Volume2, Maximize2 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { useTranslations } from 'next-intl';
 
 export default function Features() {
   const t = useTranslations("features")
+  const reduceMotion = useReducedMotion()
+  const reveal = (delay = 0) =>
+    reduceMotion
+      ? {}
+      : { initial: { opacity: 0, y: 20 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, transition: { delay } }
 
   const categories = [
     { name: t("categories.hollywood"), icon: Clapperboard },
@@ -18,18 +23,13 @@ export default function Features() {
       <div className="max-w-7xl mx-auto px-8">
         <div className="text-center mb-16 space-y-6">
           <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            {...reveal()}
             className="font-headline text-4xl md:text-5xl font-black tracking-tight text-foreground"
           >
             {t("title")}
           </motion.h2>
           <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.1 }}
+            {...reveal(0.1)}
             className="text-muted-foreground max-w-2xl mx-auto text-lg"
           >
             {t("subtitle")}
@@ -51,9 +51,7 @@ export default function Features() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Feature Card 1 */}
           <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            {...reveal()}
             className="md:col-span-2 bg-card rounded-xl p-10 flex flex-col justify-between overflow-hidden relative group border border-border"
           >
             <div className="relative z-10 space-y-4 max-w-md">
@@ -71,10 +69,7 @@ export default function Features() {
 
           {/* Feature Card 2 */}
           <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.1 }}
+            {...reveal(0.1)}
             className="bg-primary text-primary-foreground rounded-xl p-10 space-y-6 shadow-lg shadow-primary/20"
           >
             <Users className="w-10 h-10" />
@@ -84,10 +79,7 @@ export default function Features() {
 
           {/* Feature Card 3 */}
           <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
+            {...reveal(0.2)}
             className="bg-secondary rounded-xl p-10 space-y-6 border border-border"
           >
             <Film className="text-primary w-10 h-10" />
@@ -97,10 +89,7 @@ export default function Features() {
 
           {/* Feature Card 4 */}
           <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.3 }}
+            {...reveal(0.3)}
             className="md:col-span-2 bg-card rounded-xl p-10 flex flex-col md:flex-row gap-8 items-center border border-border"
           >
             <div className="space-y-4">

@@ -155,6 +155,8 @@ export function AdminDashboard() {
                 key={item.id}
                 variant={activeSection === item.id ? 'default' : 'outline'}
                 size="sm"
+                aria-label={item.label}
+                aria-current={activeSection === item.id ? 'page' : undefined}
                 className="flex items-center gap-2"
                 onClick={() => {
                   setActiveSection(item.id)
@@ -165,7 +167,7 @@ export function AdminDashboard() {
                 }}
               >
                 {item.icon}
-                <span className="hidden sm:inline">{item.label}</span>
+                <span className="hidden sm:inline" aria-hidden="true">{item.label}</span>
               </Button>
             ))}
           </div>
@@ -222,9 +224,9 @@ function AdminOverview() {
 
   useEffect(() => {
     fetchStats()
-    fetchTrends()
   }, [])
 
+  // days 变化时刷新趋势；首次挂载由本 effect 触发（原来两个 effect 各跑一次）
   useEffect(() => {
     fetchTrends()
   }, [days])

@@ -27,6 +27,11 @@ export function Navbar() {
     setMounted(true)
   }, [])
 
+  // 路由变化时收起移动端菜单（如浏览器前进/后退）
+  useEffect(() => {
+    setIsMenuOpen(false)
+  }, [pathname])
+
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark")
   }
@@ -43,19 +48,22 @@ export function Navbar() {
     return `/${locale}${path}`
   }
 
-  const scrollToSection = (sectionId: string) => {
-    const element = document.getElementById(sectionId)
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" })
-    } else {
-      const homePath = getLocalizedPath("/")
-      router.push(`${homePath}#${sectionId}`)
-    }
-  }
-
   const handleSignOut = async () => {
     await signOut({ callbackUrl: '/' })
   }
+
+  // 当前页高亮：规范库 Active State——导航必须指示当前位置
+  const isActive = (path: string) => {
+    if (!pathname) return false
+    const localized = getLocalizedPath(path)
+    if (path === "/") return pathname === localized
+    return pathname.startsWith(localized)
+  }
+
+  const navLinkClass = (active: boolean) =>
+    `transition-colors duration-300 font-medium ${
+      active ? "text-primary font-semibold" : "text-muted-foreground hover:text-primary"
+    }`
 
   return (
     <>
@@ -82,19 +90,22 @@ export function Navbar() {
           <div className="hidden md:flex items-center space-x-8">
             <Link
               href={getLocalizedPath("/")}
-              className="text-muted-foreground hover:text-primary transition-colors duration-300 font-medium hover:scale-105 transform"
+              aria-current={isActive("/") ? "page" : undefined}
+              className={`hover:scale-105 transform ${navLinkClass(isActive("/"))}`}
             >
               {t("home")}
             </Link>
-            <button
-              onClick={() => router.push(getLocalizedPath("/create"))}
-              className="text-muted-foreground hover:text-primary transition-colors duration-300 font-medium hover:scale-105 transform"
+            <Link
+              href={getLocalizedPath("/create")}
+              aria-current={isActive("/create") ? "page" : undefined}
+              className={`hover:scale-105 transform ${navLinkClass(isActive("/create"))}`}
             >
               {t("exploreVideo")}
-            </button>
+            </Link>
             <Link
               href={getLocalizedPath("/pricing")}
-              className="text-muted-foreground hover:text-primary transition-colors duration-300 font-medium hover:scale-105 transform"
+              aria-current={isActive("/pricing") ? "page" : undefined}
+              className={`hover:scale-105 transform ${navLinkClass(isActive("/pricing"))}`}
             >
               {t("pricing")}
             </Link>
@@ -118,10 +129,10 @@ export function Navbar() {
 
             {/* Theme Toggle */}
             {mounted && (
-              <Button variant="ghost" size="sm" onClick={toggleTheme} className="text-muted-foreground hover:text-primary hover:bg-secondary transition-all duration-300">
+              <Button variant="ghost" size="sm" onClick={toggleTheme} aria-label={t("toggleTheme")} className="text-muted-foreground hover:text-primary hover:bg-secondary transition-all duration-300">
                 <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-primary" />
                 <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-primary" />
-                <span className="sr-only">Toggle theme</span>
+                <span className="sr-only">{t("toggleTheme")}</span>
               </Button>
             )}
 
@@ -131,7 +142,7 @@ export function Navbar() {
             ) : session ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="flex items-center space-x-2 text-muted-foreground hover:text-primary hover:bg-secondary transition-all duration-300">
+                  <Button variant="ghost" size="sm" aria-label={t("profile")} className="flex items-center space-x-2 text-muted-foreground hover:text-primary hover:bg-secondary transition-all duration-300">
                     <User className="h-4 w-4 text-primary" />
                     <span className="hidden lg:inline">{session.user?.name || session.user?.email}</span>
                   </Button>
@@ -164,7 +175,14 @@ export function Navbar() {
 
           {/* Mobile menu button */}
           <div className="md:hidden">
-            <Button variant="ghost" size="sm" onClick={() => setIsMenuOpen(!isMenuOpen)} className="text-muted-foreground hover:text-primary hover:bg-primary/20 transition-all duration-300">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              aria-label={isMenuOpen ? t("closeMenu") : t("openMenu")}
+              aria-expanded={isMenuOpen}
+              className="text-muted-foreground hover:text-primary hover:bg-primary/20 transition-all duration-300"
+            >
               {isMenuOpen ? <X className="h-6 w-6 text-primary" /> : <Menu className="h-6 w-6 text-primary" />}
             </Button>
           </div>
@@ -181,15 +199,13 @@ export function Navbar() {
               >
                 {t("home")}
               </Link>
-              <button
-                onClick={() => {
-                  router.push(getLocalizedPath("/create"))
-                  setIsMenuOpen(false)
-                }}
+              <Link
+                href={getLocalizedPath("/create")}
+                onClick={() => setIsMenuOpen(false)}
                 className="block px-3 py-2 text-base font-medium text-foreground hover:text-primary hover:bg-primary/20 rounded-lg transition-all duration-300"
               >
                 {t("exploreVideo")}
-              </button>
+              </Link>
               <Link
                 href={getLocalizedPath("/pricing")}
                 onClick={() => setIsMenuOpen(false)}
@@ -244,7 +260,7 @@ export function Navbar() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                   {mounted && (
-                    <Button variant="ghost" size="sm" onClick={toggleTheme} className="text-muted-foreground hover:text-primary hover:bg-primary/20 transition-all duration-300">
+                    <Button variant="ghost" size="sm" onClick={toggleTheme} aria-label={t("toggleTheme")} className="text-muted-foreground hover:text-primary hover:bg-primary/20 transition-all duration-300">
                       <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-primary" />
                       <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-primary" />
                     </Button>

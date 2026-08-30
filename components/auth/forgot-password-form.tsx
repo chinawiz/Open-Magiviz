@@ -102,9 +102,9 @@ export function ForgotPasswordForm() {
         <CardContent className="space-y-6">
           {status === 'success' ? (
             <div className="text-center space-y-4">
-              <Alert className="border-primary/30 bg-primary/20">
+              <Alert role="status" className="border-primary/30 bg-primary/10">
                 <CheckCircle className="h-4 w-4 text-primary" />
-                <AlertDescription className="text-primary/80">
+                <AlertDescription className="text-primary">
                   {message}
                 </AlertDescription>
               </Alert>
@@ -134,9 +134,9 @@ export function ForgotPasswordForm() {
               </div>
 
               {status === 'error' && (
-                <Alert className="border-red-500/30 bg-red-500/20">
-                  <XCircle className="h-4 w-4 text-red-400" />
-                  <AlertDescription className="text-red-300">
+                <Alert role="alert" className="border-destructive/30 bg-destructive/10">
+                  <XCircle className="h-4 w-4 text-destructive" />
+                  <AlertDescription className="text-destructive">
                     {message}
                   </AlertDescription>
                 </Alert>

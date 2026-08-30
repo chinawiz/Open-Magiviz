@@ -260,7 +260,7 @@ export function ReferralManagement() {
                           </TableCell>
                           <TableCell>
                             {record.hasSubscribed ? (
-                              <Badge variant="default" className="bg-green-100 text-green-800">
+                              <Badge variant="default" className="bg-success/15 text-success">
                                 <CheckCircle className="w-3 h-3 mr-1" />
                                 {t('records.subscribed')}
                               </Badge>
@@ -331,7 +331,7 @@ export function ReferralManagement() {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               {reward.pointsAwarded && (
-                                <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700">
+                                <Badge variant="outline" className="bg-warning/15 text-warning">
                                   <Coins className="w-3 h-3 mr-1" />
                                   +{reward.pointsAwarded}
                                 </Badge>

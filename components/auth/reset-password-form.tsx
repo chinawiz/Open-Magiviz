@@ -128,9 +128,9 @@ export function ResetPasswordForm() {
         <CardContent className="space-y-6">
           {status === 'success' ? (
             <div className="text-center space-y-4">
-              <Alert className="border-primary/30 bg-primary/20">
+              <Alert role="status" className="border-primary/30 bg-primary/10">
                 <CheckCircle className="h-4 w-4 text-primary" />
-                <AlertDescription className="text-primary/80">
+                <AlertDescription className="text-primary">
                   {message}
                 </AlertDescription>
               </Alert>
@@ -148,6 +148,7 @@ export function ResetPasswordForm() {
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={t('password_placeholder')}
@@ -158,6 +159,8 @@ export function ResetPasswordForm() {
                     type="button"
                     variant="ghost"
                     size="sm"
+                    aria-label={showPassword ? t('hide_password') : t('show_password')}
+                    aria-pressed={showPassword}
                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                     onClick={() => setShowPassword(!showPassword)}
                   >
@@ -176,6 +179,7 @@ export function ResetPasswordForm() {
                   <Input
                     id="confirmPassword"
                     type={showConfirmPassword ? "text" : "password"}
+                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder={t('confirm_password_placeholder')}
@@ -186,6 +190,8 @@ export function ResetPasswordForm() {
                     type="button"
                     variant="ghost"
                     size="sm"
+                    aria-label={showConfirmPassword ? t('hide_password') : t('show_password')}
+                    aria-pressed={showConfirmPassword}
                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   >
@@ -199,9 +205,9 @@ export function ResetPasswordForm() {
               </div>
 
               {status === 'error' && (
-                <Alert className="border-red-500/30 bg-red-500/20">
+                <Alert role="alert" className="border-destructive/30 bg-destructive/10">
                   <XCircle className="h-4 w-4 text-red-400" />
-                  <AlertDescription className="text-red-300">
+                  <AlertDescription className="text-destructive">
                     {message}
                   </AlertDescription>
                 </Alert>

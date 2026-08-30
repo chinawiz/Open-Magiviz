@@ -153,7 +153,7 @@ export function SignInForm() {
           <div className="mx-auto w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center shadow-lg border border-primary/30">
             <Image
               src="/logo.png"
-              alt="Editf"
+              alt="MeiHao"
               width={48}
               height={48}
               className="object-contain"
@@ -169,8 +169,8 @@ export function SignInForm() {
         
         <CardContent className="space-y-6">
           {error && (
-            <Alert className="border-red-500/30 bg-red-500/20">
-              <AlertDescription className="text-red-300">{error}</AlertDescription>
+            <Alert role="alert" className="border-destructive/30 bg-destructive/10">
+              <AlertDescription className="text-destructive">{error}</AlertDescription>
             </Alert>
           )}
 
@@ -216,7 +216,7 @@ export function SignInForm() {
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-secondary px-2 text-muted-foreground">
-                {locale === "en" ? "Or continue with email" : "或使用邮箱登录"}
+                {t('or_continue_with_email')}
               </span>
             </div>
           </div>
@@ -229,6 +229,7 @@ export function SignInForm() {
                 <Input
                   id="email"
                   type="email"
+                  autoComplete="email"
                   placeholder={t('email_placeholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -245,6 +246,7 @@ export function SignInForm() {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   placeholder={t('password_placeholder')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -254,9 +256,11 @@ export function SignInForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? t('hide_password') : t('show_password')}
+                  aria-pressed={showPassword}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-primary hover:text-primary/80"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                 </button>
               </div>
             </div>

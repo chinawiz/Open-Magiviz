@@ -156,7 +156,7 @@ export function SignUpForm() {
           <div className="mx-auto w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center shadow-lg border border-primary/30">
             <Image
               src="/logo.png"
-              alt="meihao"
+              alt="MeiHao"
               width={48}
               height={48}
               className="object-contain"
@@ -172,15 +172,15 @@ export function SignUpForm() {
         
         <CardContent className="space-y-6">
           {error && (
-            <Alert className="border-red-500/30 bg-red-500/20">
-              <AlertDescription className="text-red-300">{error}</AlertDescription>
+            <Alert role="alert" className="border-destructive/30 bg-destructive/10">
+              <AlertDescription className="text-destructive">{error}</AlertDescription>
             </Alert>
           )}
 
           {success && (
-            <Alert className="border-primary/30 bg-primary/20">
+            <Alert role="status" className="border-primary/30 bg-primary/10">
               <CheckCircle className="h-4 w-4 text-primary" />
-              <AlertDescription className="text-primary/80">{success}</AlertDescription>
+              <AlertDescription className="text-primary">{success}</AlertDescription>
             </Alert>
           )}
 
@@ -255,6 +255,7 @@ export function SignUpForm() {
                 <Input
                   id="email"
                   type="email"
+                  autoComplete="email"
                   placeholder={t('email_placeholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -280,6 +281,8 @@ export function SignUpForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? t('hide_password') : t('show_password')}
+                  aria-pressed={showPassword}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-primary hover:text-primary/80"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -303,6 +306,8 @@ export function SignUpForm() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  aria-label={showConfirmPassword ? t('hide_password') : t('show_password')}
+                  aria-pressed={showConfirmPassword}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-primary hover:text-primary/80"
                 >
                   {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

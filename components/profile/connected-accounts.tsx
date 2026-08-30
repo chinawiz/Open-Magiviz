@@ -113,10 +113,15 @@ export function ConnectedAccounts() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {accounts.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              {t('no_accounts')}
+            </p>
+          )}
           {accounts.map((account) => (
             <div
               key={account.provider}
-              className="flex items-center justify-between p-4 bg-secondary/50 border border-cyber-500/30 rounded-lg"
+              className="flex items-center justify-between p-4 bg-secondary/50 border border-border rounded-lg"
             >
               <div className="flex items-center space-x-3">
                 {getProviderIcon(account.provider)}

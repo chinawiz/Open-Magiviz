@@ -442,7 +442,7 @@ export function AffiliateManagement() {
                           </TableCell>
                           <TableCell>
                             {relation.hasConverted ? (
-                              <Badge variant="default" className="bg-green-100 text-green-800">
+                              <Badge variant="default" className="bg-success/15 text-success">
                                 <CheckCircle className="w-3 h-3 mr-1" />
                                 {t('relations.converted')}
                               </Badge>
@@ -522,13 +522,13 @@ export function AffiliateManagement() {
                           </TableCell>
                           <TableCell>
                             {earning.status === 'FROZEN' && (
-                              <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700">
+                              <Badge variant="outline" className="bg-warning/15 text-warning">
                                 <Clock className="w-3 h-3 mr-1" />
                                 {t('earnings.frozen')}
                               </Badge>
                             )}
                             {earning.status === 'RELEASED' && (
-                              <Badge variant="default" className="bg-green-100 text-green-800">
+                              <Badge variant="default" className="bg-success/15 text-success">
                                 <CheckCircle className="w-3 h-3 mr-1" />
                                 {t('earnings.released')}
                               </Badge>
@@ -607,7 +607,7 @@ export function AffiliateManagement() {
                           </TableCell>
                           <TableCell>
                             {withdrawal.status === 'PENDING' && (
-                              <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700">
+                              <Badge variant="outline" className="bg-warning/15 text-warning">
                                 <Clock className="w-3 h-3 mr-1" />
                                 {t('withdrawals.pending')}
                               </Badge>
@@ -619,7 +619,7 @@ export function AffiliateManagement() {
                               </Badge>
                             )}
                             {withdrawal.status === 'COMPLETED' && (
-                              <Badge variant="default" className="bg-green-100 text-green-800">
+                              <Badge variant="default" className="bg-success/15 text-success">
                                 <CheckCircle className="w-3 h-3 mr-1" />
                                 {t('withdrawals.completed')}
                               </Badge>

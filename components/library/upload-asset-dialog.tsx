@@ -302,22 +302,19 @@ export function UploadAssetDialog({
       }
 
       toast({
-        title: t("upload.success") || "上传成功",
+        title: t("upload.success"),
         description: data.data.name,
       })
 
       // Update storage info
-      console.log("Upload response storage:", data.storage)
       if (data.storage && data.storage.usedStorage !== null) {
-        console.log("Setting usedStorage from API:", data.storage.usedStorage)
-        setUsedStorage(data.storage.usedStorage)
+          setUsedStorage(data.storage.usedStorage)
       } else {
         // 如果 API 没有返回存储信息，重新获取
         try {
           const storageRes = await fetch("/api/library/storage")
           if (storageRes.ok) {
             const storageData = await storageRes.json()
-            console.log("Refetched storage:", storageData)
             setUsedStorage(storageData.usedStorage)
             setStorageLimit(storageData.storageLimit)
           }
@@ -330,7 +327,7 @@ export function UploadAssetDialog({
       onUploadSuccess?.()
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      setError(message || (t("uploadFailed") || "上传失败"))
+      setError(message || t("uploadFailed"))
     } finally {
       setUploading(false)
     }
@@ -391,6 +388,15 @@ export function UploadAssetDialog({
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
+              role="button"
+              tabIndex={0}
+              aria-label={t("upload.dropzone.title")}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  handleDropZoneClick()
+                }
+              }}
             >
               <input
                 ref={fileInputRef}
@@ -407,9 +413,9 @@ export function UploadAssetDialog({
                   <Upload className="w-8 h-8 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="font-medium">{t("upload.dropzone.title") || "点击或拖拽文件到此处"}</p>
+                  <p className="font-medium">{t("upload.dropzone.title")}</p>
                   <p className="text-sm text-muted-foreground">
-                    {t("upload.dropzone.hint") || "支持 JPG, PNG, GIF, MP4, MP3 等格式"}
+                    {t("upload.dropzone.hint")}
                   </p>
                 </div>
               </div>
@@ -419,12 +425,13 @@ export function UploadAssetDialog({
             <div className="relative rounded-lg border bg-muted/50 p-4 overflow-hidden">
               <button
                 className="absolute top-2 right-2 p-1 rounded-full bg-background/80 hover:bg-background"
+                aria-label={t("upload.removeFile")}
                 onClick={() => {
                   setSelectedFile(null)
                   setPreviewUrl(null)
                 }}
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
 
               <div className="flex items-center gap-4 overflow-hidden">
@@ -453,28 +460,28 @@ export function UploadAssetDialog({
 
           {/* Error message */}
           {error && (
-            <p className="text-sm text-red-500">{error}</p>
+            <p role="alert" className="text-sm text-destructive">{error}</p>
           )}
         </div>
 
         {/* Actions */}
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={handleClose} disabled={uploading}>
-            {t("upload.cancel") || "取消"}
+            {t("upload.cancel")}
           </Button>
           <Button
             onClick={handleUpload}
-            disabled={!selectedFile}
+            disabled={!selectedFile || uploading}
           >
             {uploading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {t("upload.uploading") || "上传中..."}
+                {t("upload.uploading")}
               </>
             ) : (
               <>
                 <Upload className="w-4 h-4 mr-2" />
-                {t("upload.upload") || "上传"}
+                {t("upload.upload")}
               </>
             )}
           </Button>
@@ -491,7 +498,7 @@ export function UploadAssetDialog({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("upload.cancel") || "取消"}</AlertDialogCancel>
+            <AlertDialogCancel>{t("upload.cancel")}</AlertDialogCancel>
             <AlertDialogAction asChild>
               <PricingDialog>
                 <Button variant="default" size="sm" className="w-full">
@@ -516,7 +523,7 @@ export function UploadAssetDialog({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("upload.cancel") || "取消"}</AlertDialogCancel>
+            <AlertDialogCancel>{t("upload.cancel")}</AlertDialogCancel>
             <AlertDialogAction asChild>
               <PricingDialog>
                 <Button variant="default" size="sm" className="w-full">

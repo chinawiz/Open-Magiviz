@@ -163,6 +163,7 @@ export function Footer() {
               <div className="relative">
                 <Input
                   type="email"
+                  aria-label={t("newsletter.placeholder")}
                   placeholder={t("newsletter.placeholder")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -180,8 +181,8 @@ export function Footer() {
               >
                 {isLoading ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    {locale === 'zh' ? '订阅中...' : 'Subscribing...'}
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground mr-2" aria-hidden="true"></div>
+                    {t("newsletter.subscribing")}
                   </>
                 ) : isSubscribed ? (
                   <>
@@ -197,26 +198,21 @@ export function Footer() {
 
               {/* 消息显示 */}
               {message && (
-                <div className={`text-sm text-center p-2 rounded ${
+                <div role={isSubscribed ? 'status' : 'alert'} className={`text-sm text-center p-2 rounded ${
                   isSubscribed 
-                    ? 'text-green-400 bg-green-400/10' 
-                    : 'text-red-400 bg-red-400/10'
+                    ? 'text-success bg-success/10' 
+                    : 'text-destructive bg-destructive/10'
                 }`}>
                   {message}
                 </div>
               )}
             </form>
 
-            {/* Social Links */}
-            <div className="pt-4">
-              <div className="flex space-x-3">
-              </div>
-            </div>
           </div>
         </div>
 
         {/* Bottom Bar */}
-        <div className="border-t border-dark-600/50 mt-4 pt-4 flex flex-col md:flex-row justify-between items-center">
+        <div className="border-t border-border mt-4 pt-4 flex flex-col md:flex-row justify-between items-center">
           <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-2 md:mb-0">
             <p className="text-muted-foreground text-sm">
               © {currentYear} {t("copyright")}
@@ -238,17 +234,19 @@ export function Footer() {
                 href="https://x.com/zyailive"
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="X (Twitter)"
                 className="text-muted-foreground hover:text-primary transition-all duration-300 transform hover:scale-110"
               >
-                <Twitter className="h-5 w-5" />
+                <Twitter className="h-5 w-5" aria-hidden="true" />
               </a>
               <a
                 href="https://github.com/ItusiAI"
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="GitHub"
                 className="text-muted-foreground hover:text-primary transition-all duration-300 transform hover:scale-110"
               >
-                <SiGithub className="h-5 w-5" />
+                <SiGithub className="h-5 w-5" aria-hidden="true" />
               </a>
             </div>
 

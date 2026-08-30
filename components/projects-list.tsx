@@ -16,6 +16,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   Sparkles,
   Play,
   Eye,
@@ -81,7 +91,7 @@ export function ProjectsList({ onCreateClick }: ProjectsListProps) {
     if (diffHours < 24) return t("projects.timeAgo.hoursAgo", { hours: diffHours })
     if (diffDays < 7) return t("projects.timeAgo.daysAgo", { days: diffDays })
     
-    return d.toLocaleDateString("zh-CN")
+    return d.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US')
   }
 
   // 处理查看项目
@@ -89,18 +99,28 @@ export function ProjectsList({ onCreateClick }: ProjectsListProps) {
     router.push(`/${locale}/projects/${projectId}`)
   }
 
-  // 处理删除项目
-  const handleDelete = async (projectId: string, title: string) => {
-    if (!confirm(t("projects.deleteConfirm", { title }))) {
-      return
-    }
+  // 处理删除项目：改为受控 AlertDialog 确认，与全站弹窗体系一致（不再用阻塞式原生 confirm）
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
-    const success = await deleteProject(projectId)
-    if (success) {
-      toast({
-        title: t("projects.deleteSuccess"),
-        description: t("projects.deleteSuccessDesc"),
-      })
+  const handleDelete = async (projectId: string, title: string) => {
+    setDeleteTarget({ id: projectId, title })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      const success = await deleteProject(deleteTarget.id)
+      if (success) {
+        toast({
+          title: t("projects.deleteSuccess"),
+          description: t("projects.deleteSuccessDesc"),
+        })
+      }
+    } finally {
+      setDeleting(false)
+      setDeleteTarget(null)
     }
   }
 
@@ -196,12 +216,12 @@ export function ProjectsList({ onCreateClick }: ProjectsListProps) {
                     {/* 状态标签 */}
                     <div className="absolute top-2 left-2">
                       {project.status === 'completed' ? (
-                        <Badge className="bg-green-500">
+                        <Badge className="bg-success">
                           <CheckCircle2 className="w-3 h-3 mr-1" />
                           {t("projects.completed")}
                         </Badge>
                       ) : (
-                        <Badge className="bg-yellow-500">
+                        <Badge className="bg-warning">
                           <Clock className="w-3 h-3 mr-1" />
                           {progress}% {stepName}
                         </Badge>
@@ -238,7 +258,7 @@ export function ProjectsList({ onCreateClick }: ProjectsListProps) {
 
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" aria-label={t("projects.moreActions")}>
                             <MoreHorizontal className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -287,6 +307,31 @@ export function ProjectsList({ onCreateClick }: ProjectsListProps) {
             </Button>
           </div>
         )}
+
+        {/* 删除确认弹窗（替代原生 confirm） */}
+        <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("projects.deleteProject")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {deleteTarget ? t("projects.deleteConfirm", { title: deleteTarget.title }) : ""}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>{t("projects.cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={deleting}
+                onClick={(e) => {
+                  e.preventDefault()
+                  confirmDelete()
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleting ? t("projects.deleting") : t("projects.deleteProject")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )

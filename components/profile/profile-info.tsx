@@ -1,6 +1,7 @@
 "use client"
 
 import { useSession } from 'next-auth/react'
+import NextLink from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -137,7 +138,7 @@ export function ProfileInfo() {
     const sessionId = searchParams.get('session_id')
     
     if (payment === 'success') {
-      toast.success('积分购买成功！积分已添加到您的账户')
+      toast.success(t('payment_success_toast'))
       // 刷新积分和历史记录
       fetchPoints()
       fetchHistory(currentPage)
@@ -149,7 +150,7 @@ export function ProfileInfo() {
         window.history.replaceState({}, '', url.toString())
       }
     } else if (payment === 'cancelled') {
-      toast.error('支付已取消')
+      toast.error(t('payment_cancelled_toast'))
       // 清除URL参数
       if (typeof window !== 'undefined') {
         const url = new URL(window.location.href)
@@ -273,23 +274,23 @@ export function ProfileInfo() {
   const getActionColor = (action: string) => {
     switch (action) {
       case 'register':
-        return 'bg-green-100 text-green-800 border-green-200'
+        return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-500/15 dark:text-green-300 dark:border-green-500/20'
       case 'email_verify':
-        return 'bg-blue-100 text-blue-800 border-blue-200'
+        return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/20'
       case 'daily_login':
-        return 'bg-coral-100 text-coral-800 border-coral-200'
+        return 'bg-coral-100 text-coral-800 border-coral-200 dark:bg-coral-500/15 dark:text-coral-300 dark:border-coral-500/20'
       case 'referral':
-        return 'bg-purple-100 text-purple-800 border-purple-200'
+        return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/20'
       case 'manual':
-        return 'bg-indigo-100 text-indigo-800 border-indigo-200'
+        return 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/20'
       case 'purchase':
-        return 'bg-blue-100 text-blue-800 border-blue-200'
+        return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/20'
       case 'subscription_gift':
-        return 'bg-green-100 text-green-800 border-green-200'
+        return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-500/15 dark:text-green-300 dark:border-green-500/20'
       case 'subscription_expired':
-        return 'bg-red-100 text-red-800 border-red-200'
+        return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/20'
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+        return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-500/15 dark:text-gray-300 dark:border-gray-500/20'
     }
   }
 
@@ -487,8 +488,8 @@ export function ProfileInfo() {
                           variant={item.points > 0 ? 'default' : 'secondary'}
                           className={`flex items-center gap-1 ${
                             item.points > 0 
-                              ? 'bg-green-100 text-green-800 border-green-200' 
-                              : 'bg-red-100 text-red-800 border-red-200'
+                              ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-500/15 dark:text-green-300 dark:border-green-500/20' 
+                              : 'bg-red-100 text-red-800 border-red-200 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/20'
                           }`}
                         >
                           {item.points > 0 ? (
@@ -629,8 +630,11 @@ export function ProfileInfo() {
     return (
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <Alert>
-          <AlertDescription>
-            {t('please_login')}
+          <AlertDescription className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+            <span>{t('please_login')}</span>
+            <Button asChild size="sm" className="shrink-0">
+              <NextLink href={`/${locale}/auth/signin`}>{t('go_signin')}</NextLink>
+            </Button>
           </AlertDescription>
         </Alert>
       </div>
@@ -688,7 +692,7 @@ export function ProfileInfo() {
                         variant="outline"
                         onClick={handleResendVerification}
                         disabled={resendingEmail}
-                        className="h-6 px-2 text-xs border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                        className="h-9 px-3 text-xs border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20"
                       >
                         {resendingEmail ? (
                           <>
@@ -710,13 +714,13 @@ export function ProfileInfo() {
                 <div className="w-full text-center mb-3">
                   <div className="px-4 py-2 bg-secondary/50 border border-primary/30 rounded-lg">
                     <div className="flex items-center justify-center gap-2 mb-1">
-                      <Coins className="h-4 w-4 text-yellow-600" />
-                      <span className="text-xs text-yellow-600 font-medium">{t('points')}</span>
+                      <Coins className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                      <span className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">{t('points')}</span>
                     </div>
                     {pointsLoading ? (
-                      <div className="text-yellow-600 text-sm">{t('loading')}</div>
+                      <div className="text-yellow-600 dark:text-yellow-400 text-sm">{t('loading')}</div>
                     ) : (
-                      <div className="text-yellow-800 font-bold text-lg">
+                      <div className="text-yellow-800 dark:text-yellow-200 font-bold text-lg">
                         {points?.toLocaleString() || 0}
                       </div>
                     )}

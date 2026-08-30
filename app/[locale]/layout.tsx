@@ -3,6 +3,17 @@ import { NextIntlClientProvider } from 'next-intl'
 import { getMessages, getTranslations } from 'next-intl/server'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import { Manrope } from 'next/font/google'
+import { Toaster as SonnerToaster } from 'sonner'
+import { Toaster } from "@/components/ui/toaster"
+
+// 全站首个真正落地的标题字体：此前 font-headline 在 tailwind 中未定义，一直是 no-op（UI 审计 P2）
+const manrope = Manrope({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-headline',
+  display: 'swap',
+})
 
 const locales = ['en', 'zh']
 
@@ -125,9 +136,12 @@ export default async function LocaleLayout({
 
   return (
     <NextIntlClientProvider messages={messages} locale={locale}>
-      <div data-locale={locale}>
+      <div data-locale={locale} className={manrope.variable}>
         {children}
       </div>
+      {/* 全站此前从未挂载 Toaster：sonner 与 use-toast 两套 toast 调用一直静默无效（见经验库 infra#18） */}
+      <SonnerToaster position="top-center" theme="system" />
+      <Toaster />
     </NextIntlClientProvider>
   )
 }

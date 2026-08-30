@@ -22,15 +22,19 @@
     --popover: 0 0% 100%; /* #FFFFFF 纯白弹窗 */
     --popover-foreground: 30 10% 24%; /* #4A4540 暖褐灰 */
     --primary: 22 70% 74%; /* #E6A37A Migivit Peach */
-    --primary-foreground: 0 0% 100%; /* #FFFFFF 品牌色上的文字 */
+    --primary-foreground: 30 8% 17%; /* #2C2B29 深岩灰——白字贴桃色仅 2.1:1，深字 6.7:1 达标（与暗色模式一致） */
     --secondary: 30 33% 94%; /* #F5F0EB 输入框底色 */
     --secondary-foreground: 30 10% 24%; /* #4A4540 暖褐灰 */
     --muted: 30 33% 94%; /* #F5F0EB 静音背景 */
     --muted-foreground: 30 8% 53%; /* #857F78 暖沙灰 */
     --accent: 22 70% 74%; /* #E6A37A Migivit Peach */
-    --accent-foreground: 0 0% 100%; /* #FFFFFF 品牌色上的文字 */
-    --destructive: 0 70% 68%; /* #E57373 Muted Red */
+    --accent-foreground: 30 8% 17%; /* 与 primary-foreground 同步 */
+    --destructive: 0 62% 48%; /* #C93030——原 #E57373 贴白字仅 2.9:1，压深后达标 */
     --destructive-foreground: 0 0% 100%; /* #FFFFFF */
+    --success: 145 25% 32%; /* 深鼠尾草绿：浅色模式文字用 */
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 28%; /* 深琥珀：浅色模式文字用 */
+    --warning-foreground: 0 0% 100%;
     --border: 30 20% 90%; /* #EBE5E0 米灰边框 */
     --input: 30 33% 94%; /* #F5F0EB 输入框边框 */
     --ring: 22 70% 74%; /* #E6A37A Migivit Peach */
@@ -55,8 +59,12 @@
     --muted-foreground: 30 8% 66%; /* #A8A29E 暖灰 */
     --accent: 22 70% 74%; /* #E6A37A Migivit Peach */
     --accent-foreground: 30 8% 17%; /* #2C2B29 品牌色上的文字 */
-    --destructive: 0 70% 68%; /* #E57373 Muted Red */
+    --destructive: 0 70% 68%; /* #E57373 Muted Red（暗色下不承载白字正文） */
     --destructive-foreground: 0 0% 100%; /* #FFFFFF */
+    --success: 145 30% 62%; /* 亮鼠尾草绿：暗色模式文字用 */
+    --success-foreground: 30 8% 12%;
+    --warning: 38 92% 62%; /* 亮琥珀：暗色模式文字用 */
+    --warning-foreground: 30 8% 12%;
     --border: 30 8% 25%; /* #44403C 深木纹边框 */
     --input: 30 6% 10%; /* #1C1B1A 输入框 */
     --ring: 22 70% 74%; /* #E6A37A Migivit Peach */
@@ -77,9 +85,25 @@ html {
   scroll-behavior: smooth;
 }
 
-/* 确保暗色模式过渡效果 */
-* {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+/* 暗色模式过渡与全局动效仅在用户未要求减少动效时启用（WCAG 2.3.3 / 规范库 Reduced Motion: High） */
+@media (prefers-reduced-motion: no-preference) {
+  /* 确保暗色模式过渡效果 */
+  * {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* 暖色调品牌样式 */
