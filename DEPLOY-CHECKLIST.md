@@ -105,6 +105,8 @@ SELECT model, fallbackApplied, COUNT(*) FROM funnel_events
 | --- | --- |
 | 代码 | Vercel redeploy 上一 Deployment（或 revert commit） |
 | 合成 | `COMPOSE_PROVIDER=fal`（无需回代码） |
+**域名/重定向故障速查（2026-08-30 实战）**：站点「重定向次数过多」时先看 308 的 `server` 头——`cloudflare` = CF Redirect Rule 在管（查 Rules 里通配匹配，删除或收紧到 Hostname equals 裸域）；`Vercel` = 项目主域设置在管（预期行为）。CF 与 Vercel 只留一层管跳转；CF 上的域名记录建议 DNS-only。另：新代码上线前迁移必须先行——注册路由等 `db.query.users` 关系型查询 SELECT 全列，生产库缺新列即 500（本次 0014 实证）。
+
 | 迁移 0010 | `DROP INDEX IF EXISTS sp_payment_intent_unique, sp_checkout_session_unique;`（删除的数据用 Neon PITR 恢复） |
 | 迁移 0011/0012 | `DROP TABLE IF EXISTS provider_routes / funnel_events;`（新表无旧依赖；router 会回落静态默认） |
 | Kie 验签 | 无开关，配置正确密钥即恢复（代码层 fail-closed 不回退） |
