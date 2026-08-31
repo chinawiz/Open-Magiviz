@@ -14,6 +14,7 @@ export const config = {
   // - api: API路径（包括NextAuth）
   // - _next: Next.js内部文件和静态资源
   // - _vercel: Vercel部署文件
+  // - ingest: PostHog 同源代理采集端点（无扩展名，必须排除否则被 locale 重定向）
   // - 静态文件（包含点的文件，如.ico, .png等）
-  matcher: ['/((?!api|_next|_vercel|.*\\..*).*)']
+  matcher: ['/((?!api|_next|_vercel|ingest|.*\\..*).*)']
 } 

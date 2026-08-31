@@ -3,9 +3,11 @@ import { NextIntlClientProvider } from 'next-intl'
 import { getMessages, getTranslations } from 'next-intl/server'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import Script from 'next/script'
 import { Manrope } from 'next/font/google'
 import { Toaster as SonnerToaster } from 'sonner'
 import { Toaster } from "@/components/ui/toaster"
+import { AnalyticsProvider, PostHogPageView } from "@/components/analytics"
 
 // 全站首个真正落地的标题字体：此前 font-headline 在 tailwind 中未定义，一直是 no-op（UI 审计 P2）
 const manrope = Manrope({
@@ -136,12 +138,25 @@ export default async function LocaleLayout({
 
   return (
     <NextIntlClientProvider messages={messages} locale={locale}>
-      <div data-locale={locale} className={manrope.variable}>
-        {children}
-      </div>
+      <AnalyticsProvider>
+        <div data-locale={locale} className={manrope.variable}>
+          {children}
+        </div>
+        <PostHogPageView />
+      </AnalyticsProvider>
       {/* 全站此前从未挂载 Toaster：sonner 与 use-toast 两套 toast 调用一直静默无效（见经验库 infra#18） */}
       <SonnerToaster position="top-center" theme="system" />
       <Toaster />
+      {/* MS Clarity 会话回放：无流量上限免费；NEXT_PUBLIC_CLARITY_ID 未配置时整段不输出 */}
+      {process.env.NEXT_PUBLIC_CLARITY_ID && (
+        <Script
+          id="ms-clarity"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","${process.env.NEXT_PUBLIC_CLARITY_ID}");`,
+          }}
+        />
+      )}
     </NextIntlClientProvider>
   )
 }

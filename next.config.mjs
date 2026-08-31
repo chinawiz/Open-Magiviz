@@ -8,6 +8,17 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // PostHog 同源代理：规避广告拦截器直连丢事件（middleware matcher 已同步排除 /ingest）
+  ...(process.env.NEXT_PUBLIC_POSTHOG_KEY
+    ? {
+        async rewrites() {
+          return [
+            { source: '/ingest/static/:path*', destination: 'https://us-assets.i.posthog.com/static/:path*' },
+            { source: '/ingest/:path*', destination: 'https://us.i.posthog.com/:path*' },
+          ]
+        },
+      }
+    : {}),
 }
 
 /**
