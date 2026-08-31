@@ -167,3 +167,19 @@ SELECT model, fallbackApplied, COUNT(*) FROM funnel_events
    - 验证：Trigger 手动跑一次任务，healthchecks check 变绿；超过 40 分钟无心跳即邮件告警。
 4. **复核免费层配额**：三个服务的免费档数额以官网当期为准（2026-08-31 审计快照见
    `docs/free-for-dev-audit-2026-08.md`）。
+
+## 10. 分析与回放（2026-08-31 第二批，PostHog/Clarity 已激活 ✅；Axiom 搁置）
+
+代码侧 no-op 接线：`components/analytics.tsx`（PostHog Provider + 路由 pageview）、布局内 Clarity Script、
+`next.config.mjs` /ingest 同源代理、middleware matcher 排除 `ingest`（防 locale 重定向劫持采集端点）。
+
+1. **PostHog（转化漏斗+自动采集，免费 1M 事件/月）**
+   - `NEXT_PUBLIC_POSTHOG_KEY` 已配（US 区）。看：posthog.com → Live events 实时流；
+     Funnels 建「访问 → 注册 → verify-card → 支付成功」漏斗（自动采集点击 + $pageview 起步；
+     支付服务端事件为后续增强，加时走 posthog-node 在 webhook 处补）。
+2. **MS Clarity（会话回放，免费无上限）**
+   - `NEXT_PUBLIC_CLARITY_ID` 已配。看：clarity.microsoft.com → Recordings/热力图；
+     录制默认对输入内容脱敏；死点击/狂滚动报告值得每周扫一眼。
+3. **Axiom 日志留存——搁置**：Vercel 日志 drain 集成需要 Vercel Pro，违反 $0 底线不升级。
+   错误可见性由 Sentry 覆盖，实时日志用 Vercel 仪表盘（约 1 小时保留）。
+   未来若有 Pro 再按 free-for-dev 审计报告 B2 启用。
