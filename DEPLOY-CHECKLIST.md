@@ -149,10 +149,9 @@ SELECT model, fallbackApplied, COUNT(*) FROM funnel_events
 1. **Sentry（错误追踪，免费 5k 错误/月）**
    - sentry.io 建项目（平台选 Next.js）→ 拿 DSN。
    - Vercel 项目环境变量加 `NEXT_PUBLIC_SENTRY_DSN`（client+server 同用一个），重部署即生效。
-   - **建议补配**：`SENTRY_ORG`（slug 见浏览器地址栏 sentry.io/organizations/<slug>/）、`SENTRY_PROJECT`、
-     `SENTRY_AUTH_TOKEN`（Settings → Auth Tokens 新建，scope 勾 `project:releases` + `org:read`，Secret 类型只存 Vercel 不进仓库）。
-     Redeploy 后 `next.config.mjs` 已接好的 withSentryConfig 会在构建时自动上传 sourcemap，
-     错误堆栈从压缩 chunk 名（如 `a630….js:1:71217`）映射回源码文件/行号；构建日志出现 uploaded sourcemaps 即生效。
+   - **已配置 ✅（2026-08-31）**：`SENTRY_ORG=personal-6bd`、`SENTRY_PROJECT=meihao-nextjs`、
+     `SENTRY_AUTH_TOKEN`（个人令牌，权限仅 Project/Release 两类 Admin，无 Issue 读取——查事件走 MCP OAuth）均已写入 Vercel Production；
+     sourcemap 上传已生效（Turbopack 漏传坑与修复见 playbook infra-gotchas #27）。
    - CLI：Sentry CLI 已随 `@sentry/nextjs` 装在 node_modules（`npx sentry-cli`），供构建期 sourcemap/release 使用；
      它还有 `monitors run` cron 心跳可替代 healthchecks.io（现用后者，不折腾）。
    - MCP：Sentry 官方 MCP（`https://mcp.sentry.dev/mcp`，OAuth 授权）接入 ZCode 后，
