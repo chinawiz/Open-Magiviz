@@ -30,12 +30,15 @@ SELECT checkoutSessionId, COUNT(*) FROM stripePayments
 **1.2 执行迁移**（手写 SQL，用 psql 逐个执行；均幂等）：
 
 ```bash
-psql "$DATABASE_URL" -f drizzle/0010_add_payment_idempotency_indexes.sql
-psql "$DATABASE_URL" -f drizzle/0011_add_provider_routes.sql
-psql "$DATABASE_URL" -f drizzle/0012_add_funnel_events.sql
-psql "$DATABASE_URL" -f drizzle/0013_add_ai_task_model.sql
-psql "$DATABASE_URL" -f drizzle/0014_add_pricing_redesign.sql
-psql "$DATABASE_URL" -f drizzle/0015_add_admin_audit_and_ban.sql
+# 生产连接串持久存放于项目 .env.local 的 PROD_DATABASE_URL（与本地 dev 的 DATABASE_URL 分名，防误连）
+PG "$(grep -E '^PROD_DATABASE_URL=' .env.local | cut -d= -f2- | tr -d '"')"
+
+psql "$PG" -f drizzle/0010_add_payment_idempotency_indexes.sql
+psql "$PG" -f drizzle/0011_add_provider_routes.sql
+psql "$PG" -f drizzle/0012_add_funnel_events.sql
+psql "$PG" -f drizzle/0013_add_ai_task_model.sql
+psql "$PG" -f drizzle/0014_add_pricing_redesign.sql
+psql "$PG" -f drizzle/0015_add_admin_audit_and_ban.sql
 ```
 
 > 0014（2026-08-30 定价重构）：users 表加 `signupIp`/`cardVerifiedAt`/`cardFingerprint` 三列 + 两个索引，纯增量、幂等。
@@ -53,8 +56,9 @@ UPDATE users SET role='admin' WHERE email='此处填邮箱' RETURNING id, email,
 > [ ] 执行人必须核对 RETURNING **恰好 1 行**——email 拼错或大小写不符会静默 0 行更新；
 > [ ] 前后各 `SELECT id, email, role FROM users WHERE email='…';` 留痕。
 > 撤销管理员：`UPDATE users SET role='user' WHERE email='…' RETURNING id, email, role;`（同样核对 1 行）。
-> **专用冒烟账号**（methods#10）：`smoke-admin@mhhao.com`（id `smoke-admin-001`，role=admin，密码默认锁空）。用时先置密：
-> `UPDATE users SET password='<bcrypt hash>', "emailVerified"=now() WHERE email='smoke-admin@mhhao.com';`（生成 hash：`node -e "console.log(require('bcryptjs').hashSync('新密码',10))"`），用完务必 `UPDATE users SET password=NULL WHERE id='smoke-admin-001';` 锁回。
+> **专用冒烟账号**（methods#10）：`smoke-admin@mhhao.com`（id `smoke-admin-001`，role=admin，密码默认锁空）。用时先置密（生成 hash：`node -e "console.log(require('bcryptjs').hashSync('新密码',10))"`）：
+> `psql "$PG" -c "UPDATE users SET password='<hash>', \"emailVerified\"=now() WHERE email='smoke-admin@mhhao.com';"`，用完务必 `psql "$PG" -c "UPDATE users SET password=NULL WHERE id='smoke-admin-001';"` 锁回。
+> ⚠️ 2026-08-31 教训：生产连接串只存在 /tmp 文件里，跨天被系统清理导致生产测试断粮——**务必存 .env.local 的 PROD_DATABASE_URL**。
 
 ## 2. 环境变量
 
