@@ -140,7 +140,7 @@ SELECT model, fallbackApplied, COUNT(*) FROM funnel_events
    带 `warning` 的模型：失败损耗 >1.7× → 换模型或上调底线倍率；预估毛利 <100% → 重订单价。
    注意：2026-08-28 之前的任务无 model 字段，归在 unknown 桶，新数据会自动归位。
 
-## 9. 监控三件套接入（2026-08-31 批次，代码已就绪，激活只差账号/密钥）
+## 9. 监控三件套（2026-08-31 批次；三件均已激活并验证 ✅，本节转为日常参考）
 
 代码侧已完成（全部 no-op 直至配置对应变量）：Sentry 接线 `instrumentation.ts` +
 `instrumentation-client.ts` + `next.config.mjs` 条件包装；healthchecks.io 心跳挂
@@ -149,8 +149,14 @@ SELECT model, fallbackApplied, COUNT(*) FROM funnel_events
 1. **Sentry（错误追踪，免费 5k 错误/月）**
    - sentry.io 建项目（平台选 Next.js）→ 拿 DSN。
    - Vercel 项目环境变量加 `NEXT_PUBLIC_SENTRY_DSN`（client+server 同用一个），重部署即生效。
-   - 可选：`SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` 三个变量启用 sourcemap 上传（不加也能用，只是堆栈不映射源码行）。
-   - 验证：Vercel 日志看 Sentry init；或临时在某个路由 throw 观察事件上报。
+   - **建议补配**：`SENTRY_ORG`（slug 见浏览器地址栏 sentry.io/organizations/<slug>/）、`SENTRY_PROJECT`、
+     `SENTRY_AUTH_TOKEN`（Settings → Auth Tokens 新建，scope 勾 `project:releases` + `org:read`，Secret 类型只存 Vercel 不进仓库）。
+     Redeploy 后 `next.config.mjs` 已接好的 withSentryConfig 会在构建时自动上传 sourcemap，
+     错误堆栈从压缩 chunk 名（如 `a630….js:1:71217`）映射回源码文件/行号；构建日志出现 uploaded sourcemaps 即生效。
+   - CLI：Sentry CLI 已随 `@sentry/nextjs` 装在 node_modules（`npx sentry-cli`），供构建期 sourcemap/release 使用；
+     它还有 `monitors run` cron 心跳可替代 healthchecks.io（现用后者，不折腾）。
+   - MCP：Sentry 官方 MCP（`https://mcp.sentry.dev/mcp`，OAuth 授权）接入 ZCode 后，
+     会话内可直接查线上 issue/堆栈/trace 并标记 resolve。
 2. **Better Stack（在线监控+状态页，免费 10 监控/3 分钟间隔）**
    - betterstack.com 建 3 个 monitor：`https://mhhao.com`（期望 200）、
      `https://mhhao.com/api/readyz`（探 DB，200=ok/503=摘流）、`https://mhhao.com/api/healthz`（liveness）。
