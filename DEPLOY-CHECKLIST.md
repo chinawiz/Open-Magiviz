@@ -139,3 +139,26 @@ SELECT model, fallbackApplied, COUNT(*) FROM funnel_events
 2. **线上失败率与毛利**：管理员访问 `/api/admin/pricing-health?days=30`。
    带 `warning` 的模型：失败损耗 >1.7× → 换模型或上调底线倍率；预估毛利 <100% → 重订单价。
    注意：2026-08-28 之前的任务无 model 字段，归在 unknown 桶，新数据会自动归位。
+
+## 9. 监控三件套接入（2026-08-31 批次，代码已就绪，激活只差账号/密钥）
+
+代码侧已完成（全部 no-op 直至配置对应变量）：Sentry 接线 `instrumentation.ts` +
+`instrumentation-client.ts` + `next.config.mjs` 条件包装；healthchecks.io 心跳挂
+`trigger/compensate-missed-webhooks.ts`（读 `HEALTHCHECKS_PING_URL`）。以下为一次性人工步骤：
+
+1. **Sentry（错误追踪，免费 5k 错误/月）**
+   - sentry.io 建项目（平台选 Next.js）→ 拿 DSN。
+   - Vercel 项目环境变量加 `NEXT_PUBLIC_SENTRY_DSN`（client+server 同用一个），重部署即生效。
+   - 可选：`SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` 三个变量启用 sourcemap 上传（不加也能用，只是堆栈不映射源码行）。
+   - 验证：Vercel 日志看 Sentry init；或临时在某个路由 throw 观察事件上报。
+2. **Better Stack（在线监控+状态页，免费 10 监控/3 分钟间隔）**
+   - betterstack.com 建 3 个 monitor：`https://mhhao.com`（期望 200）、
+     `https://mhhao.com/api/readyz`（探 DB，200=ok/503=摘流）、`https://mhhao.com/api/healthz`（liveness）。
+   - 报警渠道先只发邮件；状态页可选挂 status.mhhao.com（需再加 DNS CNAME）。
+3. **healthchecks.io（定时任务心跳，免费 20 check）**
+   - 建 check：schedule = cron `*/10 * * * *`，宽限 30 分钟。
+   - 复制 ping URL（形如 `https://hc-ping.com/<uuid>`）→ 填到 **Trigger.dev 项目环境变量**
+     `HEALTHCHECKS_PING_URL`（任务跑在 Trigger 云，不是 Vercel）→ `gh workflow run trigger-deploy.yml -R chinawiz/Open-Magiviz` 重部任务。
+   - 验证：Trigger 手动跑一次任务，healthchecks check 变绿；超过 40 分钟无心跳即邮件告警。
+4. **复核免费层配额**：三个服务的免费档数额以官网当期为准（2026-08-31 审计快照见
+   `docs/free-for-dev-audit-2026-08.md`）。
