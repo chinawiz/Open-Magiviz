@@ -21,8 +21,12 @@ export default process.env.NEXT_PUBLIC_SENTRY_DSN
       org: process.env.SENTRY_ORG,
       project: process.env.SENTRY_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
-      silent: true,
-      disableLogger: true,
+      // Turbopack + Vercel(N16) 把客户端产物放进 static/immutable/chunks，
+      // 插件默认 glob 只认 static/chunks 会静默漏传（getsentry/sentry-javascript#21962）
+      sourcemaps: {
+        assets: ['.next/server', '.next/static'],
+        deleteSourcemapsAfterUpload: true,
+      },
     })
   : withIntl
 
