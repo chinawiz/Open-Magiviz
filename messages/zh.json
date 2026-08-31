@@ -1227,6 +1227,15 @@
       "messages": {
         "fetch_failed": "获取任务列表失败",
         "settle_failed": "补偿执行失败"
+      },
+      "settle_result": {
+        "compensated": "补偿完成：已补扣积分",
+        "markedSuccess": "补偿完成：仅补状态为成功",
+        "markedFailed": "补偿完成：已标记失败",
+        "stillProcessing": "供应商仍在处理，补偿 cron 会自动重试",
+        "skippedUnknown": "未知任务类型，已跳过",
+        "pollError": "供应商查询失败，可稍后重试",
+        "settleError": "补扣失败，认领已释放待重试"
       }
     },
     "finance": {

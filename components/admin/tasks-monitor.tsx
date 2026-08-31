@@ -20,6 +20,7 @@ import {
 import { RefreshCw, Search, ListChecks, Loader2, Wrench } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
+import { format } from 'date-fns'
 
 interface TaskRow {
   id: string
@@ -83,7 +84,7 @@ export function TasksMonitor() {
       if (!response.ok) {
         throw new Error(data.error || `HTTP ${response.status}`)
       }
-      toast.success(data.message)
+      toast.success(t(`settle_result.${data.result}`))
       setSettleTarget(null)
       fetchTasks()
     } catch (err) {
@@ -189,7 +190,7 @@ export function TasksMonitor() {
                           <div className="text-xs text-muted-foreground">{task.userEmail}</div>
                         </TableCell>
                         <TableCell className="text-xs whitespace-nowrap">
-                          {new Date(task.createdAt).toLocaleString()}
+                          {format(new Date(task.createdAt), 'yyyy-MM-dd HH:mm')}
                         </TableCell>
                         <TableCell>
                           {task.status === 'pending' ? (

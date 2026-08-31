@@ -22,6 +22,7 @@ import {
 import { Search, DollarSign, Coins, Loader2, Undo2, Scale } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
+import { format } from 'date-fns'
 
 interface FinanceUser {
   id: string
@@ -359,7 +360,7 @@ export function FinanceLookup() {
                           </TableCell>
                           <TableCell className="text-sm">{p.pointsAmount ?? '-'}</TableCell>
                           <TableCell className="text-xs whitespace-nowrap">
-                            {new Date(p.createdAt).toLocaleString()}
+                            {format(new Date(p.createdAt), 'yyyy-MM-dd HH:mm')}
                           </TableCell>
                           <TableCell>
                             {p.paymentStatus === 'refunded' && (p.pointsAmount || 0) > 0 ? (
@@ -421,7 +422,7 @@ export function FinanceLookup() {
                           <TableCell className="text-sm">{h.action}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{h.description || '-'}</TableCell>
                           <TableCell className="text-xs whitespace-nowrap">
-                            {new Date(h.createdAt).toLocaleString()}
+                            {format(new Date(h.createdAt), 'yyyy-MM-dd HH:mm')}
                           </TableCell>
                         </TableRow>
                       ))

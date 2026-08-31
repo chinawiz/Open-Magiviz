@@ -1228,6 +1228,15 @@
       "messages": {
         "fetch_failed": "Failed to load tasks",
         "settle_failed": "Settle failed"
+      },
+      "settle_result": {
+        "compensated": "Settled: points charged",
+        "markedSuccess": "Settled: status marked success",
+        "markedFailed": "Settled: marked failed",
+        "stillProcessing": "Provider still processing; the cron will retry automatically",
+        "skippedUnknown": "Unknown task type, skipped",
+        "pollError": "Provider query failed, retry later",
+        "settleError": "Charge failed, claim released for retry"
       }
     },
     "finance": {

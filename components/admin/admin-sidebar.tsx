@@ -20,7 +20,7 @@ export function AdminSidebar() {
   const pathname = usePathname()
 
   return (
-    <nav aria-label="Admin" className="lg:w-52 lg:shrink-0">
+    <nav aria-label={t('sidebar.title')} className="lg:w-52 lg:shrink-0">
       <ul className="flex lg:flex-col gap-1 overflow-x-auto pb-2 lg:pb-0 lg:sticky lg:top-20">
         {ITEMS.map(({ href, labelKey, icon: Icon }) => {
           const active = pathname === href

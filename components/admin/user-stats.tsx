@@ -657,7 +657,7 @@ function UserActionDialog({
         // 检查订阅是否已过期
         const now = new Date()
         if (new Date(user.subscriptionCurrentPeriodEnd) < now) {
-          toast.error(t('dialogs.adjust_points.subscription_expired_error') || '用户订阅已过期，无法添加赠送积分')
+          toast.error(t('dialogs.adjust_points.subscription_expired_error'))
           return
         }
       }
