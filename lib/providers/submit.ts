@@ -68,6 +68,87 @@ interface VideoSubmitter {
 }
 
 const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
+  /** Veo 系：三档共享请求构造；专属端点 veo/generate、顶层 imageUrls、generationType 自动判定 */
+  ...(Object.fromEntries(
+    (['veo31Lite', 'veo31Fast', 'veo31Quality'] as const).map(key => {
+      const kieModel = key === 'veo31Lite' ? 'veo3_lite' : key === 'veo31Quality' ? 'veo3' : 'veo3_fast'
+      const label = key === 'veo31Lite' ? 'Veo 3.1 Lite' : key === 'veo31Quality' ? 'Veo 3.1 Quality' : 'Veo 3.1'
+      return [key, {
+        label,
+        taskType: 'generate_story_video_veo',
+        endpointUrl: `${KIE_BASE}/veo/generate`,
+        // 历史口径：仅 4/6/8s 合法，其余一律收敛到 8s
+        parseDuration: (raw: string | undefined) => {
+          const seconds = parseDurationSeconds(raw, 8)
+          return [4, 6, 8].includes(seconds) ? seconds : 8
+        },
+        validate: (input: SubmitInput) => {
+          if (!input.prompt || !input.prompt.trim()) return 'Prompt is required'
+          return null
+        },
+        // Veo 使用专属回调环境变量
+        resolveWebhook: (meta: SubmitMeta) => process.env.KIE_VEO_WEBHOOK_URL || meta.webhookUrl,
+        buildBody: (input: SubmitInput, seconds: number, webhookUrl?: string) => {
+          const styleMap: Record<string, string> = {
+            anime: 'anime style, Japanese animation style',
+            hollywood: 'Hollywood cinematic style, film-like quality',
+            ads: 'advertisement style, educational video style',
+          }
+          const enhancedPrompt =
+            input.videoStyle && input.videoStyle !== 'auto' && styleMap[input.videoStyle]
+              ? `${input.prompt}, ${styleMap[input.videoStyle]}`
+              : input.prompt
+
+          // 合并图片：imageUrl 优先，其后为 additionalImageUrls
+          const allImageUrls: string[] = []
+          if (input.imageUrl && input.imageUrl.trim()) allImageUrls.push(input.imageUrl)
+          if (input.additionalImageUrls && input.additionalImageUrls.length > 0) {
+            allImageUrls.push(...input.additionalImageUrls.filter(u => u && u.trim()))
+          }
+
+          let generationType = input.generationType || ''
+          if (!generationType) {
+            // 自动判断：1-2 张 → 首尾帧；0 或 3+ 张 → 参考图模式
+            generationType = allImageUrls.length === 1 || allImageUrls.length === 2
+              ? 'FIRST_AND_LAST_FRAMES_2_VIDEO'
+              : 'REFERENCE_2_VIDEO'
+          }
+          if (generationType === 'REFERENCE_2_VIDEO' && key === 'veo31Lite') {
+            console.warn('[providers/submit] [Veo] REFERENCE_2_VIDEO 模式不支持 veo3_lite')
+          }
+
+          let imageUrls: string[] = []
+          if (generationType === 'FIRST_AND_LAST_FRAMES_2_VIDEO') {
+            if (allImageUrls.length === 1) imageUrls = [allImageUrls[0]]
+            else if (allImageUrls.length >= 2) imageUrls = [allImageUrls[0], allImageUrls[1]]
+            else if (input.imageUrl && input.imageUrl.trim()) imageUrls = [input.imageUrl]
+            else console.warn('[providers/submit] [Veo] FIRST_AND_LAST_FRAMES_2_VIDEO 模式需要至少1张图片')
+          } else if (generationType === 'REFERENCE_2_VIDEO') {
+            const refUrls = allImageUrls.slice(0, 3)
+            if (refUrls.length > 0) imageUrls = refUrls
+            else if (input.imageUrl && input.imageUrl.trim()) imageUrls = [input.imageUrl]
+            else console.warn('[providers/submit] [Veo] REFERENCE_2_VIDEO 模式需要至少1张图片')
+          } else if (input.imageUrl && input.imageUrl.trim()) {
+            imageUrls = [input.imageUrl]
+          } else {
+            console.warn('[providers/submit] [Veo] 默认模式需要 imageUrl')
+          }
+
+          const body: KieRequestBody = {
+            prompt: enhancedPrompt,
+            model: kieModel,
+            generationType,
+            aspect_ratio: input.aspectRatio === '16:9' || input.aspectRatio === '9:16' ? input.aspectRatio : '16:9',
+            duration: seconds,
+            enableTranslation: true,
+            imageUrls,
+          }
+          if (webhookUrl) body.callBackUrl = webhookUrl
+          return body
+        },
+      } satisfies VideoSubmitter]
+    }),
+  ) as Record<string, VideoSubmitter>),
   /** Seedance 系：四个 modelKey 共享一套请求构造，仅供应商 model/taskType/时长上限不同 */
   ...(Object.fromEntries(
     (['seedance25', 'seedance2Fast', 'seedance2Mini', 'seedance2'] as const).map(key => {

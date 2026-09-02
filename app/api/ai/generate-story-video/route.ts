@@ -216,9 +216,12 @@ async function generateSingleVideo(
       return await fallbackPollAndSettle(outcome.taskType, outcome.taskId, userId)
     }
 
-    // Veo 3.1 Lite / Fast / Quality - 支持视频生成模式
+    // Veo 3.1 Lite / Fast / Quality - 支持视频生成模式；已迁入 submit seam
     if (model === 'veo31Lite' || model === 'veo31Fast' || model === 'veo31Quality') {
-      return await generateWithVeo(imageUrl, prompt, aspectRatio, duration, model, videoStyle, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls, generationType)
+      const outcome = await submitTask(model, submitInput, submitMeta)
+      if (!outcome.ok) return { success: false, error: outcome.error }
+      if (outcome.webhook) return { success: true, requestId: outcome.taskId }
+      return await fallbackPollAndSettle(outcome.taskType, outcome.taskId, userId)
     }
 
     return { success: false, error: `Unsupported model: ${model}` }

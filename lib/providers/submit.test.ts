@@ -371,3 +371,76 @@ describe('submitTask：Seedance 系（四键）', () => {
     expect(outcome).toEqual({ ok: false, error: 'Image URL is required' })
   })
 })
+
+describe('submitTask：Veo 系（三键）', () => {
+  const baseInput = { prompt: '城市夜景', imageUrl: 'https://img/f.png', duration: '8s', aspectRatio: '16:9' }
+
+  it('veo31Fast：veo/generate 端点、顶层 imageUrls、单图自动 FIRST_AND_LAST', async () => {
+    mockFetch.mockResolvedValue(kieOk('tid-veo'))
+    const outcome = await submitTask('veo31Fast', baseInput, { userId: 'u1' })
+
+    expect(mockFetch.mock.calls[0][0]).toBe('https://api.kie.ai/api/v1/veo/generate') // 专属端点
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.model).toBe('veo3_fast')
+    expect(body.prompt).toBe('城市夜景') // 顶层（非 input 包裹）
+    expect(body.generationType).toBe('FIRST_AND_LAST_FRAMES_2_VIDEO')
+    expect(body.imageUrls).toEqual(['https://img/f.png'])
+    expect(body.aspect_ratio).toBe('16:9')
+    expect(body.duration).toBe(8)
+    expect(body.enableTranslation).toBe(true)
+    expect(outcome).toMatchObject({ ok: true, taskId: 'tid-veo', taskType: 'generate_story_video_veo', pointsAmount: 16 })
+  })
+
+  it('双图 → FIRST_AND_LAST 首尾帧；三图 → REFERENCE_2_VIDEO 截前 3', async () => {
+    mockFetch.mockResolvedValue(kieOk())
+    await submitTask('veo31Fast', { ...baseInput, additionalImageUrls: ['https://img/l.png'] }, {})
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).imageUrls).toEqual(['https://img/f.png', 'https://img/l.png'])
+
+    await submitTask('veo31Fast', { ...baseInput, additionalImageUrls: ['https://img/2.png', 'https://img/3.png'] }, {})
+    expect(JSON.parse(mockFetch.mock.calls[1][1].body).generationType).toBe('REFERENCE_2_VIDEO')
+    expect(JSON.parse(mockFetch.mock.calls[1][1].body).imageUrls).toEqual(['https://img/f.png', 'https://img/2.png', 'https://img/3.png'])
+  })
+
+  it('纯文生视频：无图 → REFERENCE_2_VIDEO + 空 imageUrls，仍可提交', async () => {
+    mockFetch.mockResolvedValue(kieOk('tid-veo2'))
+    const outcome = await submitTask('veo31Fast', { prompt: '一只猫' }, { userId: 'u1' })
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.imageUrls).toEqual([])
+    expect(outcome).toMatchObject({ ok: true, taskId: 'tid-veo2' })
+  })
+
+  it('显式 generationType 优先；时长越界收敛 8s', async () => {
+    mockFetch.mockResolvedValue(kieOk())
+    await submitTask('veo31Fast', { ...baseInput, generationType: 'REFERENCE_2_VIDEO' }, {})
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).generationType).toBe('REFERENCE_2_VIDEO')
+
+    await submitTask('veo31Fast', { ...baseInput, duration: '5s' }, {})
+    expect(JSON.parse(mockFetch.mock.calls[1][1].body).duration).toBe(8)
+  })
+
+  it('三键各映射供应商 model 与档位单价；webhook 走 KIE_VEO_WEBHOOK_URL', async () => {
+    vi.stubEnv('KIE_VEO_WEBHOOK_URL', 'https://example.com/kie/veo-webhook')
+    mockFetch.mockResolvedValue(kieOk())
+    const cases = [
+      { key: 'veo31Lite', vendorModel: 'veo3_lite', points8s: 12 },
+      { key: 'veo31Fast', vendorModel: 'veo3_fast', points8s: 16 },
+      { key: 'veo31Quality', vendorModel: 'veo3', points8s: 72 },
+    ] as const
+    for (const c of cases) {
+      const outcome = await submitTask(c.key, baseInput, { userId: 'u1' })
+      const body = JSON.parse(mockFetch.mock.calls[mockFetch.mock.calls.length - 1][1].body)
+      expect(body.model).toBe(c.vendorModel)
+      expect(body.callBackUrl).toBe('https://example.com/kie/veo-webhook')
+      expect(outcome).toMatchObject({ ok: true, taskType: 'generate_story_video_veo', pointsAmount: c.points8s })
+    }
+  })
+
+  it('ads 风格增强 prompt（Veo 专属文案）；缺 prompt → 拒绝', async () => {
+    mockFetch.mockResolvedValue(kieOk())
+    await submitTask('veo31Fast', { ...baseInput, videoStyle: 'ads' }, {})
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).prompt).toBe('城市夜景, advertisement style, educational video style')
+
+    const noPrompt = await submitTask('veo31Fast', { prompt: '', imageUrl: 'https://i.png' }, {})
+    expect(noPrompt).toEqual({ ok: false, error: 'Prompt is required' })
+  })
+})
