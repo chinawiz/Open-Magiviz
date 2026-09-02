@@ -42,6 +42,14 @@ import { StorageLimitDialog } from "@/components/operate/StorageLimitDialog"
 import { formatBytes, computeFileSizeLimit } from "@/components/operate/format"
 import { getVideoDuration, getAllVideoDurations } from "@/components/operate/video"
 import { parseStoryboardRestoreData } from "@/components/operate/storyboard-restore"
+
+// 各模型可选分辨率档（UI 提示用；服务端注册表为权威——不支持档会被忽略并回落默认档）
+const VIDEO_MODEL_RESOLUTIONS: Record<string, string[]> = {
+  seedance25: ["480p", "720p", "1080p"],
+  seedance2Fast: ["480p", "720p"],
+  seedance2Mini: ["480p", "720p"],
+  seedance2: ["480p", "720p"],
+}
 import { useProject, getProgressPercentage } from "@/hooks/useProject"
 import { useSubscriptionPlan } from "@/hooks/useSubscriptionPlan"
 
@@ -1837,6 +1845,8 @@ export function AIFunction({
       duration: scene.duration,
       videoStyle: videoStyle !== 'auto' ? videoStyle : undefined,
       videoModel: videoModel !== 'auto' ? videoModel : undefined,
+      // 分辨率偏好仅在模型声明支持该档时被服务端采纳
+      resolution: VIDEO_MODEL_RESOLUTIONS[videoModel]?.includes(videoResolution) ? videoResolution : undefined,
       projectId: currentProjectIdRef.current,
       sceneIndex,
       sceneId: scene.id,
@@ -2163,6 +2173,7 @@ export function AIFunction({
         projectId,
         versionId: versionId || currentEditVersionId.current || undefined,
         versionGroupId: effectiveVersionGroupId || undefined,
+        resolution: VIDEO_MODEL_RESOLUTIONS[videoModel]?.includes(videoResolution) ? videoResolution : undefined,
         tracks: [
           {
             id: 'main_video',
@@ -6687,6 +6698,7 @@ export function AIFunction({
     minimaxH3: "videoModelMinimaxH3"
   }
   const [videoModel, setVideoModel] = useState<string>("auto") // auto/veo31Fast/veo31Lite/veo31Quality/geminiOmni/seedance25/seedance2Fast/seedance2Mini/seedance2/kling3/happyHorse/wan27/minimaxH3
+  const [videoResolution, setVideoResolution] = useState<string>("720p") // 480p/720p/1080p（仅声明支持的模型可选，默认档跟随现状）
   const [generationMode, setGenerationMode] = useState<string>("auto") // auto/first-last-frame
 
   // 上传视频/音频时，强制只允许 seedance2 / seedance2Fast / seedance2Mini / seedance25；当前模型不兼容则自动切换
@@ -7252,6 +7264,10 @@ export function AIFunction({
                                   onClick={() => {
                                     if (disabled) return
                                     setVideoModel(item.key)
+                                    // 切换模型后分辨率回落默认档（新模型可能不支持原档位）
+                                    if (!VIDEO_MODEL_RESOLUTIONS[item.key]?.includes(videoResolution)) {
+                                      setVideoResolution("720p")
+                                    }
                                   }}
                                   disabled={disabled}
                                   title={disabled ? t("videoModelMediaLockedTooltip") : undefined}
@@ -7270,6 +7286,29 @@ export function AIFunction({
                           })()}
                         </div>
                       </div>
+
+                      {/* 分辨率（仅支持多档的模型显示；单价随档位变化，480p≈6折/1080p≈1.5×起） */}
+                      {VIDEO_MODEL_RESOLUTIONS[videoModel] && (
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">{t("videoResolution")}</label>
+                          <div className="flex flex-wrap gap-1">
+                            {VIDEO_MODEL_RESOLUTIONS[videoModel].map((res) => (
+                              <button
+                                key={res}
+                                onClick={() => setVideoResolution(res)}
+                                className={cn(
+                                  "px-2.5 py-1 text-xs rounded-full border transition-all duration-200",
+                                  videoResolution === res
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "border-border bg-background hover:border-primary"
+                                )}
+                              >
+                                {res.toUpperCase()}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* 生成模式 */}
                       <div className="space-y-2">

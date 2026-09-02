@@ -9,6 +9,6 @@
 export { isKnownTaskType } from './defaults'
 export { resolveRoutes, invalidateRouteCache } from './router'
 export { pollTask, pollTaskUntilVerdict } from './poll'
-export { submitTask, resolveBillableSeconds, videoModelLabel } from './submit'
+export { submitTask, resolveBillableSeconds, videoModelLabel, videoModelSupportedResolutions } from './submit'
 export type { SubmitInput, SubmitMeta, SubmitOutcome } from './submit'
 export type { Capability, ProviderId, RouteEntry, PollResult, TaskVerdict } from './types'

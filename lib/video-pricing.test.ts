@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+vi.mock('@/lib/db', () => ({ db: { insert: vi.fn() } }))
 import {
   VIDEO_MODEL_UNIT_POINTS,
   MODEL_COST_BASIS_USD_PER_SECOND,
@@ -10,6 +12,8 @@ import {
   getVideoUnitPoints,
   computeVideoPoints,
   computeImagePoints,
+  getVideoUnitPointsFor,
+  computeVideoPointsFor,
   getStyleFallbackModel,
 } from './video-pricing'
 
@@ -101,5 +105,45 @@ describe('定价底线守卫（用户规则：利润率 ≥100%）', () => {
     )
     expect(DEFAULT_VIDEO_UNIT_POINTS).toBeGreaterThanOrEqual(cheapestFloor)
     expect(impliedMaxCost).toBeGreaterThan(0)
+  })
+})
+
+describe('分辨率两维定价（480p/720p/1080p）', () => {
+  it('720p/未指定 = 现行默认表价（不改变存量行为）', () => {
+    for (const model of ['seedance2', 'seedance25', 'veo31Fast', 'kling3']) {
+      expect(getVideoUnitPointsFor(model, '720p')).toBe(getVideoUnitPoints(model))
+      expect(getVideoUnitPointsFor(model, undefined)).toBe(getVideoUnitPoints(model))
+    }
+  })
+
+  it('480p = 默认价×0.6 取 0.5 步进，且不低于 480p 成本底线', () => {
+    expect(getVideoUnitPointsFor('seedance2', '480p')).toBe(2) // max(3.5×0.6→2.0, floor(0.04)=1.5)
+  })
+
+  it('1080p 不低于像素比放大的成本底线（2.25×成本）', () => {
+    // seedance2: max(3.5×1.5→5.5, floor(0.09×2.25=0.2025)=7.5) = 7.5
+    expect(getVideoUnitPointsFor('seedance2', '1080p')).toBe(7.5)
+    // seedance25: max(9×1.5→13.5, floor(0.23×2.25=0.5175)=18.5) = 18.5
+    expect(getVideoUnitPointsFor('seedance25', '1080p')).toBe(18.5)
+  })
+
+  it('computeVideoPointsFor 按分辨率口径计整片积分', () => {
+    expect(computeVideoPointsFor('seedance2', 8, '720p')).toBe(28)   // 8×3.5
+    expect(computeVideoPointsFor('seedance2', 8, '480p')).toBe(16)   // 8×2
+    expect(computeVideoPointsFor('seedance2', 8, '1080p')).toBe(60)  // 8×7.5
+  })
+
+  it('注册表声明的每个模型×分辨率组合都有价可查（与 submit 注册表对账）', async () => {
+    const { VIDEO_SUBMITTERS } = await import('@/lib/providers/submit')
+    for (const [key, sub] of Object.entries(VIDEO_SUBMITTERS)) {
+      for (const res of sub.supportedResolutions ?? []) {
+        const unit = getVideoUnitPointsFor(key, res)
+        expect(unit).toBeGreaterThan(0)
+        expect(unit).toBeGreaterThanOrEqual(
+          minUnitPoints((MODEL_COST_BASIS_USD_PER_SECOND[key]?.cost ?? 0.05) *
+            ({ '480p': 0.444, '720p': 1, '768p': 1.138, '1080p': 2.25 } as Record<string, number>)[res]),
+        )
+      }
+    }
   })
 })

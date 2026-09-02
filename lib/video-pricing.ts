@@ -98,6 +98,55 @@ export function computeVideoPoints(model: string | null | undefined, durationSec
   return Math.round(durationSeconds * getVideoUnitPoints(model))
 }
 
+// ========== 分辨率两维定价（2026-09-02）==========
+// 现行单价表 = 720p 默认档；480p/1080p 档按「默认价×乘数」与「分辨率成本底线」取大者。
+// 成本按像素面积比推算（estimated 上限口径，Kie 账单实测后校准可下调）。
+
+export type VideoResolution = '480p' | '720p' | '768p' | '1080p'
+
+const RESOLUTION_PRICE_MULTIPLIER: Record<'480p' | '720p' | '1080p', number> = {
+  '480p': 0.6,
+  '720p': 1,
+  '1080p': 1.5,
+}
+
+const RESOLUTION_COST_PIXEL_RATIO: Record<VideoResolution, number> = {
+  '480p': 0.444, // (480/720)²
+  '720p': 1,
+  '768p': 1.138, // (768/720)²
+  '1080p': 2.25, // (1080/720)²
+}
+
+/** 获取模型在指定分辨率下的每秒单价；720p/未指定/无定价档（如 768p 原生档）= 现行默认表价 */
+export function getVideoUnitPointsFor(
+  model: string | null | undefined,
+  resolution?: VideoResolution,
+): number {
+  if (!resolution || resolution === '720p') {
+    return getVideoUnitPoints(model)
+  }
+  const multiplier = RESOLUTION_PRICE_MULTIPLIER[resolution as '480p' | '1080p']
+  if (!multiplier) {
+    return getVideoUnitPoints(model)
+  }
+  const base = getVideoUnitPoints(model)
+  const byMultiplier = Math.round(base * multiplier * 2) / 2
+  const basis = model ? MODEL_COST_BASIS_USD_PER_SECOND[model] : undefined
+  const floor = basis
+    ? minUnitPoints(basis.cost * RESOLUTION_COST_PIXEL_RATIO[resolution])
+    : 0
+  return Math.max(byMultiplier, floor)
+}
+
+/** 计算指定分辨率的扣积分总额（预检与落行共用入口） */
+export function computeVideoPointsFor(
+  model: string | null | undefined,
+  durationSeconds: number,
+  resolution?: VideoResolution,
+): number {
+  return Math.round(durationSeconds * getVideoUnitPointsFor(model, resolution))
+}
+
 /** 计算图片生成扣积分（frames 张，按次取整：单张 2 分、两张 3 分） */
 export function computeImagePoints(frames: number): number {
   return Math.round(frames * IMAGE_UNIT_POINTS)

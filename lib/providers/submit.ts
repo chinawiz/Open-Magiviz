@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
-import { computeVideoPoints } from '@/lib/video-pricing'
+import { computeVideoPointsFor, type VideoResolution } from '@/lib/video-pricing'
 import type { KieRequestBody, KieApiResponse } from '@/lib/ai-types'
 
 /**
@@ -21,6 +21,7 @@ export interface SubmitInput {
   prompt: string
   aspectRatio?: string
   duration?: string
+  resolution?: string // 分辨率偏好（仅对 supportedResolutions 里的模型生效）
   videoStyle?: string
   additionalImageUrls?: string[]
   generationType?: string // 仅 Veo
@@ -78,7 +79,9 @@ interface VideoSubmitter {
   endpointUrl: string
   parseDuration(raw: string | undefined): number
   validate(input: SubmitInput, seconds: number): string | null
-  buildBody(input: SubmitInput, seconds: number, webhookUrl?: string): KieRequestBody
+  buildBody(input: SubmitInput, seconds: number, webhookUrl?: string, resolution?: VideoResolution): KieRequestBody
+  /** 可选分辨率档（供 UI 选择与路由预检）；缺省 = 模型原生固定分辨率 */
+  supportedResolutions?: VideoResolution[]
   /** 缺省用共享环境变量解析；happyHorse 等有专属兜底 URL 的模型覆写 */
   resolveWebhook?(meta: SubmitMeta): string | undefined
 }
@@ -94,6 +97,8 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
         label,
         taskType: 'generate_story_video_veo',
         endpointUrl: `${KIE_BASE}/veo/generate`,
+        // Veo 生成基线为 720p；更高清晰度走官方 get-1080p/4k-video 升级端点（超分按钮，独立计费）
+        supportedResolutions: [],
         // 历史口径：字面 '4s'/'6s'/'8s' 精确匹配，其余一律收敛到 8s
         parseDuration: (raw: string | undefined) => {
           const s = typeof raw === 'string' ? raw : ''
@@ -179,10 +184,12 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
         label,
         taskType,
         endpointUrl: JOBS_CREATE_URL,
+        // 官方口径：2.5 支持 480p/720p/1080p，其余 480p/720p
+        supportedResolutions: (is25 ? ['480p', '720p', '1080p'] : ['480p', '720p']) as VideoResolution[],
         // 历史口径：4..max 之外收敛（2.5 上限 30s 收敛 5s；其余上限 15s 收敛 8s；未传默认 5s）
         parseDuration: (raw: string | undefined) => clampedSeconds(raw, 5, 4, is25 ? 30 : 15, is25 ? 5 : 8),
         validate: imageAndPromptValidator(),
-        buildBody: (input: SubmitInput, seconds: number, webhookUrl?: string) => {
+        buildBody: (input: SubmitInput, seconds: number, webhookUrl?: string, resolution?: VideoResolution) => {
           const lastFrameUrl = input.additionalImageUrls?.[0] || ''
           const body: KieRequestBody = {
             model: kieModel,
@@ -190,7 +197,7 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
               prompt: input.prompt,
               first_frame_url: input.imageUrl,
               generate_audio: true, // 默认开启声音
-              resolution: '720p',
+              resolution: resolution ?? '720p',
               aspect_ratio: ['1:1', '4:3', '3:4', '16:9', '9:16', '21:9', 'adaptive'].includes(input.aspectRatio || '') ? input.aspectRatio! : '16:9',
               duration: seconds,
               web_search: false,
@@ -367,7 +374,11 @@ export async function submitTask(modelKey: string, input: SubmitInput, meta: Sub
   if (invalid) return { ok: false, error: invalid }
 
   const webhookUrl = sub.resolveWebhook ? sub.resolveWebhook(meta) : resolveSharedWebhook(meta)
-  const body = sub.buildBody(input, seconds, webhookUrl)
+
+  // 分辨率偏好：仅当模型声明支持该档时生效，否则回落模型原生默认（计费同源取同口径）
+  const requested = input.resolution as VideoResolution | undefined
+  const resolution = requested && sub.supportedResolutions?.includes(requested) ? requested : undefined
+  const body = sub.buildBody(input, seconds, webhookUrl, resolution)
 
   console.log(`[providers/submit] [${sub.label}] 创建视频任务:`, {
     promptLength: input.prompt?.length,
@@ -416,8 +427,8 @@ export async function submitTask(modelKey: string, input: SubmitInput, meta: Sub
 
   console.log(`[providers/submit] [${sub.label}] 任务创建成功:`, { taskId })
 
-  // pointsAmount 单一事实源：video-pricing（预检与落行同源，禁止手抄单价）
-  const pointsAmount = computeVideoPoints(modelKey, seconds)
+  // pointsAmount 单一事实源：video-pricing（预检与落行同源，分辨率档位计入单价）
+  const pointsAmount = computeVideoPointsFor(modelKey, seconds, resolution)
 
   if (meta.userId) {
     try {
@@ -454,6 +465,11 @@ export async function submitTask(modelKey: string, input: SubmitInput, meta: Sub
  */
 export function resolveBillableSeconds(modelKey: string, rawDuration: string | undefined): number {
   return VIDEO_SUBMITTERS[modelKey]?.parseDuration(rawDuration) ?? 8
+}
+
+/** 模型可选分辨率档（UI 选择器与路由预检共用）；空数组 = 模型原生固定分辨率 */
+export function videoModelSupportedResolutions(modelKey: string): VideoResolution[] {
+  return VIDEO_SUBMITTERS[modelKey]?.supportedResolutions ?? []
 }
 
 /** 模型展示名（注册表单源，取代历史上散落的 getModelName 映射） */

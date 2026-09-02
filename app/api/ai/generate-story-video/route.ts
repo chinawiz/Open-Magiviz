@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { getAuthedSession, jsonError } from '@/lib/api'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { isPaidPlan } from '@/lib/plan-limits'
-import { isKnownVideoModel, computeVideoPoints, getStyleFallbackModel } from '@/lib/video-pricing'
+import { isKnownVideoModel, computeVideoPointsFor, getStyleFallbackModel, type VideoResolution } from '@/lib/video-pricing'
 import { users as usersTable } from '@/lib/schema'
 import { getVideoFallbackChain } from '@/lib/providers/defaults'
-import { submitTask, pollTaskUntilVerdict, resolveBillableSeconds, videoModelLabel, type SubmitInput, type SubmitMeta } from '@/lib/providers'
+import { submitTask, pollTaskUntilVerdict, resolveBillableSeconds, videoModelLabel, videoModelSupportedResolutions, type SubmitInput, type SubmitMeta } from '@/lib/providers'
 import { claimTaskPointsDeduction, markTaskSuccess } from '@/lib/task-points'
 import { moderatePrompt, moderationErrorResponse } from '@/lib/content-moderation'
 import { trackFunnelEvent } from '@/lib/observability/track'
@@ -206,13 +206,21 @@ export async function POST(request: NextRequest) {
     const modelName = videoModelLabel(routeTo)
 
     // 余额预检：取降级链各候选「各自计费秒数口径」（resolveBillableSeconds，与落行同源）
-    // 下的最大消耗为上界——链上任何模型实际落行扣点都不会超过该预检
+    // 下的最大消耗为上界——链上任何模型实际落行扣点都不会超过该预检。
+    // 分辨率偏好仅对声明支持该档的候选生效，其余候选按原生默认档计价。
+    const requestedResolution = (body as { resolution?: string }).resolution as VideoResolution | undefined
     const durationSeconds = getDurationSeconds(duration)
     const chain = getVideoFallbackChain(routeTo, {
       hasImage: !!(imageUrl && imageUrl.trim()),
       durationSec: durationSeconds,
     })
-    const requiredPoints = Math.max(...chain.map(m => computeVideoPoints(m, resolveBillableSeconds(m, duration))))
+    const requiredPoints = Math.max(...chain.map(m => {
+      const supported = videoModelSupportedResolutions(m)
+      const res = requestedResolution && supported.includes(requestedResolution)
+        ? requestedResolution as VideoResolution
+        : undefined
+      return computeVideoPointsFor(m, resolveBillableSeconds(m, duration), res)
+    }))
 
     console.log(`[generate-story-video] [${modelName}] 单个请求:`, {
       imageUrl: imageUrl?.substring(0, 50) + '...',
@@ -257,6 +265,7 @@ export async function POST(request: NextRequest) {
       prompt: prompt ?? '',
       aspectRatio,
       duration,
+      resolution: requestedResolution,
       videoStyle,
       additionalImageUrls,
       generationType,

@@ -258,7 +258,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { tracks, outputFormat, projectId, versionId } = body
+    const { tracks, outputFormat, projectId, versionId, resolution } = body
 
     // 验证 tracks
     const validation = validateTracks(tracks || [])
@@ -270,9 +270,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 合并输出格式
+    // 合并输出格式：跟随素材分辨率档（480p/720p/768p/1080p），避免低清素材被假放大到 1080p
+    const RESOLUTION_OUTPUT_SIZE: Record<string, { width: number; height: number }> = {
+      '480p': { width: 854, height: 480 },
+      '720p': { width: 1280, height: 720 },
+      '768p': { width: 1360, height: 768 },
+      '1080p': { width: 1920, height: 1080 },
+    }
+    const sizeBase = RESOLUTION_OUTPUT_SIZE[resolution as string] ?? DEFAULT_OUTPUT_FORMAT
     const format = {
-      ...DEFAULT_OUTPUT_FORMAT,
+      ...sizeBase,
       ...outputFormat
     }
 
