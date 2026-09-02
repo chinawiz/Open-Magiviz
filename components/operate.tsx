@@ -41,6 +41,7 @@ import { MediaValidationDialog } from "@/components/operate/MediaValidationDialo
 import { StorageLimitDialog } from "@/components/operate/StorageLimitDialog"
 import { formatBytes, computeFileSizeLimit } from "@/components/operate/format"
 import { getVideoDuration, getAllVideoDurations } from "@/components/operate/video"
+import { parseStoryboardRestoreData } from "@/components/operate/storyboard-restore"
 import { useProject, getProgressPercentage } from "@/hooks/useProject"
 import { useSubscriptionPlan } from "@/hooks/useSubscriptionPlan"
 
@@ -365,67 +366,9 @@ export function AIFunction({
         console.log(`[恢复] 分镜图数据: 总数=${sbCount}, 有图片=${sbWithImage}`)
         console.log('[恢复] 分镜图数据详情:', JSON.stringify(projectData.storyboardData, null, 2))
 
-        // 新格式：按 sceneId 配对首尾帧
-        // 数据格式: [{ id: "1_first", sceneId: "scene_1", imageUrl: "..." }, { id: "1_last", sceneId: "scene_1", imageUrl: "..." }]
-        const rawData = projectData.storyboardData as StoryboardItem[]
-        const storyboardMap = new Map<string, StoryboardItem>()
-
-        rawData.forEach((sb: StoryboardItem) => {
-          const baseIndex = sb.baseSceneIndex ?? String(sb.sceneId || '').match(/scene_(\d+)/)?.[1]
-          if (baseIndex !== undefined) {
-            const key = `scene_${baseIndex}`
-            if (!storyboardMap.has(key)) {
-              storyboardMap.set(key, {
-                id: `storyboard_${baseIndex}`,
-                sceneId: key,
-                imageUrl: '',
-                url: '',
-                plot: sb.plot || sb.description || '',
-                firstFrameUrl: '',
-                lastFrameUrl: '',
-                firstFramePrompt: '',
-                lastFramePrompt: '',
-              })
-            }
-            const entry = storyboardMap.get(key)
-            if (entry) {
-              if (String(sb.id || '').endsWith('_first') || sb.frameType === 'first') {
-                entry.firstFrameUrl = sb.imageUrl || sb.url || ''
-                entry.url = entry.firstFrameUrl || entry.url
-                entry.imageUrl = entry.firstFrameUrl
-                if (sb.firstFramePrompt || sb.first_framePrompt) {
-                  entry.firstFramePrompt = String(sb.firstFramePrompt || sb.first_framePrompt || '')
-                }
-              } else if (String(sb.id || '').endsWith('_last') || sb.frameType === 'last') {
-                entry.lastFrameUrl = sb.imageUrl || sb.url || ''
-                if (sb.lastFramePrompt || sb.last_framePrompt) {
-                  entry.lastFramePrompt = String(sb.lastFramePrompt || sb.last_framePrompt || '')
-                }
-              }
-            }
-          }
-        })
-
-        // 兼容旧格式：直接从 firstFrameUrl/lastFrameUrl 读取
-        const legacyStoryboards = rawData
-          .filter((sb: StoryboardItem) => !String(sb.id || '').endsWith('_first') && !String(sb.id || '').endsWith('_last') && sb.firstFrameUrl !== undefined)
-          .map((sb: StoryboardItem, idx: number) => ({
-            id: sb.id || `sb_${idx}`,
-            sceneId: sb.sceneId,
-            imageUrl: sb.firstFrameUrl || sb.imageUrl || sb.url || '',
-            url: sb.firstFrameUrl || sb.imageUrl || sb.url || '',
-            plot: sb.plot || sb.description || '',
-            firstFrameUrl: sb.firstFrameUrl || '',
-            lastFrameUrl: sb.lastFrameUrl || '',
-            firstFramePrompt: sb.firstFramePrompt || '',
-            lastFramePrompt: sb.lastFramePrompt || '',
-          }))
-
-        // 合并新旧格式
-        const newFormatItems = Array.from(storyboardMap.values())
-        const storyboards = newFormatItems.length > 0 ? newFormatItems : legacyStoryboards
-
-        setStoryboardImages(storyboards)
+        // 三种存储形状（帧对/旧格式/单图下标数组）统一交给纯函数解析——
+        // 此前单图形状被整体丢弃，恢复后误判「分镜未完成」导致重复生成扣积分
+        setStoryboardImages(parseStoryboardRestoreData(projectData.storyboardData) as StoryboardItem[])
       } else {
         console.log('[恢复] ❌ 未找到分镜图数据 storyboardData')
       }
@@ -4574,9 +4517,12 @@ export function AIFunction({
       existingVersionGroupId: versionGroupIdRef.current
     })
 
-    // 判断从哪一步开始
+    // 判断从哪一步开始（判据与 handleResumeContinue 对齐：有主角缺图才重跑角色，
+    // 不能拿「角色数 < 场景数」比较——单主角多场景时恒真，导致永远从角色重跑烧积分）
+    const totalCharacters = characterData.length || 0
+    const hasCharacterWithoutImage = totalCharacters > 0 && completedCharacters < totalCharacters
     let startStep: 'character' | 'storyboard' | 'scenes' | 'video' = 'character'
-    if (completedCharacters < totalScenes) {
+    if (hasCharacterWithoutImage) {
       startStep = 'character'
     } else if (completedStoryboards < totalScenes) {
       startStep = 'storyboard'
