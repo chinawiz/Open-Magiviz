@@ -108,6 +108,47 @@ const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
       return body
     },
   },
+  kling3: {
+    label: 'Kling 3.0',
+    taskType: 'kling_3_0_video',
+    endpointUrl: JOBS_CREATE_URL,
+    // 历史口径：3-15s 之外的输入一律收敛到 5s（计费按收敛后时长）
+    parseDuration: raw => {
+      const n = parseInt(String(raw || '5').replace(/s$/i, ''), 10)
+      return Number.isNaN(n) || n < 3 || n > 15 ? 5 : n
+    },
+    validate: input => {
+      if (!input.imageUrl || !input.imageUrl.trim()) return 'Image URL is required'
+      if (!input.prompt || !input.prompt.trim()) return 'Prompt is required'
+      return null
+    },
+    buildBody: (input, seconds, webhookUrl) => {
+      const lastFrameUrl = input.additionalImageUrls?.[0]
+      const styleMap: Record<string, string> = {
+        anime: 'anime style, Japanese animation style',
+        hollywood: 'Hollywood cinematic style, film-like quality, dramatic lighting, cinematic color grading',
+        ads: 'advertisement style, educational video style',
+      }
+      const enhancedPrompt =
+        input.videoStyle && input.videoStyle !== 'auto' && styleMap[input.videoStyle]
+          ? `${input.prompt}, ${styleMap[input.videoStyle]}`
+          : input.prompt
+      const body: KieRequestBody = {
+        model: 'kling-3.0/video',
+        input: {
+          prompt: enhancedPrompt,
+          image_urls: lastFrameUrl ? [input.imageUrl!, lastFrameUrl] : [input.imageUrl!],
+          duration: String(seconds),
+          aspect_ratio: ['16:9', '9:16', '1:1'].includes(input.aspectRatio || '') ? input.aspectRatio! : '16:9',
+          mode: 'std',
+          sound: true,
+          multi_shots: false, // false = 首尾帧模式（历史口径）
+        },
+      }
+      if (webhookUrl) body.callBackUrl = webhookUrl
+      return body
+    },
+  },
   geminiOmni: {
     label: 'Gemini Omni',
     taskType: 'gemini_omni_video',

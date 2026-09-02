@@ -268,3 +268,37 @@ describe('submitTask：happyHorse', () => {
     expect(outcome).toMatchObject({ ok: true, pointsAmount: 13 }) // 5s × 2.5 → round(12.5)=13
   })
 })
+
+describe('submitTask：kling3', () => {
+  const baseInput = { prompt: '太空漫游', imageUrl: 'https://img/f.png', duration: '6s', aspectRatio: '16:9' }
+
+  it('请求体符合契约（std 档、字符串时长、sound on、multi_shots off）', async () => {
+    mockFetch.mockResolvedValue(kieOk('tid-kl'))
+    const outcome = await submitTask('kling3', baseInput, { userId: 'u1' })
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.model).toBe('kling-3.0/video')
+    expect(body.input.image_urls).toEqual(['https://img/f.png'])
+    expect(body.input.duration).toBe('6') // 历史契约：字符串
+    expect(body.input.mode).toBe('std')
+    expect(body.input.sound).toBe(true)
+    expect(body.input.multi_shots).toBe(false)
+    expect(outcome).toMatchObject({ ok: true, taskId: 'tid-kl', taskType: 'kling_3_0_video', pointsAmount: 15 })
+  })
+
+  it('尾帧模式 image_urls 两张；hollywood 风格增强 prompt（Kling 专属文案）', async () => {
+    mockFetch.mockResolvedValue(kieOk())
+    await submitTask('kling3', { ...baseInput, additionalImageUrls: ['https://img/l.png'], videoStyle: 'hollywood' }, {})
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.input.image_urls).toEqual(['https://img/f.png', 'https://img/l.png'])
+    expect(body.input.prompt).toBe('太空漫游, Hollywood cinematic style, film-like quality, dramatic lighting, cinematic color grading')
+  })
+
+  it('缺 imageUrl → 拒绝；时长越界收敛到 5s（含计费）', async () => {
+    const noImage = await submitTask('kling3', { prompt: 'x' }, {})
+    expect(noImage).toEqual({ ok: false, error: 'Image URL is required' })
+
+    mockFetch.mockResolvedValue(kieOk('tid-kl2'))
+    const outcome = await submitTask('kling3', { prompt: 'x', imageUrl: 'https://i.png', duration: '30s' }, { userId: 'u1' })
+    expect(outcome).toMatchObject({ ok: true, pointsAmount: 13 }) // 5s × 2.5
+  })
+})

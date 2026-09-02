@@ -173,9 +173,12 @@ async function generateSingleVideo(
       return await generateWithSeedance2(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, model, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls, referenceVideoUrls, referenceAudioUrls)
     }
 
+    // Kling 支持首尾帧模式；已迁入 submit seam
     if (model === 'kling3') {
-      // Kling 支持首尾帧模式
-      return await generateWithKling(imageUrl, prompt, aspectRatio, duration, videoStyle, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
+      const outcome = await submitTask('kling3', submitInput, submitMeta)
+      if (!outcome.ok) return { success: false, error: outcome.error }
+      if (outcome.webhook) return { success: true, requestId: outcome.taskId }
+      return await fallbackPollAndSettle(outcome.taskType, outcome.taskId, userId)
     }
 
     // Wan 支持首尾帧模式；已迁入 submit seam
