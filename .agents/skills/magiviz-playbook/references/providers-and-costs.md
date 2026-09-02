@@ -31,6 +31,8 @@
 - ZenMux 免费/余额为 0 的账户请求 `google/gemini-3-flash-preview` 返回 HTTP 402 `reject_no_credit`（防滥用策略：余额须 >0，实际扣费分文而已）。代码已有降级：step1 自动退到本地模板脚本。
 - Kie 无余额查询 API，精确对账只能人工读 Dashboard 扣费记录。
 - `.env.local` 里 key 带着引号粘贴会导致 401/403——出现过两次的用户习惯性坑，录入 key 时留意 strip 引号。
+- **Kie 同一端点按模型返回不同响应形状**（2026-09-02 实证，`kie.ts`）：`jobs/get` 多数模型返回 `taskStatus`/`result.resultUrls`，但 MiniMax H3 返回 Veo 式 `successFlag`/`response.videoUrl`——补偿任务最初按 taskStatus 解析，读不到 minimax 终态，只能等 24h 僵尸关闭；HappyHorse 还会返回 `completed` 状态与单值 `result.videoUrl`。归一层要按「响应字段存在性」分支，不能按端点假设形状。
+- 各模型 webhook 优先级历史上不一致（Kling/Seedance/Wan 环境变量优先；minimaxH3/geminiOmni/happyHorse 调用方优先）——生产客户端从不传 webhookUrl，行为等价；2026-09-02 统一为**环境变量优先**（`lib/providers/submit.ts`），happyHorse 保留 `NEXT_PUBLIC_APP_URL` self-URL 兜底（带 projectId 场景定位参数）。
 
 ## 密钥与安全卫生（流程，不是一次性事实）
 

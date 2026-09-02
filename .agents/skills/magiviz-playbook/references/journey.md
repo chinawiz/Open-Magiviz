@@ -18,10 +18,11 @@
 3. **平台整合终审（2026-08-27）**：Vercel 负责宿主，Cloudflare 只贡献 R2+DNS，Neon 免费 PG 无限期。CF-Lite 结论附带复活路径：升级 Workers Paid → 重跑 `.github/workflows/cf-deploy.yml`（secrets 已配好、缓存配置已在仓）。除非用户重启话题，不再重议宿主方案。
 4. **计费口径统一先行**（F11）：配额收敛 `lib/plan-limits.ts`、视频单价收敛 `lib/video-pricing.ts`，之后所有扣费只认这两处。
 
-## 当前快照（2026-08-27）
+## 当前快照（2026-08-27；2026-09-02 增补）
 
 - 生产 https://mhhao.com LIVE（SSL）；全漏斗 e2e「一句话→成片」通过；live 域 GUI 回归绿（登录→首页→创作→zh/en）。
 - 线上栈：Vercel `open-magiviz` + Neon ap-southeast-1 + CF R2 两桶 + Trigger.dev `proj_hycyyzkdnebddnffoaak`。
+- 2026-09-02 本地落地（待随下次部署上线）：provider submit seam 重构——`generate-story-video` 2394→333 行，12 个视频模型迁入 `lib/providers/submitTask`，修正 minimax 轮询形状缺口与批量预检价格漂移隐患（详见 methods §3b）；后继票：Kie 三条 webhook 的 settlement 收敛、storyboard/character 路由迁同一 seam。
 - 遗留待办（均不阻塞）：① `compensate-missed-webhooks` cron 尚未在 Trigger dashboard 排期；② Stripe 还是占位 key（支付不可用，填真 key 即活）；③ token 轮换候选：CF API token #2、Neon 密码（用户明确暂缓）、Trigger PAT/SecretKey、Kie/R2 key；④ ~~67 折 i18n 清理~~ 已由 `dd15776` 完成（当初 README 修了、messages/*.json 漏了，GUI 回归抓出来的）。
 - 本快照应随进展**改写**，不是追加。
 
