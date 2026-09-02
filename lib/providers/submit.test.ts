@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
-import { submitTask } from './submit'
+import { VIDEO_MODEL_UNIT_POINTS } from '@/lib/video-pricing'
+import { submitTask, VIDEO_SUBMITTERS } from './submit'
 
 /**
  * submitTask 契约测试（seam：lib/providers 提交半边）。
@@ -34,6 +35,12 @@ afterEach(() => {
 })
 
 describe('submitTask（视频任务提交 seam）', () => {
+  it('定价同源：注册表 modelKey 与 VIDEO_MODEL_UNIT_POINTS 完全一致（双向守卫）', () => {
+    // 提交注册表里每个模型都必须有登记单价（否则静默按兜底 2 分/秒计费）；
+    // 价格表里的每个模型也必须有提交实现（否则是死价格条目）。
+    expect(Object.keys(VIDEO_SUBMITTERS).sort()).toEqual(Object.keys(VIDEO_MODEL_UNIT_POINTS).sort())
+  })
+
   it('geminiOmni：POST jobs/createTask，请求体/鉴权/任务行符合契约', async () => {
     vi.stubEnv('KIE_VIDEO_WEBHOOK_URL', 'https://example.com/kie/video-webhook')
     mockFetch.mockResolvedValue(kieOk())

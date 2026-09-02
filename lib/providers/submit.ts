@@ -67,7 +67,8 @@ interface VideoSubmitter {
   resolveWebhook?(meta: SubmitMeta): string | undefined
 }
 
-const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
+/** 视频提交注册表：key 与 video-pricing 的 VIDEO_MODEL_UNIT_POINTS 一一对应（有测试守卫） */
+export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
   /** Veo 系：三档共享请求构造；专属端点 veo/generate、顶层 imageUrls、generationType 自动判定 */
   ...(Object.fromEntries(
     (['veo31Lite', 'veo31Fast', 'veo31Quality'] as const).map(key => {

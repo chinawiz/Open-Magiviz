@@ -88,6 +88,11 @@ export function getVideoUnitPoints(model: string | null | undefined): number {
   return DEFAULT_VIDEO_UNIT_POINTS
 }
 
+/** 是否已登记的视频 modelKey（与 VIDEO_MODEL_UNIT_POINTS 同源；新增模型必须先在表中登记） */
+export function isKnownVideoModel(model: string | null | undefined): boolean {
+  return !!model && Object.prototype.hasOwnProperty.call(VIDEO_MODEL_UNIT_POINTS, model)
+}
+
 /** 计算一次视频生成的扣积分总额（四舍五入，与历史 Math.round 行为一致） */
 export function computeVideoPoints(model: string | null | undefined, durationSeconds: number): number {
   return Math.round(durationSeconds * getVideoUnitPoints(model))
