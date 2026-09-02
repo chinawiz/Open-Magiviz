@@ -294,12 +294,12 @@ export async function POST(request: NextRequest) {
     // 计算总时长（秒）
     const totalDuration = calculateTotalDuration(tracks)
 
-    // 合成供应商选择：默认自托管（Trigger.dev + ffmpeg，直传 R2）；
-    // COMPOSE_PROVIDER=fal 回退旧云端路径（含独立音频轨时也自动回退 FAL）
+    // 合成供应商选择：默认自托管（Trigger.dev + ffmpeg，直传 R2）。自托管路径拼接并保留
+    // 各片段自带音频（-c:a aac），不再因独立音频轨强制回退 FAL（FAL 账号未配置已除名）；
+    // 仅 COMPOSE_PROVIDER=fal 时显式走旧云端路径
     const useLocalCompose = process.env.COMPOSE_PROVIDER !== 'fal'
-    const hasAudioTrack = ffTracks.some(t => t.type === 'audio')
 
-    if (useLocalCompose && !hasAudioTrack) {
+    if (useLocalCompose) {
       // 自托管合成：按时间戳顺序提取视频轨 URL
       const videoTrack = ffTracks.find(t => t.type === 'video')
       const videoUrls = (videoTrack?.keyframes || []).map(kf => kf.url)
@@ -340,10 +340,6 @@ export async function POST(request: NextRequest) {
 
       console.log('[compose-story-video] 自托管合成任务已触发:', { taskId, projectId, clips: videoUrls.length })
       return NextResponse.json({ success: true, requestId: taskId })
-    }
-
-    if (hasAudioTrack) {
-      console.warn('[compose-story-video] 含独立音频轨，回退 FAL 合成路径（本地合成暂不支持混音）')
     }
 
     console.log('[compose-story-video] 调用 FAL FFmpeg API (webhook 模式):', { projectId, totalDuration })
