@@ -53,13 +53,6 @@ import { eq } from 'drizzle-orm'
  *   webhookUrl?: string                  // 可选：自定义 webhook URL
  * }
  *
- * Body (批量请求):
- * {
- *   scenes: [
- *     { id: string, imageUrl?: string, prompt: string, aspectRatio?: "16:9" | "9:16", duration?: "4s" | "6s" | "8s", videoModel?: string, videoStyle?: string, additionalImageUrls?: string[], generationType?: string }
- *   ]
- * }
- *
  * 路由逻辑：
  * - videoModel === 'seedance25' -> Seedance 2.5（9积分/s，720p，4-30s）
  * - videoModel === 'veo31Lite' -> Veo 3.1 Lite（1积分/s，性价比最高）
@@ -2096,21 +2089,6 @@ export async function POST(request: NextRequest) {
     console.log('[generate-story-video] rawBody:', rawText.substring(0, 200))
 
     let body: {
-      scenes?: Array<{
-        id?: string | number
-        imageUrl?: string
-        image_url?: string
-        prompt?: string
-        aspectRatio?: string
-        aspect_ratio?: string
-        duration?: string
-        videoModel?: string
-        videoStyle?: string
-        additionalImageUrls?: string[]
-        generationType?: string
-        videoUrls?: string[]
-        audioUrls?: string[]
-      }>
       projectId?: string
       versionId?: string
       versionGroupId?: string
@@ -2134,146 +2112,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body', details: String(e) }, { status: 400 })
     }
 
-    // 检查是否是批量请求
-    const isBatch = Array.isArray(body?.scenes) && body.scenes.length > 0
     const projectId: string | undefined = body.projectId || undefined
-
-    // 批量请求模式
-    if (isBatch) {
-      const scenes = body.scenes!
-      console.log('[generate-story-video] 批量请求:', { count: scenes.length, projectId })
-
-      // 计算需要扣除的积分总数
-      let totalRequiredPoints = 0
-      for (const s of scenes!) {
-        const duration = s.duration || '8s'
-        const seconds = getDurationSeconds(duration)
-        const videoModel = s.videoModel || body.videoModel
-        const videoStyle = s.videoStyle || body.videoStyle
-        const effectiveModel = ['seedance25', 'seedance2Fast', 'seedance2Mini', 'seedance2', 'kling3', 'veo31Fast', 'veo31Lite', 'veo31Quality', 'wan27', 'geminiOmni', 'minimaxH3'].includes(videoModel || '') ? videoModel : null
-        const styleFallback = !effectiveModel
-          ? (videoStyle === 'anime' ? 'seedance2Fast' : (videoStyle === 'ads' ? 'seedance2' : (videoStyle && videoStyle !== 'auto' ? 'veo31Fast' : 'veo31Fast')))
-          : null
-        const routeTo = effectiveModel || styleFallback || 'veo31Fast'
-        // Seedance 2.5: 9积分/s, Seedance 2.0 Mini: 1.5积分/s, Veo 3.1 Lite/Gemini Omni: 1积分/s, Seedance 2.0/Veo 3.1 Quality: 3积分/s, HappyHorse: 2积分/s, MiniMax H3: 2.5积分/s, 其他: 2积分/s
-        const pps = routeTo === 'seedance25'
-          ? 9
-          : (routeTo === 'seedance2Mini'
-            ? 1.5
-            : (routeTo === 'seedance2' ? 3 : (routeTo === 'veo31Lite' ? 1 : (routeTo === 'veo31Quality' ? 3 : (routeTo === 'happyHorse' ? 2 : (routeTo === 'geminiOmni' ? 1 : (routeTo === 'minimaxH3' ? 2.5 : 2)))))))
-        totalRequiredPoints += seconds * pps
-      }
-
-      // 数据库积分字段为整数，先按 Math.round 累加到近似整数
-      totalRequiredPoints = Math.round(totalRequiredPoints)
-
-      // 检查积分是否足够
-      const userPoints = await getUserPoints(session.user.id)
-      if (userPoints < totalRequiredPoints) {
-        return NextResponse.json(
-          {
-            error: '积分不足',
-            code: 'INSUFFICIENT_POINTS',
-            currentPoints: userPoints,
-            requiredPoints: totalRequiredPoints
-          },
-          { status: 400 }
-        )
-      }
-
-      const results: Array<{ sceneId?: string | number | null; videoUrl?: string; requestId?: string; error?: string }> = []
-
-      for (let index = 0; index < scenes!.length; index++) {
-        const s = scenes![index]
-        const imageUrl = s.imageUrl || s.image_url || ''
-        const prompt = s.prompt || ''
-        const sceneId = s.id != null ? String(s.id) : undefined
-        const aspectRatio = s.aspectRatio || s.aspect_ratio || '16:9'
-        const duration = s.duration || '8s'
-        const videoModel = s.videoModel || body.videoModel
-        const videoStyle = s.videoStyle || body.videoStyle
-        const effectiveModel = ['seedance25', 'seedance2Fast', 'seedance2Mini', 'seedance2', 'kling3', 'veo31Fast', 'veo31Lite', 'veo31Quality', 'wan27', 'geminiOmni', 'minimaxH3'].includes(videoModel || '') ? videoModel : null
-        const styleFallback = !effectiveModel
-          ? (videoStyle === 'anime' ? 'seedance2Fast' : (videoStyle === 'ads' ? 'seedance2' : (videoStyle && videoStyle !== 'auto' ? 'veo31Fast' : 'veo31Fast')))
-          : null
-        const routeTo = effectiveModel || styleFallback || 'veo31Fast'
-        const getModelName = (model: string) => {
-          const names: Record<string, string> = {
-            'seedance25': 'Seedance 2.5',
-            'seedance2Fast': 'Seedance 2.0 Fast',
-            'seedance2Mini': 'Seedance 2.0 Mini',
-            'seedance2': 'Seedance 2.0',
-            'kling3': 'Kling 3.0',
-            'wan27': 'Wan 2.7',
-            'veo31Lite': 'Veo 3.1 Lite',
-            'veo31Quality': 'Veo 3.1 Quality',
-            'happyHorse': 'HappyHorse',
-            'veo31Fast': 'Veo 3.1',
-            'minimaxH3': 'MiniMax H3',
-            'geminiOmni': 'Gemini Omni'
-          }
-          return names[model] || 'Veo 3.1'
-        }
-        const modelName = getModelName(routeTo)
-
-        console.log(`[generate-story-video] [${modelName}] 处理场景:`, { sceneId, promptLength: prompt.length, duration, videoModel, videoStyle })
-
-        // 获取额外的图片URL和生成模式（用于Veo）
-        const additionalImageUrls = s.additionalImageUrls || body.additionalImageUrls
-        const generationType = s.generationType || body.generationType
-
-        // Seedance 2.0 多模态参考：支持 scene 级覆盖，否则使用 body 级
-        const sceneVideoUrls = s.videoUrls || body.videoUrls
-        const sceneAudioUrls = s.audioUrls || body.audioUrls
-
-        // 非Veo模型（包括 Gemini Omni、Seedance 2.5）仍然需要 imageUrl
-        if ((routeTo === 'seedance25' || routeTo === 'seedance2Fast' || routeTo === 'seedance2Mini' || routeTo === 'seedance2' || routeTo === 'kling3' || routeTo === 'wan27' || routeTo === 'happyHorse' || routeTo === 'geminiOmni' || routeTo === 'minimaxH3') && !imageUrl.trim()) {
-          results.push({ sceneId, error: 'Missing imageUrl' })
-          continue
-        }
-
-        const result = await generateSingleVideo(
-          imageUrl,
-          prompt,
-          aspectRatio,
-          duration,
-          routeTo,
-          videoStyle,
-          undefined,
-          session.user.id,
-          projectId,
-          index,
-          sceneId,
-          body.versionId,
-          body.versionGroupId,
-          additionalImageUrls,
-          generationType,
-          sceneVideoUrls,
-          sceneAudioUrls
-        )
-
-        trackFunnelEvent({ stage: 'video', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: 'kieai', model: result.model ?? routeTo, fallbackApplied: (result.model ?? routeTo) !== routeTo, taskId: result.requestId, error: result.error })
-
-        if (result.success) {
-          console.log(`[generate-story-video] [${modelName}] 场景完成:`, { sceneId, requestId: result.requestId })
-        } else {
-          console.error(`[generate-story-video] [${modelName}] 场景失败:`, { sceneId, error: result.error })
-        }
-
-        results.push({
-          sceneId,
-          videoUrl: result.success ? result.videoUrl : undefined,
-          requestId: result.requestId,
-          error: result.error
-        })
-      }
-
-      // 批量模式：积分扣除在 webhook 回调或轮询完成时进行
-      // 这里不再扣除积分，因为任务可能还在处理中（webhook 模式）
-
-      console.log('[generate-story-video] 批量完成:', { total: results.length, success: results.filter(r => !r.error).length })
-      return NextResponse.json({ success: true, results })
-    }
 
     // 单个请求模式
     const { imageUrl, prompt, aspectRatio, duration, videoModel, videoStyle, webhookUrl, versionId, versionGroupId, additionalImageUrls, generationType, videoUrls, audioUrls } = body
