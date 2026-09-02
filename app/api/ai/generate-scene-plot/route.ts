@@ -1,5 +1,6 @@
 import { getAuthedSession, jsonError, jsonOk } from '@/lib/api'
 import { callChatCompletion, parseJsonFromContent, LLMError } from '@/lib/llm'
+import { moderatePrompt, moderationErrorResponse, combineTextsForModeration } from '@/lib/content-moderation'
 
 // ── 常量配置 ───────────────────────────────────────────────
 const MODEL = 'google/gemini-3-flash-preview'
@@ -130,6 +131,22 @@ export async function POST(request: Request) {
         400,
         'Missing existing scenes context. Please provide at least one existing scene.',
       )
+    }
+
+    // Creem 内容安全审核：标题/摘要/既有场景的用户文本合并送审（fail-closed）
+    const moderation = await moderatePrompt(
+      combineTextsForModeration([
+        storyTitle,
+        summary,
+        ...(existingScenes?.flatMap(s =>
+          s && typeof s === 'object' ? Object.values(s).filter((v): v is string => typeof v === 'string') : [],
+        ) ?? []),
+      ]),
+      { externalId: `scene-plot:${session.user.id}` },
+    )
+    if (!moderation.ok) {
+      const err = moderationErrorResponse(moderation)
+      return jsonError(err.status, err.body.error, { errorKey: err.body.errorKey })
     }
 
     // 1. 推导场景上下文

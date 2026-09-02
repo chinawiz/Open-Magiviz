@@ -7,6 +7,7 @@ import { users as usersTable } from '@/lib/schema'
 import { getVideoFallbackChain } from '@/lib/providers/defaults'
 import { submitTask, pollTaskUntilVerdict, resolveBillableSeconds, videoModelLabel, type SubmitInput, type SubmitMeta } from '@/lib/providers'
 import { claimTaskPointsDeduction, markTaskSuccess } from '@/lib/task-points'
+import { moderatePrompt, moderationErrorResponse } from '@/lib/content-moderation'
 import { trackFunnelEvent } from '@/lib/observability/track'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
@@ -193,6 +194,13 @@ export async function POST(request: NextRequest) {
     const { imageUrl, prompt, aspectRatio, duration, videoModel, videoStyle, webhookUrl, versionId, versionGroupId, additionalImageUrls, generationType, videoUrls, audioUrls } = body
     const sceneIndex = body.sceneIndex
     const sceneId = body.sceneId != null ? String(body.sceneId) : undefined
+
+    // Creem 内容安全审核（fail-closed；flag 与 deny 同待遇）
+    const moderation = await moderatePrompt(prompt ?? '', { externalId: `story-video:${session.user.id}` })
+    if (!moderation.ok) {
+      const err = moderationErrorResponse(moderation)
+      return NextResponse.json(err.body, { status: err.status })
+    }
     const effectiveModel = isKnownVideoModel(videoModel) ? videoModel : null
     const routeTo = effectiveModel || getStyleFallbackModel(videoStyle) || 'veo31Fast'
     const modelName = videoModelLabel(routeTo)

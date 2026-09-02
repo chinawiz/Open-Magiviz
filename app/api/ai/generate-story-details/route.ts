@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthedSession, jsonError } from '@/lib/api'
 import { trackFunnelEvent } from '@/lib/observability/track'
+import { moderatePrompt, moderationErrorResponse } from '@/lib/content-moderation'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { db } from '@/lib/db'
 import { projectData } from '@/lib/schema'
@@ -127,6 +128,13 @@ export async function POST(request: NextRequest) {
 
     if (!body || typeof body.prompt !== 'string' || body.prompt.trim().length === 0) {
       return NextResponse.json({ error: 'Missing required parameter: prompt' }, { status: 400 })
+    }
+
+    // Creem 内容安全审核（fail-closed；flag 与 deny 同待遇）
+    const moderation = await moderatePrompt(body.prompt, { externalId: `story-details:${session.user.id}` })
+    if (!moderation.ok) {
+      const err = moderationErrorResponse(moderation)
+      return NextResponse.json(err.body, { status: err.status })
     }
 
     // 检查积分是否足够（需要1积分）

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuthedSession, jsonError } from '@/lib/api'
 import { trackFunnelEvent } from '@/lib/observability/track'
+import { moderatePrompt, moderationErrorResponse } from '@/lib/content-moderation'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { computeImagePoints } from '@/lib/video-pricing'
 import { db } from '@/lib/db'
@@ -296,6 +297,14 @@ export async function POST(request: NextRequest) {
           continue
         }
 
+        // Creem 内容安全审核（fail-closed；批量内逐条送审，单条失败只标记该条）
+        const moderation = await moderatePrompt(promptText, { externalId: `character:${session.user.id}` })
+        if (!moderation.ok) {
+          const err = moderationErrorResponse(moderation)
+          results.push({ characterId, error: err.body.error })
+          continue
+        }
+
         const result = await generateSingleCharacter(promptText, undefined, session.user.id, body.projectId, characterId ?? undefined, body.versionId, body.versionGroupId, referenceImage)
         trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: body.projectId ?? null, success: result.success, provider: 'kieai', model: 'nano-banana-2', taskId: result.requestId, error: result.error })
 
@@ -323,6 +332,13 @@ export async function POST(request: NextRequest) {
     // 单个请求模式
     const { prompt, aspectRatio, webhookUrl, projectId, itemId, versionId, versionGroupId, referenceImage } = body
     console.log('[generate-character-image] single request:', { promptLength: prompt?.length, aspectRatio, hasWebhook: !!webhookUrl, projectId, versionId, versionGroupId, hasReferenceImage: !!referenceImage })
+
+    // Creem 内容安全审核（fail-closed；flag 与 deny 同待遇）
+    const moderation = await moderatePrompt(prompt ?? '', { externalId: `character:${session.user.id}` })
+    if (!moderation.ok) {
+      const err = moderationErrorResponse(moderation)
+      return NextResponse.json(err.body, { status: err.status })
+    }
 
     const result = await generateSingleCharacter(prompt ?? '', webhookUrl, session.user.id, projectId, itemId, versionId, versionGroupId, referenceImage)
     trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: 'kieai', model: 'nano-banana-2', taskId: result.requestId, error: result.error })

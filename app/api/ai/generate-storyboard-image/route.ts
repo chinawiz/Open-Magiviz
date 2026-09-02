@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuthedSession, jsonError } from '@/lib/api'
 import { trackFunnelEvent } from '@/lib/observability/track'
+import { moderatePrompt, moderationErrorResponse, combineTextsForModeration } from '@/lib/content-moderation'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { computeImagePoints } from '@/lib/video-pricing'
 import { db } from '@/lib/db'
@@ -762,6 +763,17 @@ export async function POST(request: NextRequest) {
           continue
         }
 
+        // Creem 内容安全审核（含首尾帧提示词；单条失败只标记该条）
+        const moderation = await moderatePrompt(
+          combineTextsForModeration([storyboardPrompt, firstFramePrompt, lastFramePrompt]),
+          { externalId: `storyboard:${session.user.id}` },
+        )
+        if (!moderation.ok) {
+          const err = moderationErrorResponse(moderation)
+          results.push({ sceneId, error: err.body.error })
+          continue
+        }
+
         const result = await generateSingleStoryboard(
           storyboardPrompt,
           aspectRatio,
@@ -833,6 +845,16 @@ export async function POST(request: NextRequest) {
       regenerateFrameType,
       hasReferenceImage: !!referenceImage
     })
+
+    // Creem 内容安全审核（fail-closed；含首尾帧提示词）
+    const moderation = await moderatePrompt(
+      combineTextsForModeration([storyboardPrompt, firstFramePrompt, lastFramePrompt]),
+      { externalId: `storyboard:${session.user.id}` },
+    )
+    if (!moderation.ok) {
+      const err = moderationErrorResponse(moderation)
+      return NextResponse.json(err.body, { status: err.status })
+    }
 
     const result = await generateSingleStoryboard(
       storyboardPrompt ?? '',

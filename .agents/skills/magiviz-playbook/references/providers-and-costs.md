@@ -32,6 +32,7 @@
 - Kie 无余额查询 API，精确对账只能人工读 Dashboard 扣费记录。
 - `.env.local` 里 key 带着引号粘贴会导致 401/403——出现过两次的用户习惯性坑，录入 key 时留意 strip 引号。
 - **Kie 同一端点按模型返回不同响应形状**（2026-09-02 实证，`kie.ts`）：`jobs/get` 多数模型返回 `taskStatus`/`result.resultUrls`，但 MiniMax H3 返回 Veo 式 `successFlag`/`response.videoUrl`——补偿任务最初按 taskStatus 解析，读不到 minimax 终态，只能等 24h 僵尸关闭；HappyHorse 还会返回 `completed` 状态与单值 `result.videoUrl`。归一层要按「响应字段存在性」分支，不能按端点假设形状。
+- **Creem Moderation API 是 AI 图像/视频产品的过审强制项**（2026-09-02 集成，`lib/content-moderation.ts`）：`POST {base}/v1/moderation/prompt`，`x-api-key` 头，同步返回 `decision: allow|flag|deny`。三条硬规则：**flag 必须与 deny 同待遇拦截**；**超时/5xx/生产缺 key 一律 fail-closed（fail-open 视为政策违规）**；只审用户自由文本、别把模板塞进去。计费 $0.30/千 units（1 unit=1000 字符，近期重复 prompt 缓存 0 units）。我们的口径：5 个 prompt 入口全挂（story-details/scene-plot/character/storyboard/story-video，单发+批量双路径）；生产缺 key fail-closed、非生产放行告警；sandbox 阶段用 `CREEM_MODERATION_API_BASE=https://test-api.creem.io` + test key。上线 checklist：每条生成路径都过审核、deny/flag 拦截实测、故障演练、生产 key 确认。
 - 各模型 webhook 优先级历史上不一致（Kling/Seedance/Wan 环境变量优先；minimaxH3/geminiOmni/happyHorse 调用方优先）——生产客户端从不传 webhookUrl，行为等价；2026-09-02 统一为**环境变量优先**（`lib/providers/submit.ts`），happyHorse 保留 `NEXT_PUBLIC_APP_URL` self-URL 兜底（带 projectId 场景定位参数）。
 
 ## 密钥与安全卫生（流程，不是一次性事实）
