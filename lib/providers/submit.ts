@@ -63,9 +63,51 @@ interface VideoSubmitter {
   parseDuration(raw: string | undefined): number
   validate(input: SubmitInput, seconds: number): string | null
   buildBody(input: SubmitInput, seconds: number, webhookUrl?: string): KieRequestBody
+  /** 缺省用共享环境变量解析；happyHorse 等有专属兜底 URL 的模型覆写 */
+  resolveWebhook?(meta: SubmitMeta): string | undefined
 }
 
 const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
+  happyHorse: {
+    label: 'HappyHorse',
+    taskType: 'happyhorse_video',
+    endpointUrl: JOBS_CREATE_URL,
+    // 历史口径：3-15s 之外的输入一律收敛到 5s（计费按收敛后时长）
+    parseDuration: raw => {
+      const n = parseInt(String(raw || '5').replace(/s$/i, ''), 10)
+      return Number.isNaN(n) || n < 3 || n > 15 ? 5 : n
+    },
+    validate: input => {
+      if (!input.imageUrl || !input.imageUrl.trim()) return 'Image URL is required'
+      if (!input.prompt || !input.prompt.trim()) return 'Prompt is required'
+      return null
+    },
+    // 历史兜底：环境变量与调用方都未配置时，回退本服务 video-webhook
+    //（带 projectId 时附场景定位参数，格式与历史一致）
+    resolveWebhook: meta => {
+      const envWebhook = process.env.KIE_VIDEO_WEBHOOK_URL || process.env.KIE_KLING_WEBHOOK_URL
+      if (envWebhook) return envWebhook
+      if (meta.webhookUrl) return meta.webhookUrl
+      const self = `${process.env.NEXT_PUBLIC_APP_URL}/api/ai/kie/video-webhook`
+      if (meta.projectId) {
+        return `${self}?projectId=${meta.projectId}&sceneIndex=${meta.sceneIndex}&sceneId=${meta.sceneId}&versionId=${meta.versionId}&versionGroupId=${meta.versionGroupId}`
+      }
+      return self
+    },
+    buildBody: (input, seconds, webhookUrl) => {
+      const body: KieRequestBody = {
+        model: 'happyhorse-1-1/image-to-video',
+        input: {
+          prompt: input.prompt,
+          image_urls: [input.imageUrl!],
+          resolution: '720p',
+          duration: seconds,
+        },
+      }
+      if (webhookUrl) body.callBackUrl = webhookUrl
+      return body
+    },
+  },
   geminiOmni: {
     label: 'Gemini Omni',
     taskType: 'gemini_omni_video',
@@ -171,7 +213,7 @@ export async function submitTask(modelKey: string, input: SubmitInput, meta: Sub
   const invalid = sub.validate(input, seconds)
   if (invalid) return { ok: false, error: invalid }
 
-  const webhookUrl = resolveSharedWebhook(meta)
+  const webhookUrl = sub.resolveWebhook ? sub.resolveWebhook(meta) : resolveSharedWebhook(meta)
   const body = sub.buildBody(input, seconds, webhookUrl)
 
   console.log(`[providers/submit] [${sub.label}] 创建视频任务:`, {

@@ -62,6 +62,14 @@ describe('pollKieTask（jobsGet 形状归一）', () => {
     })
     expect((await pollKieTask('jobsGet', 'tid-1')).verdict).toBe('fail')
   })
+
+  it('HappyHorse 变体：taskStatus completed + result.videoUrl → success', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ code: 200, data: { taskStatus: 'completed', result: { videoUrl: 'https://v-hh.mp4' } } }),
+    })
+    expect(await pollKieTask('jobsGet', 'tid-1')).toEqual({ verdict: 'success', resultUrls: ['https://v-hh.mp4'] })
+  })
 })
 
 describe('pollTaskUntilVerdict（轮询循环 seam）', () => {

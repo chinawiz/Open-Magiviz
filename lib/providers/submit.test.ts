@@ -224,3 +224,47 @@ describe('submitTask：minimaxH3', () => {
     expect(outcome).toMatchObject({ ok: true, pointsAmount: 15 }) // 6s × 2.5
   })
 })
+
+describe('submitTask：happyHorse', () => {
+  const baseInput = { prompt: '奔马', imageUrl: 'https://img/f.png', duration: '6s' }
+
+  it('请求体符合契约（HappyHorse 1.1 接口、720p、image_urls）', async () => {
+    mockFetch.mockResolvedValue(kieOk('tid-hh'))
+    vi.stubEnv('KIE_VIDEO_WEBHOOK_URL', 'https://example.com/kie/video-webhook')
+
+    const outcome = await submitTask('happyHorse', baseInput, { userId: 'u1' })
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.model).toBe('happyhorse-1-1/image-to-video')
+    expect(body.input.image_urls).toEqual(['https://img/f.png'])
+    expect(body.input.resolution).toBe('720p')
+    expect(body.input.duration).toBe(6)
+    expect(body.callBackUrl).toBe('https://example.com/kie/video-webhook')
+    expect(outcome).toMatchObject({ ok: true, taskId: 'tid-hh', taskType: 'happyhorse_video', pointsAmount: 15 })
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ taskType: 'happyhorse_video', model: 'happyHorse' }))
+  })
+
+  it('无任何 webhook 配置 → 回退本服务 video-webhook（带 projectId 时附场景定位参数）', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.example.com')
+    mockFetch.mockResolvedValue(kieOk())
+
+    await submitTask('happyHorse', baseInput, { projectId: 'p1', sceneIndex: 3, sceneId: 's3' })
+    let body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.callBackUrl).toBe('https://app.example.com/api/ai/kie/video-webhook?projectId=p1&sceneIndex=3&sceneId=s3&versionId=undefined&versionGroupId=undefined')
+
+    await submitTask('happyHorse', baseInput, {})
+    body = JSON.parse(mockFetch.mock.calls[1][1].body)
+    expect(body.callBackUrl).toBe('https://app.example.com/api/ai/kie/video-webhook')
+  })
+
+  it('缺 imageUrl → 拒绝；时长 3-15 之外收敛到 5s（含计费）', async () => {
+    const noImage = await submitTask('happyHorse', { prompt: 'x' }, {})
+    expect(noImage).toEqual({ ok: false, error: 'Image URL is required' })
+
+    mockFetch.mockResolvedValue(kieOk('tid-hh2'))
+    const outcome = await submitTask('happyHorse', { prompt: 'x', imageUrl: 'https://i.png', duration: '2s' }, { userId: 'u1' })
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.input.duration).toBe(5)
+    expect(outcome).toMatchObject({ ok: true, pointsAmount: 13 }) // 5s × 2.5 → round(12.5)=13
+  })
+})

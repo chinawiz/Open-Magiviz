@@ -186,9 +186,12 @@ async function generateSingleVideo(
       return await fallbackPollAndSettle(outcome.taskType, outcome.taskId, userId)
     }
 
-    // HappyHorse - 2积分/s, 默认 720p（API 实际调用 HappyHorse 1.1 接口）
+    // HappyHorse - 720p（HappyHorse 1.1 接口）；已迁入 submit seam
     if (model === 'happyHorse') {
-      return await generateWithHappyHorse(imageUrl, prompt, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId)
+      const outcome = await submitTask('happyHorse', submitInput, submitMeta)
+      if (!outcome.ok) return { success: false, error: outcome.error }
+      if (outcome.webhook) return { success: true, requestId: outcome.taskId }
+      return await fallbackPollAndSettle(outcome.taskType, outcome.taskId, userId)
     }
 
     // Gemini Omni - 1080p, 固定 4/6/8/10s；webhook-only（历史行为：不轮询），

@@ -20,7 +20,7 @@ const ENDPOINTS: Record<KieQueryKind, string> = {
 }
 
 function asVerdictFromState(state: unknown): PollResult['verdict'] {
-  if (state === 'success' || state === 'SUCCESS') return 'success'
+  if (state === 'success' || state === 'SUCCESS' || state === 'completed') return 'success'
   if (state === 'fail' || state === 'FAIL' || state === 'failed' || state === 'FAILED') return 'fail'
   return 'processing'
 }
@@ -78,5 +78,16 @@ export async function pollKieTask(
     return { verdict: 'processing', resultUrls: [] }
   }
   const verdict = asVerdictFromState(d.taskStatus || d.task_status)
-  return { verdict, resultUrls: verdict === 'success' ? (d.result?.resultUrls || []) : [] }
+  let urls: string[] = []
+  if (verdict === 'success') {
+    const r = d.result || {}
+    if (Array.isArray(r.resultUrls) && r.resultUrls.length > 0) {
+      urls = r.resultUrls
+    } else {
+      // HappyHorse 等以单值 videoUrl/url 返回结果
+      const single = typeof r.videoUrl === 'string' && r.videoUrl ? r.videoUrl : typeof r.url === 'string' && r.url ? r.url : ''
+      urls = single ? [single] : []
+    }
+  }
+  return { verdict, resultUrls: urls }
 }
