@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
 import { getAuthedSession, jsonError } from '@/lib/api'
+import { authOptions } from '@/lib/auth'
 import { isPaidPlan } from '@/lib/plan-limits'
 import { users as usersTable } from '@/lib/schema'
 import { fal } from "@fal-ai/client"
@@ -227,7 +229,16 @@ export async function POST(request: NextRequest) {
     // 验证用户登录
     const session = await getAuthedSession()
     if (!session) {
-      return jsonError(401, 'Unauthorized')
+      // 临时诊断：区分「无会话」与「会话缺 user.id」（compose 401 定位用，定位后移除）
+      const raw = await getServerSession(authOptions)
+      console.error('[compose-story-video] 401 diagnose:', {
+        hasRawSession: !!raw,
+        rawUserId: (raw as { user?: { id?: string } } | null)?.user?.id ?? null,
+      })
+      return NextResponse.json({
+        error: 'Unauthorized',
+        diagnose: raw ? 'session_missing_user_id' : 'no_session',
+      }, { status: 401 })
     }
 
     // 高成本步骤门控：合成仅对付费计划或已验卡用户开放（2026-08-30 定价重构 §4.2）
