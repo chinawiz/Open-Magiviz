@@ -224,6 +224,16 @@ export function Footer() {
             >
               support@mhhao.com
             </a>
+            {/* Creem 审核（2026-09-02 要求邮件）：Privacy/Terms 链接必须在公开 UI 可见 */}
+            <Link href={getLocalizedPath("/terms")} className="text-muted-foreground text-sm hover:text-primary transition-colors">
+              {t("legal.terms")}
+            </Link>
+            <Link href={getLocalizedPath("/privacy")} className="text-muted-foreground text-sm hover:text-primary transition-colors">
+              {t("legal.privacy")}
+            </Link>
+            <Link href={getLocalizedPath("/cookies")} className="text-muted-foreground text-sm hover:text-primary transition-colors">
+              {t("legal.cookies")}
+            </Link>
           </div>
 
           {/* Social Links & Language Switcher */}

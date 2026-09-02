@@ -299,6 +299,11 @@
       "careers": "Join Our Team",
       "blog": "Creation Community"
     },
+    "legal": {
+      "terms": "Terms of Service",
+      "privacy": "Privacy Policy",
+      "cookies": "Cookie Policy"
+    },
     "newsletter": {
       "title": "Subscribe Updates",
       "description": "Get the latest AI video creation techniques and platform feature updates",

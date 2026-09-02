@@ -107,7 +107,7 @@ export function AuthError() {
 
           <div className="text-center text-sm text-muted-foreground">
             {t('error_contact_support')}{' '}
-            <Link href="mailto:app@itusi.cn" className="text-primary hover:text-primary/80">
+            <Link href="mailto:support@mhhao.com" className="text-primary hover:text-primary/80">
               {t('error_technical_support')}
             </Link>
           </div>

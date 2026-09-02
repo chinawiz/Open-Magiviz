@@ -299,6 +299,11 @@
       "careers": "加入团队",
       "blog": "创作社区"
     },
+    "legal": {
+      "terms": "服务条款",
+      "privacy": "隐私政策",
+      "cookies": "Cookie 政策"
+    },
     "newsletter": {
       "title": "订阅更新",
       "description": "获取最新的AI视频创作技巧和平台功能更新",

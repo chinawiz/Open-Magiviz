@@ -100,6 +100,8 @@ export function TermsContent() {
                 <li>{isZh ? '上传或使用包含仇恨言论、暴力、色情或其他不当内容的素材' : 'Upload or use materials containing hate speech, violence, pornography, or other inappropriate content'}</li>
                 <li>{isZh ? '尝试逆向工程或破解我们的AI视频生成系统' : 'Attempt to reverse engineer or hack our AI video generation systems'}</li>
                 <li>{isZh ? '超过您订阅计划的使用限制和积分额度' : 'Exceed the usage limits and credit allowances of your subscription plan'}</li>
+                <li>{isZh ? '生成任何 NSFW（不适宜工作场所）、性暴露或色情内容，包括试图通过提示词技巧绕过内容安全审核' : 'Generate any NSFW (not-safe-for-work), sexually explicit, or pornographic content, including attempting to bypass content-safety checks through prompt manipulation'}</li>
+                <li>{isZh ? '我们对所有生成请求执行自动化内容审核；违反上述规则可能导致内容移除、账户暂停或终止' : 'We run automated content moderation on all generation requests; violations may result in content removal, account suspension, or termination'}</li>
               </ul>
             </section>
 
@@ -214,8 +216,8 @@ export function TermsContent() {
                 }
               </p>
               <ul className="list-disc list-inside mb-4 space-y-2">
-                <li>{isZh ? '邮箱：app@itusi.cn' : 'Email: app@itusi.cn'}</li>
-                <li>{isZh ? '网站：https://meihao.com' : 'Website: https://meihao.com'}</li>
+                <li>{isZh ? '邮箱：support@mhhao.com' : 'Email: support@mhhao.com'}</li>
+                <li>{isZh ? '网站：https://www.mhhao.com' : 'Website: https://www.mhhao.com'}</li>
               </ul>
             </section>
           </div>
