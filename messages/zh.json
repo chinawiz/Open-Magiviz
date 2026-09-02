@@ -963,6 +963,7 @@
         "user_info": "用户: {name} ({email})",
         "no_name": "未设置",
         "cancel": "取消",
+        "confirm_action": "确认",
         "confirm": {
           "title": "确认执行？",
           "description": "该操作将写入审计日志，请在确认前核对目标用户与参数。",

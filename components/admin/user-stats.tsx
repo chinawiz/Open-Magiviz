@@ -879,7 +879,7 @@ function UserActionDialog({
             variant={actionType === 'ban' || actionType === 'unban' ? 'destructive' : 'default'}
           >
             {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />}
-            {t('dialogs.confirm')}
+            {t('dialogs.confirm_action')}
           </Button>
         </div>
       </DialogContent>

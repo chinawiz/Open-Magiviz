@@ -964,6 +964,7 @@
         "user_info": "User: {name} ({email})",
         "no_name": "Not Set",
         "cancel": "Cancel",
+        "confirm_action": "Confirm",
         "confirm": {
           "title": "Confirm execution?",
           "description": "This action will be written to the audit log. Double-check the target user and parameters.",
