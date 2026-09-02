@@ -302,3 +302,72 @@ describe('submitTask：kling3', () => {
     expect(outcome).toMatchObject({ ok: true, pointsAmount: 13 }) // 5s × 2.5
   })
 })
+
+describe('submitTask：Seedance 系（四键）', () => {
+  const baseInput = { prompt: '森林日出', imageUrl: 'https://img/f.png', duration: '6s' }
+
+  it('seedance2：请求体符合契约（generate_audio on、web_search off、720p）', async () => {
+    mockFetch.mockResolvedValue(kieOk('tid-sd'))
+    const outcome = await submitTask('seedance2', baseInput, { userId: 'u1' })
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.model).toBe('bytedance/seedance-2')
+    expect(body.input.first_frame_url).toBe('https://img/f.png')
+    expect(body.input.generate_audio).toBe(true)
+    expect(body.input.web_search).toBe(false)
+    expect(body.input.resolution).toBe('720p')
+    expect(body.input.duration).toBe(6)
+    expect(body.input.reference_video_urls).toBeUndefined()
+    expect(outcome).toMatchObject({ ok: true, taskId: 'tid-sd', taskType: 'seedance_2_0_video', pointsAmount: 21 }) // 6s × 3.5
+  })
+
+  it('四键各映射到正确的供应商 model/taskType/单价', async () => {
+    mockFetch.mockResolvedValue(kieOk('tid-sd'))
+    const cases = [
+      { key: 'seedance25', vendorModel: 'bytedance/seedance-2-5', taskType: 'seedance_2_5_video', points6s: 54 },
+      { key: 'seedance2Fast', vendorModel: 'bytedance/seedance-2-fast', taskType: 'seedance_2_0_fast_video', points6s: 12 },
+      { key: 'seedance2Mini', vendorModel: 'bytedance/seedance-2-mini', taskType: 'seedance_2_0_mini_video', points6s: 9 },
+      { key: 'seedance2', vendorModel: 'bytedance/seedance-2', taskType: 'seedance_2_0_video', points6s: 21 },
+    ] as const
+    for (const c of cases) {
+      const outcome = await submitTask(c.key, baseInput, { userId: 'u1' })
+      const body = JSON.parse(mockFetch.mock.calls[mockFetch.mock.calls.length - 1][1].body)
+      expect(body.model).toBe(c.vendorModel)
+      expect(outcome).toMatchObject({ ok: true, taskType: c.taskType, pointsAmount: c.points6s })
+    }
+  })
+
+  it('seedance25 时长上限 30s；非 25 越界收敛到 8s（undefined 默认 5s）', async () => {
+    mockFetch.mockResolvedValue(kieOk('tid-sd'))
+    await submitTask('seedance25', { ...baseInput, duration: '20s' }, {})
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).input.duration).toBe(20)
+
+    await submitTask('seedance2', { ...baseInput, duration: '20s' }, {})
+    expect(JSON.parse(mockFetch.mock.calls[1][1].body).input.duration).toBe(8)
+
+    await submitTask('seedance2', { prompt: baseInput.prompt, imageUrl: baseInput.imageUrl }, {})
+    expect(JSON.parse(mockFetch.mock.calls[2][1].body).input.duration).toBe(5)
+  })
+
+  it('尾帧与多模态参考（video/audio 各截前 3 个）', async () => {
+    mockFetch.mockResolvedValue(kieOk('tid-sd'))
+    await submitTask(
+      'seedance2',
+      {
+        ...baseInput,
+        additionalImageUrls: ['https://img/l.png'],
+        referenceVideoUrls: ['https://v/1.mp4', 'https://v/2.mp4', 'https://v/3.mp4', 'https://v/4.mp4'],
+        referenceAudioUrls: ['https://a/1.mp3'],
+      },
+      { userId: 'u1' },
+    )
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.input.last_frame_url).toBe('https://img/l.png')
+    expect(body.input.reference_video_urls).toEqual(['https://v/1.mp4', 'https://v/2.mp4', 'https://v/3.mp4'])
+    expect(body.input.reference_audio_urls).toEqual(['https://a/1.mp3'])
+  })
+
+  it('缺 imageUrl → 拒绝', async () => {
+    const outcome = await submitTask('seedance2', { prompt: 'x' }, {})
+    expect(outcome).toEqual({ ok: false, error: 'Image URL is required' })
+  })
+})

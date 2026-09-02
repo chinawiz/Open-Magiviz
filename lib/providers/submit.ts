@@ -68,6 +68,57 @@ interface VideoSubmitter {
 }
 
 const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
+  /** Seedance 系：四个 modelKey 共享一套请求构造，仅供应商 model/taskType/时长上限不同 */
+  ...(Object.fromEntries(
+    (['seedance25', 'seedance2Fast', 'seedance2Mini', 'seedance2'] as const).map(key => {
+      const is25 = key === 'seedance25'
+      const isFast = key === 'seedance2Fast'
+      const isMini = key === 'seedance2Mini'
+      const kieModel = is25 ? 'bytedance/seedance-2-5' : isMini ? 'bytedance/seedance-2-mini' : isFast ? 'bytedance/seedance-2-fast' : 'bytedance/seedance-2'
+      const taskType = is25 ? 'seedance_2_5_video' : isMini ? 'seedance_2_0_mini_video' : isFast ? 'seedance_2_0_fast_video' : 'seedance_2_0_video'
+      const label = is25 ? 'Seedance 2.5' : isMini ? 'Seedance 2.0 Mini' : isFast ? 'Seedance 2.0 Fast' : 'Seedance 2.0'
+      return [key, {
+        label,
+        taskType,
+        endpointUrl: JOBS_CREATE_URL,
+        // 历史口径：4..max 之外收敛（2.5 上限 30s 收敛 5s；其余上限 15s 收敛 8s；未传默认 5s）
+        parseDuration: (raw: string | undefined) => {
+          const max = is25 ? 30 : 15
+          const n = parseInt(String(raw || '5').replace(/s$/i, ''), 10)
+          if (Number.isNaN(n) || n < 4 || n > max) return is25 ? 5 : 8
+          return n
+        },
+        validate: (input: SubmitInput) => {
+          if (!input.imageUrl || !input.imageUrl.trim()) return 'Image URL is required'
+          if (!input.prompt || !input.prompt.trim()) return 'Prompt is required'
+          return null
+        },
+        buildBody: (input: SubmitInput, seconds: number, webhookUrl?: string) => {
+          const lastFrameUrl = input.additionalImageUrls?.[0] || ''
+          const body: KieRequestBody = {
+            model: kieModel,
+            input: {
+              prompt: input.prompt,
+              first_frame_url: input.imageUrl,
+              generate_audio: true, // 默认开启声音
+              resolution: '720p',
+              aspect_ratio: ['1:1', '4:3', '3:4', '16:9', '9:16', '21:9', 'adaptive'].includes(input.aspectRatio || '') ? input.aspectRatio! : '16:9',
+              duration: seconds,
+              web_search: false,
+            },
+          }
+          if (lastFrameUrl) body.input!.last_frame_url = lastFrameUrl
+          // Seedance 2.0 多模态参考：上传的视频/音频各截前 3 个
+          const refVideoUrls = (input.referenceVideoUrls || []).filter(u => typeof u === 'string' && u.trim().length > 0)
+          const refAudioUrls = (input.referenceAudioUrls || []).filter(u => typeof u === 'string' && u.trim().length > 0)
+          if (refVideoUrls.length > 0) body.input!.reference_video_urls = refVideoUrls.slice(0, 3)
+          if (refAudioUrls.length > 0) body.input!.reference_audio_urls = refAudioUrls.slice(0, 3)
+          if (webhookUrl) body.callBackUrl = webhookUrl
+          return body
+        },
+      } satisfies VideoSubmitter]
+    }),
+  ) as Record<string, VideoSubmitter>),
   happyHorse: {
     label: 'HappyHorse',
     taskType: 'happyhorse_video',

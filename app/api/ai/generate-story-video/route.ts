@@ -168,9 +168,12 @@ async function generateSingleVideo(
   // Seedance 用 routeTo 区分版本，其余在函数内写死——保证各函数内部的模型分支/计费单价
   // 与实际目标一致；各函数内部自带 taskType 常量）
   const dispatchGeneration = async (model: string): Promise<{ success: boolean; videoUrl?: string; requestId?: string; error?: string }> => {
+    // Seedance 系支持首尾帧与多模态参考；已迁入 submit seam
     if (model === 'seedance25' || model === 'seedance2Fast' || model === 'seedance2Mini' || model === 'seedance2') {
-      // Seedance 支持首尾帧模式
-      return await generateWithSeedance2(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, model, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls, referenceVideoUrls, referenceAudioUrls)
+      const outcome = await submitTask(model, submitInput, submitMeta)
+      if (!outcome.ok) return { success: false, error: outcome.error }
+      if (outcome.webhook) return { success: true, requestId: outcome.taskId }
+      return await fallbackPollAndSettle(outcome.taskType, outcome.taskId, userId)
     }
 
     // Kling 支持首尾帧模式；已迁入 submit seam
