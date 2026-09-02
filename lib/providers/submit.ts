@@ -96,6 +96,70 @@ const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
       return body
     },
   },
+  wan27: {
+    label: 'Wan 2.7',
+    taskType: 'wan_2_7_video',
+    endpointUrl: JOBS_CREATE_URL,
+    // 历史口径：2-15s 之外的输入一律收敛到 5s（计费按收敛后时长）
+    parseDuration: raw => {
+      const n = parseInt(String(raw || '5').replace(/s$/i, ''), 10)
+      return Number.isNaN(n) || n < 2 || n > 15 ? 5 : n
+    },
+    validate: input => {
+      if (!input.imageUrl || !input.imageUrl.trim()) return 'Image URL is required'
+      if (!input.prompt || !input.prompt.trim()) return 'Prompt is required'
+      return null
+    },
+    buildBody: (input, seconds, webhookUrl) => {
+      const lastFrameUrl = input.additionalImageUrls?.[0] || ''
+      const body: KieRequestBody = {
+        model: 'wan/2-7-image-to-video',
+        input: {
+          prompt: input.prompt,
+          first_frame_url: input.imageUrl,
+          resolution: '720p',
+          duration: seconds,
+          prompt_extend: true,
+          watermark: false,
+          nsfw_checker: false,
+          driving_audio_url: '', // 空字符串触发自动音频（历史口径）
+        },
+      }
+      if (lastFrameUrl) body.input!.last_frame_url = lastFrameUrl
+      if (webhookUrl) body.callBackUrl = webhookUrl
+      return body
+    },
+  },
+  minimaxH3: {
+    label: 'MiniMax H3',
+    taskType: 'minimax_h3_video',
+    endpointUrl: JOBS_CREATE_URL,
+    // 历史口径：4-15s 之外的输入一律收敛到 6s（计费按收敛后时长）
+    parseDuration: raw => {
+      const n = parseInt(String(raw || '6').replace(/s$/i, ''), 10)
+      return Number.isNaN(n) || n < 4 || n > 15 ? 6 : n
+    },
+    validate: input => {
+      if (!input.imageUrl || !input.imageUrl.trim()) return 'Image URL is required for MiniMax H3'
+      if (!input.prompt || !input.prompt.trim()) return 'Prompt is required'
+      return null
+    },
+    buildBody: (input, seconds, webhookUrl) => {
+      const lastFrameUrl = input.additionalImageUrls?.[0] || ''
+      const body: KieRequestBody = {
+        model: 'minimax-h3/image-to-video',
+        input: {
+          prompt: input.prompt,
+          first_frame_url: input.imageUrl || undefined,
+          last_frame_url: lastFrameUrl || undefined,
+          duration: seconds,
+          resolution: '768p',
+        },
+      }
+      if (webhookUrl) body.callBackUrl = webhookUrl
+      return body
+    },
+  },
 }
 
 /** 提交视频生成任务：调供应商 + 落任务行（claim 行），返回供应商 taskId */

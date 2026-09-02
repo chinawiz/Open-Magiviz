@@ -63,7 +63,20 @@ export async function pollKieTask(
     return { verdict, resultUrls: [] }
   }
 
-  // jobsGet
+  // jobsGet（Seedance/Kling/Wan/HappyHorse/GeminiOmni/MiniMax 视频）
+  // MiniMax H3 在同一端点返回 Veo 式 successFlag 形状（生成路由的内联轮询历史上按此解析）；
+  // 两种形状都归一，保证补偿任务与兜底轮询读到一致终态。
+  if (typeof d.successFlag === 'number') {
+    if (d.successFlag === 1) {
+      const r = d.response || {}
+      const urls = [r.videoUrl, r.url, ...(Array.isArray(r.urls) ? r.urls : [])].filter(
+        (u): u is string => typeof u === 'string' && u.length > 0,
+      )
+      return { verdict: 'success', resultUrls: urls }
+    }
+    if (d.successFlag === 2 || d.successFlag === 3) return { verdict: 'fail', resultUrls: [] }
+    return { verdict: 'processing', resultUrls: [] }
+  }
   const verdict = asVerdictFromState(d.taskStatus || d.task_status)
   return { verdict, resultUrls: verdict === 'success' ? (d.result?.resultUrls || []) : [] }
 }

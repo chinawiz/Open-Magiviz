@@ -149,3 +149,78 @@ describe('submitTask（视频任务提交 seam）', () => {
     expect(insertValues).not.toHaveBeenCalled()
   })
 })
+
+describe('submitTask：wan27', () => {
+  const baseInput = { prompt: '城市延时', imageUrl: 'https://img/first.png', duration: '6s' }
+
+  it('请求体/任务行符合契约（720p、数字时长、prompt_extend）', async () => {
+    mockFetch.mockResolvedValue(kieOk('tid-wan'))
+    vi.stubEnv('KIE_VIDEO_WEBHOOK_URL', 'https://example.com/kie/video-webhook')
+
+    const outcome = await submitTask('wan27', baseInput, { userId: 'u1', projectId: 'p1' })
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.model).toBe('wan/2-7-image-to-video')
+    expect(body.input.prompt).toBe('城市延时')
+    expect(body.input.first_frame_url).toBe('https://img/first.png')
+    expect(body.input.resolution).toBe('720p')
+    expect(body.input.duration).toBe(6) // 历史契约：数字
+    expect(body.input.prompt_extend).toBe(true)
+    expect(body.input.driving_audio_url).toBe('') // 空字符串触发自动音频
+    expect(body.callBackUrl).toBe('https://example.com/kie/video-webhook')
+
+    expect(outcome).toMatchObject({ ok: true, taskId: 'tid-wan', taskType: 'wan_2_7_video', pointsAmount: 12 })
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ taskType: 'wan_2_7_video', model: 'wan27', pointsAmount: 12 }))
+  })
+
+  it('无尾帧时请求不带 last_frame_url；带尾帧时传入', async () => {
+    mockFetch.mockResolvedValue(kieOk())
+    await submitTask('wan27', baseInput, {})
+    let body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.input.last_frame_url).toBeUndefined()
+
+    await submitTask('wan27', { ...baseInput, additionalImageUrls: ['https://img/last.png'] }, {})
+    body = JSON.parse(mockFetch.mock.calls[1][1].body)
+    expect(body.input.last_frame_url).toBe('https://img/last.png')
+  })
+
+  it('缺 imageUrl → 拒绝；时长越界按历史口径收敛到 5s（含计费）', async () => {
+    const noImage = await submitTask('wan27', { prompt: 'x' }, {})
+    expect(noImage).toEqual({ ok: false, error: 'Image URL is required' })
+
+    mockFetch.mockResolvedValue(kieOk('tid-wan2'))
+    const outcome = await submitTask('wan27', { prompt: 'x', imageUrl: 'https://i.png', duration: '20s' }, { userId: 'u1' })
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.input.duration).toBe(5)
+    expect(outcome).toMatchObject({ ok: true, pointsAmount: 10 }) // 5s × 2
+  })
+})
+
+describe('submitTask：minimaxH3', () => {
+  it('请求体符合契约（768p、数字时长）', async () => {
+    mockFetch.mockResolvedValue(kieOk('tid-mm'))
+    const outcome = await submitTask(
+      'minimaxH3',
+      { prompt: '海浪', imageUrl: 'https://img/f.png', additionalImageUrls: ['https://img/l.png'], duration: '8s' },
+      { userId: 'u1' },
+    )
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.model).toBe('minimax-h3/image-to-video')
+    expect(body.input.first_frame_url).toBe('https://img/f.png')
+    expect(body.input.last_frame_url).toBe('https://img/l.png')
+    expect(body.input.resolution).toBe('768p')
+    expect(body.input.duration).toBe(8)
+    expect(outcome).toMatchObject({ ok: true, taskId: 'tid-mm', taskType: 'minimax_h3_video', pointsAmount: 20 })
+  })
+
+  it('缺 imageUrl → 拒绝；时长越界收敛到 6s（含计费）', async () => {
+    const noImage = await submitTask('minimaxH3', { prompt: 'x' }, {})
+    expect(noImage).toEqual({ ok: false, error: 'Image URL is required for MiniMax H3' })
+
+    mockFetch.mockResolvedValue(kieOk('tid-mm2'))
+    const outcome = await submitTask('minimaxH3', { prompt: 'x', imageUrl: 'https://i.png', duration: '30s' }, { userId: 'u1' })
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.input.duration).toBe(6)
+    expect(outcome).toMatchObject({ ok: true, pointsAmount: 15 }) // 6s × 2.5
+  })
+})

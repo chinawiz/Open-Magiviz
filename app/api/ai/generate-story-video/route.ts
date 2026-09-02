@@ -6,7 +6,8 @@ import { isPaidPlan } from '@/lib/plan-limits'
 import { users as usersTable } from '@/lib/schema'
 import { getVideoUnitPoints, computeVideoPoints } from '@/lib/video-pricing'
 import { getVideoFallbackChain } from '@/lib/providers/defaults'
-import { submitTask, type SubmitInput, type SubmitMeta } from '@/lib/providers'
+import { submitTask, pollTaskUntilVerdict, type SubmitInput, type SubmitMeta } from '@/lib/providers'
+import { claimTaskPointsDeduction, markTaskSuccess } from '@/lib/task-points'
 import { trackFunnelEvent } from '@/lib/observability/track'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
@@ -177,9 +178,12 @@ async function generateSingleVideo(
       return await generateWithKling(imageUrl, prompt, aspectRatio, duration, videoStyle, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
     }
 
+    // Wan 支持首尾帧模式；已迁入 submit seam
     if (model === 'wan27') {
-      // Wan 支持首尾帧模式
-      return await generateWithWan(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
+      const outcome = await submitTask('wan27', submitInput, submitMeta)
+      if (!outcome.ok) return { success: false, error: outcome.error }
+      if (outcome.webhook) return { success: true, requestId: outcome.taskId }
+      return await fallbackPollAndSettle(outcome.taskType, outcome.taskId, userId)
     }
 
     // HappyHorse - 2积分/s, 默认 720p（API 实际调用 HappyHorse 1.1 接口）
@@ -195,9 +199,12 @@ async function generateSingleVideo(
       return { success: true, videoUrl: '', requestId: outcome.taskId }
     }
 
-    // MiniMax H3 - 4-15s, 支持首尾帧
+    // MiniMax H3 - 4-15s, 支持首尾帧；已迁入 submit seam
     if (model === 'minimaxH3') {
-      return await generateWithMinimaxH3(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
+      const outcome = await submitTask('minimaxH3', submitInput, submitMeta)
+      if (!outcome.ok) return { success: false, error: outcome.error }
+      if (outcome.webhook) return { success: true, requestId: outcome.taskId }
+      return await fallbackPollAndSettle(outcome.taskType, outcome.taskId, userId)
     }
 
     // Veo 3.1 Lite / Fast / Quality - 支持视频生成模式
@@ -379,6 +386,48 @@ function getDurationSeconds(duration?: string): number {
     return seconds > 0 ? seconds : 8
   }
   return 8 // 默认 8 秒
+}
+
+/**
+ * 无 webhook 时的兜底轮询（webhook 环境变量缺失才走）：经供应商适配层 pollTask
+ * 归一化查询；成功后与 webhook 结算同语义——原子认领、按任务行 pointsAmount 扣点、
+ * 标记成功。失败/超时不改任务行，交由补偿任务关闭（与历史行为一致）。
+ */
+async function fallbackPollAndSettle(
+  taskType: string,
+  taskId: string,
+  userId?: string,
+): Promise<{ success: boolean; videoUrl?: string; requestId?: string; error?: string }> {
+  const result = await pollTaskUntilVerdict(taskType, taskId, { maxAttempts: 180, intervalMs: 5000 })
+
+  if (result.verdict === 'success') {
+    const videoUrl = result.resultUrls[0] || ''
+    if (!videoUrl) return { success: false, error: 'No video URL in result' }
+    if (userId) {
+      try {
+        const claimed = await claimTaskPointsDeduction(taskId)
+        if (claimed) {
+          const rows = await db
+            .select({ pointsAmount: aiGenerationTasks.pointsAmount })
+            .from(aiGenerationTasks)
+            .where(eq(aiGenerationTasks.taskId, taskId))
+            .limit(1)
+          const amount = rows[0]?.pointsAmount ?? 0
+          if (amount > 0) {
+            await deductPoints(userId, amount, undefined, PointsAction.GENERATE_STORY_VIDEO)
+          }
+        }
+        await markTaskSuccess(taskId)
+        console.log('[generate-story-video] 兜底轮询成功，已按任务行结算积分:', { taskId })
+      } catch (settleError) {
+        console.error('[generate-story-video] 兜底轮询结算失败:', settleError)
+      }
+    }
+    return { success: true, videoUrl, requestId: taskId }
+  }
+
+  if (result.verdict === 'fail') return { success: false, error: 'Video generation failed' }
+  return { success: false, error: 'Video generation timeout' }
 }
 
 
