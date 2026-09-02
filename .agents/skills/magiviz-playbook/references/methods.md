@@ -27,7 +27,7 @@
 
 - 场景：架构普查发现 `generate-story-video` 路由 2394 行里藏 7 个 per-model 提交函数 + 13 处单价手抄，§3a 建的唯一事实源被死代码批量分支绕过（veo31Quality 预检 3 vs 实扣 9 分/秒）；首轮修复单价同源后，code-review 又抓到「同源只做了一半」——**计费秒数**仍是两套口径：route 预检用 `getDurationSeconds`（不按模型收敛），提交侧按各模型 clamp 收敛，minimaxH3 传 3s 时预检按 3s、落行按 6s，预检少算照样能打出负余额；降级链落到更贵候选时预检也不设防。
 - 教训（通用规律）：**单价同源 ≠ 金额同源**——金额公式的每个因子（单价、秒数、数量）凡在两处独立解析，漂移只是时间问题。结构性解法是 seam：供应商知识收敛到一个 module（一张「模型键 → 请求构造/taskType/webhook 口径」注册表），让「再抄一份」在物理上不可能；热修 ternary 只是止血。预检要对「所有可能实际发生的扣费」取上界（含降级链候选），而不是只对主模型。
-- 解法（已验证）：`lib/providers/submitTask(modelKey, input, meta)` 统一「调供应商 + 落任务行」，`resolveBillableSeconds(modelKey, raw)` 把各模型收敛/默认秒数导出给 route，预检 = 降级链各候选按各自口径的**最大消耗**；注册表 × 价格表双向一致性测试（`submit.test.ts`）守卫两边不许只改一边；route 2394→333 行。已知取舍：任务行 insert 失败仍返回 ok（历史口径——供应商任务已建，报错只会诱发重复提交烧供应商钱），留待 settlement 票收紧。
+- 解法（已验证）：`lib/providers/submitTask(modelKey, input, meta)` 统一「调供应商 + 落任务行」，`resolveBillableSeconds(modelKey, raw)` 把各模型收敛/默认秒数导出给 route，预检 = 降级链各候选按各自口径的**最大消耗**；注册表 × 价格表双向一致性测试（`submit.test.ts`）守卫两边不许只改一边；route 2394→293 行。已知取舍：任务行 insert 失败仍返回 ok（历史口径——供应商任务已建，报错只会诱发重复提交烧供应商钱），留待 settlement 票收紧。
 - 锚点：`lib/providers/submit.ts`、`lib/providers/poll.ts`、`app/api/ai/generate-story-video/route.ts`、commits `0d15741`..`ca1afd4`
 
 ## 4. 可靠性做成套兜底，不打散点补丁

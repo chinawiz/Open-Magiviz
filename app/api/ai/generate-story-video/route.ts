@@ -60,6 +60,7 @@ async function generateSingleVideo(
     return await fallbackPollAndSettle(outcome.taskType, outcome.taskId, meta.userId)
   }
 
+  let lastResult: { success: boolean; videoUrl?: string; requestId?: string; error?: string } = { success: false, error: 'No generation attempted' }
   for (let i = 0; i < chain.length; i++) {
     const model = chain[i]
     const result = await dispatchGeneration(model)
@@ -69,10 +70,11 @@ async function generateSingleVideo(
       }
       return { ...result, model }
     }
+    lastResult = result
     console.error(`[generate-story-video] 模型 ${model} 提交失败（${i + 1}/${chain.length}）: ${result.error || 'unknown'}`)
   }
   console.error(`[generate-story-video] 降级链耗尽: [${chain.join(' → ')}]`)
-  return { success: false, error: 'No generation attempted' }
+  return lastResult
 }
 
 /**
