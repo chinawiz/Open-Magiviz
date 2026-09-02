@@ -56,6 +56,22 @@ function parseDurationSeconds(raw: string | undefined, fallback: number): number
   return Number.isNaN(n) ? fallback : n
 }
 
+/** 区间收敛口径：空值用 emptyDefault，越界/非法用 fallback（与各模型历史实现一致） */
+function clampedSeconds(raw: string | undefined, emptyDefault: number, min: number, max: number, fallback: number): number {
+  const n = parseInt(String(raw || String(emptyDefault)).replace(/s$/i, ''), 10)
+  if (Number.isNaN(n) || n < min || n > max) return fallback
+  return n
+}
+
+/** 图生视频模型的公共校验：imageUrl + prompt（错误文案按模型微调） */
+function imageAndPromptValidator(imageMsg = 'Image URL is required') {
+  return (input: SubmitInput): string | null => {
+    if (!input.imageUrl || !input.imageUrl.trim()) return imageMsg
+    if (!input.prompt || !input.prompt.trim()) return 'Prompt is required'
+    return null
+  }
+}
+
 interface VideoSubmitter {
   label: string
   taskType: string
@@ -78,10 +94,10 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
         label,
         taskType: 'generate_story_video_veo',
         endpointUrl: `${KIE_BASE}/veo/generate`,
-        // 历史口径：仅 4/6/8s 合法，其余一律收敛到 8s
+        // 历史口径：字面 '4s'/'6s'/'8s' 精确匹配，其余一律收敛到 8s
         parseDuration: (raw: string | undefined) => {
-          const seconds = parseDurationSeconds(raw, 8)
-          return [4, 6, 8].includes(seconds) ? seconds : 8
+          const s = typeof raw === 'string' ? raw : ''
+          return s === '4s' || s === '6s' || s === '8s' ? parseInt(s, 10) : 8
         },
         validate: (input: SubmitInput) => {
           if (!input.prompt || !input.prompt.trim()) return 'Prompt is required'
@@ -164,17 +180,8 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
         taskType,
         endpointUrl: JOBS_CREATE_URL,
         // 历史口径：4..max 之外收敛（2.5 上限 30s 收敛 5s；其余上限 15s 收敛 8s；未传默认 5s）
-        parseDuration: (raw: string | undefined) => {
-          const max = is25 ? 30 : 15
-          const n = parseInt(String(raw || '5').replace(/s$/i, ''), 10)
-          if (Number.isNaN(n) || n < 4 || n > max) return is25 ? 5 : 8
-          return n
-        },
-        validate: (input: SubmitInput) => {
-          if (!input.imageUrl || !input.imageUrl.trim()) return 'Image URL is required'
-          if (!input.prompt || !input.prompt.trim()) return 'Prompt is required'
-          return null
-        },
+        parseDuration: (raw: string | undefined) => clampedSeconds(raw, 5, 4, is25 ? 30 : 15, is25 ? 5 : 8),
+        validate: imageAndPromptValidator(),
         buildBody: (input: SubmitInput, seconds: number, webhookUrl?: string) => {
           const lastFrameUrl = input.additionalImageUrls?.[0] || ''
           const body: KieRequestBody = {
@@ -206,15 +213,8 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
     taskType: 'happyhorse_video',
     endpointUrl: JOBS_CREATE_URL,
     // 历史口径：3-15s 之外的输入一律收敛到 5s（计费按收敛后时长）
-    parseDuration: raw => {
-      const n = parseInt(String(raw || '5').replace(/s$/i, ''), 10)
-      return Number.isNaN(n) || n < 3 || n > 15 ? 5 : n
-    },
-    validate: input => {
-      if (!input.imageUrl || !input.imageUrl.trim()) return 'Image URL is required'
-      if (!input.prompt || !input.prompt.trim()) return 'Prompt is required'
-      return null
-    },
+    parseDuration: raw => clampedSeconds(raw, 5, 3, 15, 5),
+    validate: imageAndPromptValidator(),
     // 历史兜底：环境变量与调用方都未配置时，回退本服务 video-webhook
     //（带 projectId 时附场景定位参数，格式与历史一致）
     resolveWebhook: meta => {
@@ -246,15 +246,8 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
     taskType: 'kling_3_0_video',
     endpointUrl: JOBS_CREATE_URL,
     // 历史口径：3-15s 之外的输入一律收敛到 5s（计费按收敛后时长）
-    parseDuration: raw => {
-      const n = parseInt(String(raw || '5').replace(/s$/i, ''), 10)
-      return Number.isNaN(n) || n < 3 || n > 15 ? 5 : n
-    },
-    validate: input => {
-      if (!input.imageUrl || !input.imageUrl.trim()) return 'Image URL is required'
-      if (!input.prompt || !input.prompt.trim()) return 'Prompt is required'
-      return null
-    },
+    parseDuration: raw => clampedSeconds(raw, 5, 3, 15, 5),
+    validate: imageAndPromptValidator(),
     buildBody: (input, seconds, webhookUrl) => {
       const lastFrameUrl = input.additionalImageUrls?.[0]
       const styleMap: Record<string, string> = {
@@ -317,15 +310,8 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
     taskType: 'wan_2_7_video',
     endpointUrl: JOBS_CREATE_URL,
     // 历史口径：2-15s 之外的输入一律收敛到 5s（计费按收敛后时长）
-    parseDuration: raw => {
-      const n = parseInt(String(raw || '5').replace(/s$/i, ''), 10)
-      return Number.isNaN(n) || n < 2 || n > 15 ? 5 : n
-    },
-    validate: input => {
-      if (!input.imageUrl || !input.imageUrl.trim()) return 'Image URL is required'
-      if (!input.prompt || !input.prompt.trim()) return 'Prompt is required'
-      return null
-    },
+    parseDuration: raw => clampedSeconds(raw, 5, 2, 15, 5),
+    validate: imageAndPromptValidator(),
     buildBody: (input, seconds, webhookUrl) => {
       const lastFrameUrl = input.additionalImageUrls?.[0] || ''
       const body: KieRequestBody = {
@@ -351,15 +337,8 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
     taskType: 'minimax_h3_video',
     endpointUrl: JOBS_CREATE_URL,
     // 历史口径：4-15s 之外的输入一律收敛到 6s（计费按收敛后时长）
-    parseDuration: raw => {
-      const n = parseInt(String(raw || '6').replace(/s$/i, ''), 10)
-      return Number.isNaN(n) || n < 4 || n > 15 ? 6 : n
-    },
-    validate: input => {
-      if (!input.imageUrl || !input.imageUrl.trim()) return 'Image URL is required for MiniMax H3'
-      if (!input.prompt || !input.prompt.trim()) return 'Prompt is required'
-      return null
-    },
+    parseDuration: raw => clampedSeconds(raw, 6, 4, 15, 6),
+    validate: imageAndPromptValidator('Image URL is required for MiniMax H3'),
     buildBody: (input, seconds, webhookUrl) => {
       const lastFrameUrl = input.additionalImageUrls?.[0] || ''
       const body: KieRequestBody = {
@@ -467,4 +446,17 @@ export async function submitTask(modelKey: string, input: SubmitInput, meta: Sub
   }
 
   return { ok: true, taskId, taskType: sub.taskType, pointsAmount, webhook: !!webhookUrl }
+}
+
+/**
+ * 计费秒数口径：与 submitTask 落行所用秒数完全同源（含各模型收敛/默认规则）。
+ * 路由余额预检必须经此函数取秒数——methods.md §3a：同一事实不得存在两份手抄。
+ */
+export function resolveBillableSeconds(modelKey: string, rawDuration: string | undefined): number {
+  return VIDEO_SUBMITTERS[modelKey]?.parseDuration(rawDuration) ?? 8
+}
+
+/** 模型展示名（注册表单源，取代历史上散落的 getModelName 映射） */
+export function videoModelLabel(modelKey: string): string {
+  return VIDEO_SUBMITTERS[modelKey]?.label ?? 'Veo 3.1'
 }

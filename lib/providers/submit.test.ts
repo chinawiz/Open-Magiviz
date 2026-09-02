@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { VIDEO_MODEL_UNIT_POINTS } from '@/lib/video-pricing'
-import { submitTask, VIDEO_SUBMITTERS } from './submit'
+import { submitTask, VIDEO_SUBMITTERS, resolveBillableSeconds, videoModelLabel } from './submit'
 
 /**
  * submitTask 契约测试（seam：lib/providers 提交半边）。
@@ -449,5 +449,33 @@ describe('submitTask：Veo 系（三键）', () => {
 
     const noPrompt = await submitTask('veo31Fast', { prompt: '', imageUrl: 'https://i.png' }, {})
     expect(noPrompt).toEqual({ ok: false, error: 'Prompt is required' })
+  })
+
+  it('时长仅接受字面 4s/6s/8s（历史字符串精确匹配口径；4/04s 等收敛 8s）', async () => {
+    mockFetch.mockResolvedValue(kieOk())
+    await submitTask('veo31Fast', { prompt: 'x', duration: '4' }, { userId: 'u1' })
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).duration).toBe(8)
+    expect(resolveBillableSeconds('veo31Fast', '4')).toBe(8)
+    expect(resolveBillableSeconds('veo31Fast', '04s')).toBe(8)
+    expect(resolveBillableSeconds('veo31Fast', '6s')).toBe(6)
+  })
+})
+
+describe('resolveBillableSeconds / videoModelLabel（预检与落行同源口径）', () => {
+  it('计费秒数与各模型落行口径一致（含收敛与默认）', () => {
+    expect(resolveBillableSeconds('minimaxH3', '3s')).toBe(6) // 4-15 之外收敛 6——历史上预检曾按 3s 少算
+    expect(resolveBillableSeconds('veo31Quality', '20s')).toBe(8)
+    expect(resolveBillableSeconds('seedance2', '3s')).toBe(8)
+    expect(resolveBillableSeconds('seedance25', '20s')).toBe(20) // 2.5 上限 30s
+    expect(resolveBillableSeconds('wan27', '20s')).toBe(5)
+    expect(resolveBillableSeconds('kling3', undefined)).toBe(5)
+    expect(resolveBillableSeconds('nonexistent', '6s')).toBe(8)
+  })
+
+  it('展示名与历史 getModelName 映射一致，未知回落 Veo 3.1', () => {
+    expect(videoModelLabel('veo31Fast')).toBe('Veo 3.1')
+    expect(videoModelLabel('veo31Quality')).toBe('Veo 3.1 Quality')
+    expect(videoModelLabel('seedance2Mini')).toBe('Seedance 2.0 Mini')
+    expect(videoModelLabel('nonexistent')).toBe('Veo 3.1')
   })
 })

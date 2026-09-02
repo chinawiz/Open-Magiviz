@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { getAuthedSession, jsonError } from '@/lib/api'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { isPaidPlan } from '@/lib/plan-limits'
-import { isKnownVideoModel, getVideoUnitPoints, getStyleFallbackModel } from '@/lib/video-pricing'
+import { isKnownVideoModel, computeVideoPoints, getStyleFallbackModel } from '@/lib/video-pricing'
 import { users as usersTable } from '@/lib/schema'
 import { getVideoFallbackChain } from '@/lib/providers/defaults'
-import { submitTask, pollTaskUntilVerdict, type SubmitInput, type SubmitMeta } from '@/lib/providers'
+import { submitTask, pollTaskUntilVerdict, resolveBillableSeconds, videoModelLabel, type SubmitInput, type SubmitMeta } from '@/lib/providers'
 import { claimTaskPointsDeduction, markTaskSuccess } from '@/lib/task-points'
 import { trackFunnelEvent } from '@/lib/observability/track'
 import { db } from '@/lib/db'
@@ -41,55 +41,25 @@ import { eq } from 'drizzle-orm'
  */
 
 /**
- * 生成单个剧情视频：解析目标模型 → 按降级链逐个提交。
- * 模型路由与回退口径见 lib/video-pricing / lib/providers/defaults。
+ * 生成单个剧情视频：沿降级链逐个提交（模型路由与链的构建在 POST 中完成，
+ * 预检已按链上最大消耗取上界）。
  */
 async function generateSingleVideo(
-  imageUrl: string,
-  prompt: string,
-  aspectRatio?: string,
-  duration?: string,
-  videoModel?: string,
-  videoStyle?: string,
-  webhookUrl?: string,
-  userId?: string,
-  projectId?: string,
-  sceneIndex?: number,
-  sceneId?: string,
-  versionId?: string,
-  versionGroupId?: string,
-  additionalImageUrls?: string[],
-  generationType?: string,
-  referenceVideoUrls?: string[],
-  referenceAudioUrls?: string[],
+  routeTo: string,
+  chain: string[],
+  input: SubmitInput,
+  meta: SubmitMeta,
 ): Promise<{ success: boolean; videoUrl?: string; requestId?: string; error?: string; model?: string }> {
-  // videoModel === 'auto' 或未传 → 根据 videoStyle 回退路由（口径在 video-pricing）
-  const effectiveModel = isKnownVideoModel(videoModel) ? videoModel : null
-  const styleFallbackModel = !effectiveModel ? getStyleFallbackModel(videoStyle) : null
-  const routeTo = effectiveModel || styleFallbackModel || 'veo31Fast'
-
-  // 提交 seam 的输入包（供应商知识收敛在 lib/providers，路由只传业务字段）
-  const submitInput: SubmitInput = { imageUrl, prompt, aspectRatio, duration, videoStyle, additionalImageUrls, generationType, referenceVideoUrls, referenceAudioUrls }
-  const submitMeta: SubmitMeta = { userId, projectId, versionId, versionGroupId, sceneIndex, sceneId, webhookUrl }
-
   // 按降级链提交：供应商知识、任务行落库、计费口径全在 submit seam 内
   const dispatchGeneration = async (model: string): Promise<{ success: boolean; videoUrl?: string; requestId?: string; error?: string }> => {
-    const outcome = await submitTask(model, submitInput, submitMeta)
+    const outcome = await submitTask(model, input, meta)
     if (!outcome.ok) return { success: false, error: outcome.error }
     // Gemini Omni webhook-only（历史行为：不轮询，直接返回空 videoUrl 由回调补齐）
     if (model === 'geminiOmni') return { success: true, videoUrl: '', requestId: outcome.taskId }
     if (outcome.webhook) return { success: true, requestId: outcome.taskId }
-    return await fallbackPollAndSettle(outcome.taskType, outcome.taskId, userId)
+    return await fallbackPollAndSettle(outcome.taskType, outcome.taskId, meta.userId)
   }
 
-  // F2 基础降级：按"主模型 → 候补链"依次尝试，提交失败（含供应商报错/校验不符）
-  // 即切下一模型；链条依输入形态（是否有图）与时长约束过滤（lib/providers/defaults）
-  const chain = getVideoFallbackChain(routeTo, {
-    hasImage: !!(imageUrl && imageUrl.trim()),
-    durationSec: getDurationSeconds(duration),
-  })
-
-  let lastResult: { success: boolean; videoUrl?: string; requestId?: string; error?: string } = { success: false, error: 'No generation attempted' }
   for (let i = 0; i < chain.length; i++) {
     const model = chain[i]
     const result = await dispatchGeneration(model)
@@ -99,11 +69,10 @@ async function generateSingleVideo(
       }
       return { ...result, model }
     }
-    lastResult = result
     console.error(`[generate-story-video] 模型 ${model} 提交失败（${i + 1}/${chain.length}）: ${result.error || 'unknown'}`)
   }
   console.error(`[generate-story-video] 降级链耗尽: [${chain.join(' → ')}]`)
-  return lastResult
+  return { success: false, error: 'No generation attempted' }
 }
 
 /**
@@ -222,31 +191,18 @@ export async function POST(request: NextRequest) {
     const { imageUrl, prompt, aspectRatio, duration, videoModel, videoStyle, webhookUrl, versionId, versionGroupId, additionalImageUrls, generationType, videoUrls, audioUrls } = body
     const sceneIndex = body.sceneIndex
     const sceneId = body.sceneId != null ? String(body.sceneId) : undefined
-    const durationSeconds = getDurationSeconds(duration)
     const effectiveModel = isKnownVideoModel(videoModel) ? videoModel : null
-    const styleFallback = !effectiveModel ? getStyleFallbackModel(videoStyle) : null
-    const routeTo = effectiveModel || styleFallback || 'veo31Fast'
-    // 单价唯一事实源：lib/video-pricing.ts
-    const pointsPerSecond = getVideoUnitPoints(routeTo)
-    const requiredPoints = Math.round(durationSeconds * pointsPerSecond)
-    const getModelName = (model: string) => {
-      const names: Record<string, string> = {
-        'seedance25': 'Seedance 2.5',
-        'seedance2Fast': 'Seedance 2.0 Fast',
-        'seedance2Mini': 'Seedance 2.0 Mini',
-        'seedance2': 'Seedance 2.0',
-        'kling3': 'Kling 3.0',
-        'wan27': 'Wan 2.7',
-        'veo31Lite': 'Veo 3.1 Lite',
-        'veo31Quality': 'Veo 3.1 Quality',
-        'happyHorse': 'HappyHorse',
-        'geminiOmni': 'Gemini Omni',
-        'veo31Fast': 'Veo 3.1',
-        'minimaxH3': 'MiniMax H3'
-      }
-      return names[model] || 'Veo 3.1'
-    }
-    const modelName = getModelName(routeTo)
+    const routeTo = effectiveModel || getStyleFallbackModel(videoStyle) || 'veo31Fast'
+    const modelName = videoModelLabel(routeTo)
+
+    // 余额预检：取降级链各候选「各自计费秒数口径」（resolveBillableSeconds，与落行同源）
+    // 下的最大消耗为上界——链上任何模型实际落行扣点都不会超过该预检
+    const durationSeconds = getDurationSeconds(duration)
+    const chain = getVideoFallbackChain(routeTo, {
+      hasImage: !!(imageUrl && imageUrl.trim()),
+      durationSec: durationSeconds,
+    })
+    const requiredPoints = Math.max(...chain.map(m => computeVideoPoints(m, resolveBillableSeconds(m, duration))))
 
     console.log(`[generate-story-video] [${modelName}] 单个请求:`, {
       imageUrl: imageUrl?.substring(0, 50) + '...',
@@ -285,25 +241,29 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = await generateSingleVideo(
-      imageUrl ?? '',
-      prompt ?? '',
+    // 提交 seam 的输入包（供应商知识收敛在 lib/providers，路由只传业务字段）
+    const submitInput: SubmitInput = {
+      imageUrl: imageUrl ?? '',
+      prompt: prompt ?? '',
       aspectRatio,
       duration,
-      videoModel,
       videoStyle,
-      webhookUrl,
-      session.user.id,
-      projectId,
-      sceneIndex != null ? Number(sceneIndex) : undefined,
-      sceneId,
-      versionId,
-      versionGroupId,
       additionalImageUrls,
       generationType,
-      videoUrls,
-      audioUrls
-    )
+      referenceVideoUrls: videoUrls,
+      referenceAudioUrls: audioUrls,
+    }
+    const submitMeta: SubmitMeta = {
+      userId: session.user.id,
+      projectId,
+      versionId,
+      versionGroupId,
+      sceneIndex: sceneIndex != null ? Number(sceneIndex) : undefined,
+      sceneId,
+      webhookUrl,
+    }
+
+    const result = await generateSingleVideo(routeTo, chain, submitInput, submitMeta)
 
     trackFunnelEvent({ stage: 'video', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: 'kieai', model: result.model ?? routeTo, fallbackApplied: (result.model ?? routeTo) !== routeTo, taskId: result.requestId, error: result.error })
 
