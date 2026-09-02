@@ -6,6 +6,7 @@ import { isPaidPlan } from '@/lib/plan-limits'
 import { users as usersTable } from '@/lib/schema'
 import { getVideoUnitPoints, computeVideoPoints } from '@/lib/video-pricing'
 import { getVideoFallbackChain } from '@/lib/providers/defaults'
+import { submitTask, type SubmitInput, type SubmitMeta } from '@/lib/providers'
 import { trackFunnelEvent } from '@/lib/observability/track'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
@@ -158,6 +159,10 @@ async function generateSingleVideo(
     : null
   const routeTo = effectiveModel || styleFallbackModel || 'veo31Fast'
 
+  // 提交 seam 的输入包（供应商知识收敛在 lib/providers，路由只传业务字段）
+  const submitInput: SubmitInput = { imageUrl, prompt, aspectRatio, duration, videoStyle, additionalImageUrls, generationType, referenceVideoUrls, referenceAudioUrls }
+  const submitMeta: SubmitMeta = { userId, projectId, versionId, versionGroupId, sceneIndex, sceneId, webhookUrl }
+
   // 单次目标模型的提交分发（链上模型经参数传给各提交函数——Veo 用 videoModel 区分档位、
   // Seedance 用 routeTo 区分版本，其余在函数内写死——保证各函数内部的模型分支/计费单价
   // 与实际目标一致；各函数内部自带 taskType 常量）
@@ -182,14 +187,12 @@ async function generateSingleVideo(
       return await generateWithHappyHorse(imageUrl, prompt, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId)
     }
 
-    // Gemini Omni - 1积分/s, 固定 4/6/8/10s, 1080p, 不支持首尾帧
+    // Gemini Omni - 1080p, 固定 4/6/8/10s；webhook-only（历史行为：不轮询），
+    // 已迁入 lib/providers submit seam
     if (model === 'geminiOmni') {
-      const durationSec = getDurationSeconds(duration)
-      const allowedDurations = [4, 6, 8, 10]
-      if (!allowedDurations.includes(durationSec)) {
-        return { success: false, error: `Gemini Omni 只支持 4/6/8/10s，当前: ${durationSec}s` }
-      }
-      return await generateWithGeminiOmni(imageUrl, prompt, aspectRatio, duration, webhookUrl, userId, projectId, sceneIndex, sceneId, versionId, versionGroupId, additionalImageUrls)
+      const outcome = await submitTask('geminiOmni', submitInput, submitMeta)
+      if (!outcome.ok) return { success: false, error: outcome.error }
+      return { success: true, videoUrl: '', requestId: outcome.taskId }
     }
 
     // MiniMax H3 - 4-15s, 支持首尾帧

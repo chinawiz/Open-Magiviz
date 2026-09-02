@@ -24,4 +24,6 @@ export async function pollTask(taskType: string, taskId: string, timeoutMs = 150
 
 export { isKnownTaskType } from './defaults'
 export { resolveRoutes, invalidateRouteCache } from './router'
+export { submitTask } from './submit'
+export type { SubmitInput, SubmitMeta, SubmitOutcome } from './submit'
 export type { Capability, ProviderId, RouteEntry, PollResult, TaskVerdict } from './types'
