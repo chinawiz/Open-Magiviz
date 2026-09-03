@@ -42,7 +42,7 @@ import { StorageLimitDialog } from "@/components/operate/StorageLimitDialog"
 import { formatBytes, computeFileSizeLimit } from "@/components/operate/format"
 import { getVideoDuration, getAllVideoDurations } from "@/components/operate/video"
 import { parseStoryboardRestoreData } from "@/components/operate/storyboard-restore"
-import { computeVideoPointsFor, type VideoResolution } from "@/lib/video-pricing"
+import { computeVideoPointsFor, getVideoUnitPointsFor, type VideoResolution } from "@/lib/video-pricing"
 
 // 各模型可选分辨率档（UI 提示用；服务端注册表为权威——不支持档会被忽略并回落默认档）
 const VIDEO_MODEL_RESOLUTIONS: Record<string, string[]> = {
@@ -6714,6 +6714,17 @@ export function AIFunction({
     const seconds = Number.isFinite(duration) && duration > 0 ? duration : 8
     return computeVideoPointsFor(model, seconds, res)
   }
+
+  // 一键生成积分预估：大头是视频生成（总时长 × 选中模型×分辨率单价）；
+  // 剧本/主角/分镜为小额固定项未计入，故为「起」价。auto 模型按默认路由 veo31Fast、时长 auto 按 24s 估。
+  const pointsCost = (() => {
+    const model = videoModel !== 'auto' ? videoModel : 'veo31Fast'
+    const res = VIDEO_MODEL_RESOLUTIONS[model]?.includes(videoResolution)
+      ? (videoResolution as VideoResolution)
+      : undefined
+    const durSec = duration === 'auto' ? 24 : parseInt(String(duration), 10) || 24
+    return Math.round(durSec * getVideoUnitPointsFor(model, res))
+  })()
   const [generationMode, setGenerationMode] = useState<string>("auto") // auto/first-last-frame
 
   // 上传视频/音频时，强制只允许 seedance2 / seedance2Fast / seedance2Mini / seedance25；当前模型不兼容则自动切换
@@ -7487,6 +7498,9 @@ export function AIFunction({
                     )}
                     <span className="hidden md:inline text-sm font-medium">
                       {isGenerating ? t("generating") : t("applyEdit")}
+                      {!isGenerating && (
+                        <span className="opacity-80 font-normal ml-1">· {t("estimatedPoints", { points: pointsCost })}</span>
+                      )}
                     </span>
                   </Button>
                 </div>
