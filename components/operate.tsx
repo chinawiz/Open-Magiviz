@@ -37,7 +37,6 @@ import { getVideoDuration, getAllVideoDurations } from "@/components/operate/vid
 import { parseStoryboardRestoreData } from "@/components/operate/storyboard-restore"
 import { validateSeedanceMedia } from "@/components/operate/seedance-media"
 import { LibraryDialog } from "@/components/operate/LibraryDialog"
-import { ScriptDetailDialog } from "@/components/operate/ScriptDetailDialog"
 import { StoryboardDetailDialog } from "@/components/operate/StoryboardDetailDialog"
 import { CharacterDetailDialog } from "@/components/operate/CharacterDetailDialog"
 import {
@@ -659,8 +658,6 @@ export function AIFunction({
   }
 
   // 编辑状态
-  const [isEditingScript, setIsEditingScript] = useState(false)
-  const [editedScriptData, setEditedScriptData] = useState<ScriptData | null>(null)
   const [isEditingCharacter, setIsEditingCharacter] = useState(false)
   const [editedCharacterData, setEditedCharacterData] = useState<CharacterItem | null>(null)
   const [isEditingSceneVideo, setIsEditingSceneVideo] = useState(false)
@@ -673,7 +670,6 @@ export function AIFunction({
   const [isGeneratingScenePlot, setIsGeneratingScenePlot] = useState(false)
   const [isRegeneratingSceneVideo, setIsRegeneratingSceneVideo] = useState<number | null>(null)
   const [isRegeneratingCharacterId, setIsRegeneratingCharacterId] = useState<string | null>(null)
-  const [showScriptPreview, setShowScriptPreview] = useState(false)
   const [showCharacterPreview, setShowCharacterPreview] = useState(false)
   const [showStoryboardPreview, setShowStoryboardPreview] = useState(false)
   const [showSceneVideoPreview, setShowSceneVideoPreview] = useState(false)
@@ -683,7 +679,7 @@ export function AIFunction({
   const characterImageInputRef = useRef<HTMLInputElement>(null)
 
   // ========== Pusher 实时推送（hooks/use-task-events.ts，行为与原来一致） ==========
-  const { waitForGenerationResult, cleanupTaskSubscription, pendingTasksRef } = useTaskEvents()
+  const { waitForGenerationResult, pendingTasksRef } = useTaskEvents()
 
   // 用于跟踪组件是否已挂载（断点续跑等待用）
   const isMountedRef = useRef(false)
@@ -4292,10 +4288,6 @@ export function AIFunction({
     setShowUploadPopover(false)
   }
 
-  const removeImage = (index: number) => {
-    setSelectedImages(selectedImages.filter((_, i) => i !== index))
-  }
-
   const addImageUrl = (url: string) => {
     if (url.trim() && !imageUrls.includes(url.trim())) {
       setImageUrls([...imageUrls, url.trim()])
@@ -6378,20 +6370,6 @@ export function AIFunction({
           {t("upgrade")}
         </button>
       </PricingDialog>
-
-      {/* 剧情详情预览对话框（components/operate/ScriptDetailDialog.tsx，拆分 T6，行为与原来一致；编辑功能已禁用） */}
-      <ScriptDetailDialog
-        open={showScriptPreview}
-        onOpenChange={(open) => {
-          setShowScriptPreview(open)
-          if (!open) {
-            setIsEditingScript(false)
-            setEditedScriptData(null)
-          }
-        }}
-        onClose={() => setShowScriptPreview(false)}
-        scriptData={scriptData}
-      />
 
       {/* 主角详情预览/编辑对话框（components/operate/CharacterDetailDialog.tsx，拆分 T7，行为与原来一致） */}
       <CharacterDetailDialog

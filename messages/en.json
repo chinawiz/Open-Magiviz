@@ -1858,7 +1858,7 @@
       "storyboards": "storyboard",
       "videos": "video"
     },
-    "total": "{count} {type}(s) total",
+    "total": "{count} total",
     "searchPlaceholder": "Search by name or description...",
     "cancel": "Cancel",
     "pleaseSignIn": "Please sign in first",

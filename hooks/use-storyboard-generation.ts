@@ -1,14 +1,12 @@
 "use client"
 
 import { useTranslations } from "next-intl"
-import type { Dispatch, MutableRefObject, SetStateAction } from "react"
+import type { Dispatch, SetStateAction } from "react"
 import { useToast } from "@/hooks/use-toast"
+import type { WorkflowGenerationDeps } from "@/hooks/use-workflow-generation-deps"
 import type {
   CharacterImageRef,
   CharacterItem,
-  ComposedVideoResult,
-  SceneVideoItem,
-  ScriptData,
   StoryScene,
   StoryboardItem,
 } from "@/lib/types"
@@ -24,57 +22,11 @@ import type {
  * 与 operate 的耦合通过 deps 注入：共享 refs、当次渲染的状态值与 setter、
  * 以及仍留在 operate 的工作流回调（暂停等待/版本组/场景视频/合成/续跑/Pusher 等待）。
  */
-interface StoryboardGenerationDeps {
-  abortControllerRef: MutableRefObject<AbortController | null>
-  versionGroupIdRef: MutableRefObject<string | null>
-  currentProjectIdRef: MutableRefObject<string | null>
-  currentEditVersionId: MutableRefObject<string | null>
-  workflowPausedRef: MutableRefObject<boolean>
-  workflowInterruptedRef: MutableRefObject<boolean>
-  aspectRatio: string
+interface StoryboardGenerationDeps extends WorkflowGenerationDeps {
   generationMode: string
-  characterData: CharacterItem[]
-  scriptData: ScriptData | null
-  sceneVideos: SceneVideoItem[]
-  storyboardImages: StoryboardItem[]
-  currentProjectId: string | null
   storyboardToRegenerate: number | null
-  setCurrentPoints: (v: number | null) => void
-  setPurchaseDialogType: (v: 'points' | 'subscription' | 'card_verify') => void
-  setShowPurchaseDialog: (v: boolean) => void
-  setWorkflowPaused: (v: boolean) => void
-  setStoryboardImages: Dispatch<SetStateAction<StoryboardItem[]>>
   setIsRegeneratingStoryboard: Dispatch<SetStateAction<number | null>>
-  setSceneVideos: Dispatch<SetStateAction<SceneVideoItem[]>>
-  setVideoData: Dispatch<SetStateAction<ComposedVideoResult | null>>
-  setWorkflowError: Dispatch<SetStateAction<string | null>>
-  setWorkflowLoading: Dispatch<SetStateAction<boolean>>
-  setWorkflowStep: Dispatch<SetStateAction<'idle' | 'script' | 'character' | 'storyboard' | 'scenes' | 'video'>>
   setShowRegenerateStoryboardDialog: (v: boolean) => void
-  waitForGenerationResult: (params: {
-    taskId: string
-    type: 'character' | 'storyboard' | 'video' | 'compose'
-    timeoutMs?: number
-  }) => Promise<ComposedVideoResult>
-  waitForWorkflowResume: () => Promise<void>
-  generateVersionGroupId: () => string
-  generateSceneVideoForScene: (params: {
-    scene: StoryScene
-    sceneIndex: number
-    storyboardImage?: StoryboardItem
-    aspectRatio: string
-    consolePrefix: string
-    versionId?: string
-    versionGroupId?: string
-  }) => Promise<SceneVideoItem>
-  composeSceneVideosWithFAL: (
-    sceneVideosToCompose: SceneVideoItem[],
-    scriptDataForCompose?: ScriptData | null,
-    abortSignal?: AbortSignal,
-    projectId?: string,
-    versionId?: string,
-    versionGroupId?: string
-  ) => Promise<ComposedVideoResult | null>
   resumeSceneVideosGeneration: () => Promise<void>
 }
 

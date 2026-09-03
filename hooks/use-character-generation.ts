@@ -1,13 +1,12 @@
 "use client"
 
 import { useTranslations } from "next-intl"
-import type { ChangeEvent, Dispatch, MutableRefObject, SetStateAction } from "react"
+import type { ChangeEvent, Dispatch, SetStateAction } from "react"
 import { useToast } from "@/hooks/use-toast"
+import type { WorkflowGenerationDeps } from "@/hooks/use-workflow-generation-deps"
 import type {
   CharacterImageRef,
   CharacterItem,
-  ComposedVideoResult,
-  SceneVideoItem,
   ScriptData,
   StoryScene,
   StoryboardItem,
@@ -24,37 +23,15 @@ import type {
  * 与 operate 的耦合经 deps 注入:共享 refs、当次渲染状态值与 setter、工作流回调
  * (暂停等待/版本组/分镜图与剧情视频生成/合成/存储校验/Pusher 等待)。
  */
-interface CharacterGenerationDeps {
-  abortControllerRef: MutableRefObject<AbortController | null>
-  versionGroupIdRef: MutableRefObject<string | null>
-  currentProjectIdRef: MutableRefObject<string | null>
-  currentEditVersionId: MutableRefObject<string | null>
-  workflowInterruptedRef: MutableRefObject<boolean>
-  workflowPausedRef: MutableRefObject<boolean>
-  aspectRatio: string
-  characterData: CharacterItem[]
-  scriptData: ScriptData | null
-  storyboardImages: StoryboardItem[]
-  currentProjectId: string | null
+interface CharacterGenerationDeps extends WorkflowGenerationDeps {
   characterToRegenerate: any
-  sceneVideos: SceneVideoItem[]
   subscriptionPlan: string | null
   editedCharacterData: CharacterItem | null
   characterImageFile: File | null
   setCharacterData: Dispatch<SetStateAction<CharacterItem[]>>
-  setCurrentPoints: (v: number | null) => void
-  setPurchaseDialogType: (v: 'points' | 'subscription' | 'card_verify') => void
-  setShowPurchaseDialog: (v: boolean) => void
-  setWorkflowPaused: (v: boolean) => void
   setIsGenerating: Dispatch<SetStateAction<boolean>>
   setIsRegeneratingCharacterId: Dispatch<SetStateAction<string | null>>
-  setSceneVideos: Dispatch<SetStateAction<SceneVideoItem[]>>
   setShowRegenerateCharacterDialog: (v: boolean) => void
-  setStoryboardImages: Dispatch<SetStateAction<StoryboardItem[]>>
-  setVideoData: Dispatch<SetStateAction<ComposedVideoResult | null>>
-  setWorkflowError: Dispatch<SetStateAction<string | null>>
-  setWorkflowLoading: Dispatch<SetStateAction<boolean>>
-  setWorkflowStep: Dispatch<SetStateAction<'idle' | 'script' | 'character' | 'storyboard' | 'scenes' | 'video'>>
   setCharacterEditMode: Dispatch<SetStateAction<'none' | 'image' | 'prompt'>>
   setCharacterImageFile: Dispatch<SetStateAction<File | null>>
   setEditedCharacterData: Dispatch<SetStateAction<CharacterItem | null>>
@@ -65,22 +42,6 @@ interface CharacterGenerationDeps {
   setShowSaveEditCharacterDialog: (v: boolean) => void
   setIsUploadingCharacterImage: Dispatch<SetStateAction<boolean>>
   setScriptData: Dispatch<SetStateAction<ScriptData | null>>
-  waitForGenerationResult: (params: {
-    taskId: string
-    type: 'character' | 'storyboard' | 'video' | 'compose'
-    timeoutMs?: number
-  }) => Promise<ComposedVideoResult>
-  waitForWorkflowResume: () => Promise<void>
-  generateVersionGroupId: () => string
-  generateSceneVideoForScene: (params: {
-    scene: StoryScene
-    sceneIndex: number
-    storyboardImage?: StoryboardItem
-    aspectRatio: string
-    consolePrefix: string
-    versionId?: string
-    versionGroupId?: string
-  }) => Promise<SceneVideoItem>
   generateStoryboardForScene: (params: {
     scene: StoryScene
     sceneIndex: number
@@ -92,14 +53,6 @@ interface CharacterGenerationDeps {
     itemId?: string
     regenerateFrameType?: 'first' | 'last'
   }) => Promise<StoryboardItem>
-  composeSceneVideosWithFAL: (
-    sceneVideosToCompose: SceneVideoItem[],
-    scriptDataForCompose?: ScriptData | null,
-    abortSignal?: AbortSignal,
-    projectId?: string,
-    versionId?: string,
-    versionGroupId?: string
-  ) => Promise<ComposedVideoResult | null>
   checkStorageAvailable: (totalFileSize: number) => Promise<{ available: boolean; storageInfo?: { usedStorage: number; storageLimit: number; availableStorage: number } }>
   handleStorageLimitExceeded: (storageInfo: { usedStorage: number; storageLimit: number; availableStorage: number }) => void
   computeFileSizeLimit: (plan: string | null) => number

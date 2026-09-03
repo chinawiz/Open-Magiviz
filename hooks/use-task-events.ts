@@ -142,16 +142,5 @@ export function useTaskEvents() {
     })
   }
 
-  /**
-   * 清理指定任务的 Pusher 订阅
-   */
-  function cleanupTaskSubscription(taskId: string): void {
-    const pending = pendingTasksRef.current.get(taskId)
-    if (pending) {
-      pendingTasksRef.current.delete(taskId)
-      console.log(`[Pusher] 清理任务:`, { taskId })
-    }
-  }
-
-  return { waitForGenerationResult, cleanupTaskSubscription, pendingTasksRef }
+  return { waitForGenerationResult, pendingTasksRef }
 }
