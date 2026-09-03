@@ -206,7 +206,7 @@ export async function PUT(
       }
 
       // 计算新的积分值
-      let newTotalPoints = (user.points || 0) + pointsChange
+      const newTotalPoints = (user.points || 0) + pointsChange
       let newPurchasedPoints = user.purchasedPoints || 0
       let newGiftedPoints = user.giftedPoints || 0
 

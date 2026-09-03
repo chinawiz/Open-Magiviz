@@ -291,8 +291,8 @@ export async function POST(request: NextRequest) {
           const intervalCount = (recurring?.interval_count as number | undefined) ?? 1
 
           const sub = latestSubscription as unknown as { current_period_start?: number; current_period_end?: number }
-          let subscriptionPeriodStart = sub.current_period_start
-          let subscriptionPeriodEnd = sub.current_period_end
+          const subscriptionPeriodStart = sub.current_period_start
+          const subscriptionPeriodEnd = sub.current_period_end
 
           // 兜底：根据计划周期推断天数
           const intervalToDays = (i?: 'day'|'week'|'month'|'year', count: number = 1) => {

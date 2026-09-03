@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
 
     if (action === 'list') {
       // 构建查询条件
-      let whereConditions = []
+      const whereConditions = []
       
       if (search) {
         whereConditions.push(

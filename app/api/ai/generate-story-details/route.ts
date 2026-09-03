@@ -566,7 +566,7 @@ Output format: include "userImageUrl" field at the top level of each character o
 
     // 第一次请求使用传入的 maxTokens
     const scriptStartedAt = Date.now()
-    let { res, json: respJson } = await doRequest(maxTokens)
+    const { res, json: respJson } = await doRequest(maxTokens)
 
     if (!res.ok) {
       console.error('ZenMux error:', respJson)

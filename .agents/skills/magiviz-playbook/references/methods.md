@@ -90,3 +90,18 @@ token 按任务最小授权、一事一发、用完撤；撤销后必须用真�
 - 教训（通用规律）：**「应发」的口径是「曾经承诺过的数」，退款是事后事件，不应从应发里剔除**——否则每次退款都会制造假差异，掩盖真漏发。回收动作在台账侧（负数流水+审计）单独可见，两侧各记各的事实，不做双向抵消。
 - 解法（已验证）：应发 = `paymentStatus IN ('succeeded','refunded')` 的 pointsAmount 合计；实发 = pointsHistory `action='purchase'` 正数合计；差异 ≠ 0 即漏发。锚点：`app/api/admin/finance/recon/route.ts`。
 
+## 16. 存量库接 lint/质量门禁靠「分诊」，不靠「全修」（2026-09-03 质量流程落地实证）
+
+- 场景：仓库 122+ 测试和 strict TS 一直手动跑，lint script 坏死（Next 16 移除 `next lint` + eslint 从未安装），无 push 触发的 CI，全部质量关卡靠自觉。
+- 教训（通用规律）：**给存量代码库第一次接 lint，目标不是「零告警」而是「error 归零 + 债务显名」**。全量修 222 个 error 等于大改业务代码，引入回归风险，得不偿失。
+- 解法（已验证）三步分诊：① 机械可修的交给 `eslint --fix`（prefer-const 12 处一次清零）+ 手工零星修真错（JSX 未转义引号 2 处、tailwind config 的 require 1 处）；② 大宗且「修了要动业务逻辑」的规则降为 warn 并在 config 里注明分诊日期（no-explicit-any 156 + react-hooks 新规 set-state-in-effect/immutability/purity 51），债显名、拦 CI 的只有 error；③ 验收口径 = `npm run check`（typecheck+lint+test 一条命令）+ 占位 env build 全绿，并搬进 push/PR 触发的 CI workflow（env 全占位照抄 cf-deploy 模式）。
+- 附带纪律：warning 不拦门禁但**别新增**——否则债务静默膨胀，门禁名存实亡。
+- 锚点：`eslint.config.mjs`（含分诊注释）、`package.json`（typecheck/check scripts）、`.github/workflows/ci.yml`、`QUALITY-CHECKLIST.md`（五层检查 + 已知全绿盲区表）、`AGENTS.md`（提交流程挂链）。
+## 17. 可维护性治理的「摸底→棘轮→军规→风险升序拆分」套路（2026-09-03 grilling 共识落地）
+
+- 摸底先行，数字说话：最大文件行数/useState 数、影子文件 diff、测试盲区（钱/权模块）、i18n 键对账——一个后台探查 agent 十分钟出全库底账，不靠感觉定优先级。本次摸出 operate.tsx 10,037 行/82 useState（第二大文件的 9 倍）、钱权 12 模块零测试、6 个死键。
+- **warning 用棘轮不用清零**：`--max-warnings <实测数>` 进 lint script（本地=CI 同一命令），存量 430 条冻结、只降不升；清偿后手动调低数字。给存量库第一次接 lint，「error 归零+债务显名」比「零告警」现实得多（承接 §16）。
+- **军规要有牙齿才存在**：「童子军军规」落成可验收条款——碰过的文件该文件 warning 清 0、新抽纯逻辑必带 vitest、~500 行压力线；否则永远排在后面。
+- **大单体拆分：专项立项 + 风险升序 + 分批回归 + 安全网先行**：先摸清职责块（8 类）与已验证的低风险先例（4 Dialog+3 纯模块）；拆分顺序纯数据→展示→状态编排；回归按批次升压（纯函数批只跑 vitest → 展示批精简 GUI → 状态批全量 GUI 矩阵）；**给计费/支付/验签纯函数补单测作为拆分安全网，先行于第一刀**。载体用 plan+逐块 ticket 声明阻塞边，跨 session 恢复。锚点：`docs/operate-split/`（plan+T1-T8）、`QUALITY-CHECKLIST.md`「童子军军规」节、`lib/{points,points-manager,payments,webhook-security}.test.ts`。
+- 拆分纪律：**只移动不改行为**；疑似 bug 记 ticket「发现」节不顺手修。本次即命中一例：`points-manager` 的到期状态翻转只发生在「有赠送积分」的清零分支内，赠送积分为 0 的到期用户会永远停在 active（现状已用测试固化为契约，是否修属产品决策）；另注意用户积分表隐含不变式 `points = purchasedPoints + giftedPoints`，测试夹具违反它会算出负数——实现信任该不变式。
+- T1 补充（2026-09-03 首刀实证）：**客户端镜像表的手抄关系本身要固化成测试**——operate.tsx 的分辨率表与 submit 注册表是「≥2 档子集」的精确镜像，抽到 `lib/providers/video-models.ts` 后用 4 用例锁死「三方同集+逐值相等」，后续增删模型任一侧单独漂移立刻红（§3b 双向一致性模式在「服务端权威 vs 客户端镜像」场景的推广）。本次同刀收获：素材兼容模型集曾在 3 处字面重复、注释与代码漂移（注释 3 个模型、代码放行 4 个）——**重复的字面集合就是等待发生的口径漂移**，抽离时一律收敛单源。锚点：`lib/providers/video-models.{ts,test.ts}`、`docs/operate-split/T1-model-registry.md`「发现」节。

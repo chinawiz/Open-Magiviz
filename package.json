@@ -5,7 +5,9 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
-    "lint": "next lint",
+    "lint": "eslint . --max-warnings 419",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run lint && npm run test",
     "start": "next start",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
@@ -68,6 +70,7 @@
     "uuid": "^10.0.0"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.7",
     "@opennextjs/cloudflare": "^1.20.3",
     "@trigger.dev/build": "^4.5.12",
     "@types/node": "^22",
@@ -75,6 +78,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.4",
     "pg": "^8.23.0",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",

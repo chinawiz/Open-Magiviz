@@ -360,7 +360,7 @@ export async function POST(request: NextRequest) {
             const storyboards: StoryboardItem[] = safeJsonCopy<StoryboardItem[]>(targetRecord.storyboardData) || []
 
             // 查找是否已有相同 id 的记录
-            let sbIdx = storyboards.findIndex((s: StoryboardItem) => String(s.id) === String(itemId))
+            const sbIdx = storyboards.findIndex((s: StoryboardItem) => String(s.id) === String(itemId))
 
             if (sbIdx >= 0) {
               // 已存在，更新 imageUrl

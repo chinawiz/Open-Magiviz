@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import {
   useToast,
-} from "@/components/ui/use-toast"
+} from "@/hooks/use-toast"
 import {
   Upload,
   X,

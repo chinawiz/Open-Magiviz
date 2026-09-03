@@ -1672,8 +1672,6 @@
     "fileTypeError": "❌ 文件类型错误",
     "pleaseUploadImageFile": "请上传图片文件",
     "invalidFileType": "只支持图片、音频和视频文件",
-    "loginRequired": "需要登录",
-    "loginRequiredUpload": "请先登录以上传文件",
     "fileTooLarge": "❌ 文件过大",
     "fileSizeExceeded": "{type}大小不能超过{limit}",
     "fileSizeLimitDesc": "当前版本最多可上传{limit}MB文件，请升级订阅以获得更大上传限制",

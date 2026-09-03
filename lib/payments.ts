@@ -115,7 +115,7 @@ export async function getUserPaymentHistory(
     const { limit = 50, offset = 0, paymentType, paymentStatus } = options
 
     // 构建查询条件
-    let whereConditions = [eq(stripePayments.userId, userId)]
+    const whereConditions = [eq(stripePayments.userId, userId)]
     
     if (paymentType) {
       whereConditions.push(eq(stripePayments.paymentType, paymentType))

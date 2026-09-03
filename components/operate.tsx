@@ -23,13 +23,6 @@ import type {
   ComposedVideoResult,
   ScriptData,
 } from "@/lib/types"
-import {
-  probeMediaUrl,
-  validateVideoMeta,
-  validateAudioMeta,
-  SEEDANCE_LIMITS,
-  type MediaMeta,
-} from "@/lib/media-validation"
 import { useTranslations, useLocale } from "next-intl"
 import { useSession } from "next-auth/react"
 import { SignInDialog } from "@/components/auth/signin-dialog"
@@ -42,18 +35,17 @@ import { StorageLimitDialog } from "@/components/operate/StorageLimitDialog"
 import { formatBytes, computeFileSizeLimit } from "@/components/operate/format"
 import { getVideoDuration, getAllVideoDurations } from "@/components/operate/video"
 import { parseStoryboardRestoreData } from "@/components/operate/storyboard-restore"
+import { validateSeedanceMedia } from "@/components/operate/seedance-media"
 import { computeVideoPointsFor, getVideoUnitPointsFor, type VideoResolution } from "@/lib/video-pricing"
+import {
+  VIDEO_MODEL_RESOLUTIONS,
+  VIDEO_MODEL_I18N_KEYS as videoModelMap,
+  VIDEO_MODEL_OPTION_ORDER,
+  MEDIA_COMPATIBLE_VIDEO_MODELS,
+  FIRST_LAST_FRAME_UNSUPPORTED_MODELS,
+  AUTO_MODEL_FALLBACK,
+} from "@/lib/providers/video-models"
 
-// 各模型可选分辨率档（UI 提示用；服务端注册表为权威——不支持档会被忽略并回落默认档）
-const VIDEO_MODEL_RESOLUTIONS: Record<string, string[]> = {
-  seedance25: ["480p", "720p", "1080p"],
-  seedance2Fast: ["480p", "720p"],
-  seedance2Mini: ["480p", "720p"],
-  seedance2: ["480p", "720p"],
-  wan27: ["720p", "1080p"],
-  happyHorse: ["720p", "1080p"],
-  kling3: ["720p", "1080p"],
-}
 import { useProject, getProgressPercentage } from "@/hooks/useProject"
 import { useSubscriptionPlan } from "@/hooks/useSubscriptionPlan"
 
@@ -2274,7 +2266,7 @@ export function AIFunction({
       (it) => it.type === "video" || it.type === "audio",
     )
     const hasMedia = mediaItems.length > 0
-    if (hasMedia && videoModel !== "seedance2" && videoModel !== "seedance2Fast" && videoModel !== "seedance2Mini" && videoModel !== "seedance25") {
+    if (hasMedia && !MEDIA_COMPATIBLE_VIDEO_MODELS.includes(videoModel)) {
       toast({
         title: t("videoModelMediaLockedTitle"),
         description: t("videoModelMediaLockedHint"),
@@ -2782,7 +2774,7 @@ export function AIFunction({
       }
 
       // 解析返回：兼容 data 对象或 output 文本
-      let parsedScriptData: any = null
+      const parsedScriptData: any = null
 
       // 映射并填入 UI
       const mapToUiScriptData = (data: any) => {
@@ -5321,7 +5313,7 @@ export function AIFunction({
   const handleStartEditStoryboard = (index: number, frameType?: 'first' | 'last') => {
     if (storyboardImages[index]) {
       const sb = storyboardImages[index]
-      let dataToEdit = JSON.parse(JSON.stringify(sb))
+      const dataToEdit = JSON.parse(JSON.stringify(sb))
 
       // 如果是首尾帧模式且有尾帧，根据传入的 frameType 设置编辑数据
       if (sb.lastFrameUrl && sb.lastFrameUrl !== sb.firstFrameUrl && frameType) {
@@ -6565,101 +6557,6 @@ export function AIFunction({
     setShowUploadPopover(false)
   }
 
-  /**
-   * 点击发送时校验已上传/上传中的视频/音频文件是否符合 Seedance 约束。
-   * - 探测每个文件的元数据（时长/宽高/像素/帧率）
-   * - 校验数量上限与总时长
-   * - 不通过返回失败原因，全部通过返回 ok
-   */
-  const validateSeedanceMedia = async (
-    items: UploadingItem[],
-    t: (key: string, opts?: any) => string,
-  ): Promise<{ ok: true } | { ok: false; message: string }> => {
-    const probed: Array<{ item: UploadingItem; meta: MediaMeta | null; err?: string }> = []
-    for (const it of items) {
-      const src = it.url || it.localUrl
-      if (!src) {
-        probed.push({ item: it, meta: null, err: "no source" })
-        continue
-      }
-      try {
-        const meta = await probeMediaUrl(src, it.type as "video" | "audio")
-        probed.push({ item: it, meta })
-      } catch (e: any) {
-        probed.push({ item: it, meta: null, err: e?.message || String(e) })
-      }
-    }
-
-    const videoItems = probed.filter((p) => p.item.type === "video")
-    const audioItems = probed.filter((p) => p.item.type === "audio")
-
-    if (videoItems.length > SEEDANCE_LIMITS.video.maxCount) {
-      return {
-        ok: false,
-        message: t("mediaValidationVideoCount", {
-          max: SEEDANCE_LIMITS.video.maxCount,
-          got: videoItems.length,
-        }),
-      }
-    }
-    if (audioItems.length > SEEDANCE_LIMITS.audio.maxCount) {
-      return {
-        ok: false,
-        message: t("mediaValidationAudioCount", {
-          max: SEEDANCE_LIMITS.audio.maxCount,
-          got: audioItems.length,
-        }),
-      }
-    }
-
-    const totalVideoDur = videoItems.reduce((s, p) => s + (p.meta?.duration || 0), 0)
-    const totalAudioDur = audioItems.reduce((s, p) => s + (p.meta?.duration || 0), 0)
-    if (totalVideoDur > SEEDANCE_LIMITS.video.maxTotalDuration + 0.01) {
-      return {
-        ok: false,
-        message: t("mediaValidationVideoTotalDuration", {
-          max: SEEDANCE_LIMITS.video.maxTotalDuration,
-          got: totalVideoDur.toFixed(1),
-        }),
-      }
-    }
-    if (totalAudioDur > SEEDANCE_LIMITS.audio.maxTotalDuration + 0.01) {
-      return {
-        ok: false,
-        message: t("mediaValidationAudioTotalDuration", {
-          max: SEEDANCE_LIMITS.audio.maxTotalDuration,
-          got: totalAudioDur.toFixed(1),
-        }),
-      }
-    }
-
-    for (const p of probed) {
-      if (!p.meta) {
-        return {
-          ok: false,
-          message: t("mediaValidationProbeFailed", { filename: p.item.filename, err: p.err }),
-        }
-      }
-      const err =
-        p.item.type === "video"
-          ? validateVideoMeta(p.meta)
-          : p.item.type === "audio"
-          ? validateAudioMeta(p.meta)
-          : null
-      if (err) {
-        return {
-          ok: false,
-          message: t("mediaValidationFileFailed", {
-            filename: p.item.filename,
-            type: p.item.type,
-            reason: err.message,
-          }),
-        }
-      }
-    }
-    return { ok: true }
-  }
-
   const removeImage = (index: number) => {
     setSelectedImages(selectedImages.filter((_, i) => i !== index))
   }
@@ -6686,26 +6583,11 @@ export function AIFunction({
   const [showLinkInput, setShowLinkInput] = useState(false)
   const [linkInput, setLinkInput] = useState("")
 
-  // 视频模型映射
-  const videoModelMap: Record<string, string> = {
-    veo31Fast: "videoModelVeo31Fast",
-    veo31Lite: "videoModelVeo31Lite",
-    veo31Quality: "videoModelVeo31Quality",
-    geminiOmni: "videoModelGeminiOmni",
-    seedance25: "videoModelSeedance25",
-    seedance2Fast: "videoModelSeedance2Fast",
-    seedance2Mini: "videoModelSeedance2Mini",
-    seedance2: "videoModelSeedance2",
-    kling3: "videoModelKling3",
-    happyHorse: "videoModelHappyHorse",
-    wan27: "videoModelWan27",
-    minimaxH3: "videoModelMinimaxH3"
-  }
   const [videoModel, setVideoModel] = useState<string>("auto") // auto/veo31Fast/veo31Lite/veo31Quality/geminiOmni/seedance25/seedance2Fast/seedance2Mini/seedance2/kling3/happyHorse/wan27/minimaxH3
   const [videoResolution, setVideoResolution] = useState<string>("720p") // 480p/720p/1080p（仅声明支持的模型可选，默认档跟随现状）
   // 场景视频生成积分预估（与路由预检同源：主模型×所选分辨率档；auto 视为默认路由 veo31Fast）
   const estimateSceneVideoPoints = (sceneIndex?: number | null): number => {
-    const model = videoModel !== 'auto' ? videoModel : 'veo31Fast'
+    const model = videoModel !== 'auto' ? videoModel : AUTO_MODEL_FALLBACK
     const res = VIDEO_MODEL_RESOLUTIONS[model]?.includes(videoResolution)
       ? (videoResolution as VideoResolution)
       : undefined
@@ -6718,7 +6600,7 @@ export function AIFunction({
   // 一键生成积分预估：大头是视频生成（总时长 × 选中模型×分辨率单价）；
   // 剧本/主角/分镜为小额固定项未计入，故为「起」价。auto 模型按默认路由 veo31Fast、时长 auto 按 24s 估。
   const pointsCost = (() => {
-    const model = videoModel !== 'auto' ? videoModel : 'veo31Fast'
+    const model = videoModel !== 'auto' ? videoModel : AUTO_MODEL_FALLBACK
     const res = VIDEO_MODEL_RESOLUTIONS[model]?.includes(videoResolution)
       ? (videoResolution as VideoResolution)
       : undefined
@@ -6733,7 +6615,7 @@ export function AIFunction({
   )
   useEffect(() => {
     if (hasMedia) {
-      if (videoModel !== "seedance2" && videoModel !== "seedance2Fast" && videoModel !== "seedance2Mini" && videoModel !== "seedance25") {
+      if (!MEDIA_COMPATIBLE_VIDEO_MODELS.includes(videoModel)) {
         // 默认落到兼容档里最便宜的 seedance2Fast（2分/秒），最贵的 seedance25（9分/秒）
         // 保留给用户手动选择，避免上传素材即被切进高价档
         setVideoModel("seedance2Fast")
@@ -7267,22 +7149,11 @@ export function AIFunction({
                         )}
                         <div className="flex flex-wrap gap-1">
                           {(() => {
-                            const allowed = (k: string) => !hasMedia || k === "seedance2" || k === "seedance2Fast" || k === "seedance2Mini" || k === "seedance25"
-                            return [
-                              { key: "auto", label: t("videoModelAuto") },
-                              { key: "veo31Lite", label: t(videoModelMap.veo31Lite as any) },
-                              { key: "veo31Fast", label: t(videoModelMap.veo31Fast as any) },
-                              { key: "veo31Quality", label: t(videoModelMap.veo31Quality as any) },
-                              { key: "geminiOmni", label: t(videoModelMap.geminiOmni as any) },
-                              { key: "seedance25", label: t(videoModelMap.seedance25 as any) },
-                              { key: "seedance2Fast", label: t(videoModelMap.seedance2Fast as any) },
-                              { key: "seedance2Mini", label: t(videoModelMap.seedance2Mini as any) },
-                              { key: "seedance2", label: t(videoModelMap.seedance2 as any) },
-                              { key: "kling3", label: t(videoModelMap.kling3 as any) },
-                              { key: "happyHorse", label: t(videoModelMap.happyHorse as any) },
-                              { key: "wan27", label: t(videoModelMap.wan27 as any) },
-                              { key: "minimaxH3", label: t(videoModelMap.minimaxH3 as any) },
-                            ].map((item) => {
+                            const allowed = (k: string) => !hasMedia || MEDIA_COMPATIBLE_VIDEO_MODELS.includes(k)
+                            return VIDEO_MODEL_OPTION_ORDER.map((key) => ({
+                              key,
+                              label: key === "auto" ? t("videoModelAuto") : t(videoModelMap[key] as any),
+                            })).map((item) => {
                               const disabled = !allowed(item.key)
                               return (
                                 <button
@@ -7352,11 +7223,11 @@ export function AIFunction({
                             {t("generationModeAuto")}
                           </button>
                           <button
-                            onClick={() => videoModel !== "happyHorse" && videoModel !== "geminiOmni" && setGenerationMode("first-last-frame")}
-                            disabled={videoModel === "happyHorse" || videoModel === "geminiOmni"}
+                            onClick={() => !FIRST_LAST_FRAME_UNSUPPORTED_MODELS.includes(videoModel) && setGenerationMode("first-last-frame")}
+                            disabled={FIRST_LAST_FRAME_UNSUPPORTED_MODELS.includes(videoModel)}
                             className={cn(
                               "px-3 py-1 text-xs rounded-full border transition-all duration-200",
-                              videoModel === "happyHorse" || videoModel === "geminiOmni"
+                              FIRST_LAST_FRAME_UNSUPPORTED_MODELS.includes(videoModel)
                                 ? "bg-muted text-muted-foreground border-muted cursor-not-allowed opacity-50"
                                 : generationMode === "first-last-frame"
                                   ? "bg-primary text-primary-foreground border-primary"
@@ -9502,7 +9373,7 @@ export function AIFunction({
                             <div className="text-sm font-medium mb-2">{t("sceneNarration")}</div>
                             <div className="p-3 rounded-lg bg-muted/50">
                               <p className="text-sm text-muted-foreground italic">
-                                "{String(scriptData?.scenes?.[sceneIndex ?? 0]?.narration ?? '')}"
+                                &quot;{String(scriptData?.scenes?.[sceneIndex ?? 0]?.narration ?? '')}&quot;
                               </p>
                             </div>
                           </div>

@@ -190,8 +190,8 @@ async function handleSuccessCallback(taskId: string, data: KieApiResponse, start
   // Kling 3.0 格式（resultJson 里的字段）
   let resultUrls: string[] = parsedResult?.resultUrls || []
   let originUrls: string[] = parsedResult?.originUrls || []
-  let duration: string | undefined = parsedResult?.duration || data?.result?.duration
-  let aspectRatio: string | undefined = parsedResult?.aspectRatio || data?.result?.aspectRatio
+  const duration: string | undefined = parsedResult?.duration || data?.result?.duration
+  const aspectRatio: string | undefined = parsedResult?.aspectRatio || data?.result?.aspectRatio
   let resolution: string | undefined = data?.info?.resolution
 
   // Veo 格式 (兼容)

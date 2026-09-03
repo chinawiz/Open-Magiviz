@@ -1,0 +1,37 @@
+name: CI Quality Gate
+# push/PR 即跑:质量门禁(typecheck + lint + test + build),与手动触发的部署 workflow 分离
+# 经验:构建期模块顶层求值需要 DATABASE_URL 等占位值(见 .agents/skills/magiviz-playbook/references/infra-gotchas.md)
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://build:build@localhost:5432/build_placeholder
+          KIE_API_KEY: build_placeholder
+          R2_ACCESS_KEY: build_placeholder
+          R2_SECRET: build_placeholder
+          R2_ENDPOINT: https://build-placeholder.example.com
+          R2_BUCKET: build-placeholder
+          R2_PUBLIC_URL: https://build-placeholder.example.com
+          STRIPE_SECRET_KEY: sk_test_build_placeholder_replace_me
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_build_placeholder_replace_me
