@@ -25,7 +25,7 @@ Pusher 订阅、事件解析、进度写回 state 的实时通道逻辑(infra-go
 
 ## 发现
 
-1. **本地 dev 缺 `NEXT_PUBLIC_PUSHER_KEY/CLUSTER` 时,Pusher 订阅会静默失效**:`getPusherClient()` throw→`subscribeToTask` 捕获后返回 no-op unsubscribe,页面无任何可见异常,只有 `等待超时` 兜底。这正是线上「Pusher 实时推送未达页面」调查的同族失效模式(线上 6 env 成对齐全故未命中,但任何一侧 env 拼写/注入失误都会复刻)。已在本地 .env.local 补上两个 NEXT_PUBLIC 变量完成验证。**建议后续给 subscribeToTask 的 catch 加 console.error(当前疑似只 warn 或静默),或在初始化失败时 toast 一次**——是否做属独立修复票,不在本票顺手改。
+1. **本地 dev 缺 `NEXT_PUBLIC_PUSHER_KEY/CLUSTER` 时,Pusher 订阅会静默失效**:`getPusherClient()` throw→`subscribeToTask` 捕获后返回 no-op unsubscribe,页面无任何可见异常,只有 `等待超时` 兜底。这正是线上「Pusher 实时推送未达页面」调查的同族失效模式(线上 6 env 成对齐全故未命中,但任何一侧 env 拼写/注入失误都会复刻)。已在本地 .env.local 补上两个 NEXT_PUBLIC 变量完成验证。**已修复(独立票落地)**:catch 处原已有 console.error,真正的缺口是生产不可达 Sentry——已为 subscribe 失败与 subscription_error 两条路径接 `Sentry.captureException`(component/action 标签),并以 `lib/pusher-client.test.ts` 3 用例固化 fail-soft+可观测契约。
 2. **暂停流程直接伸手进 pendingTasksRef**(读 keys、包装 task.resolve 实现「等已发请求完成再暂停」)——本票按纪律原样暴露 ref 保行为;T6 拆暂停/工作流编排时可考虑收敛成 hook API(如 `whenPendingSettled()`),属深化非必改。
 3. `cleanupTaskSubscription` 定义后零调用点(死代码),已原样随迁进 hook 并返回;留给后续清理票删除。
 4. 原「挂载标记」isMountedRef 一份同时护卫 Pusher 回调与续跑轮询;拆分后 hook/operate 各持一份私有副本,各自只在自家作用域读写,挂载/卸载翻转时序等价。

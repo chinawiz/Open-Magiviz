@@ -1,6 +1,7 @@
 'use client'
 
 import PusherClient from 'pusher-js'
+import * as Sentry from '@sentry/nextjs'
 
 /**
  * Pusher Client-side Configuration
@@ -157,6 +158,7 @@ export function subscribeToTask(params: {
     // 订阅失败
     channel.bind('pusher:subscription_error', (error: unknown) => {
       console.error('[Pusher] 订阅失败:', error)
+      Sentry.captureException(error, { tags: { component: 'pusher-client', action: 'subscription' } })
       if (onError) {
         onError(error)
       }
@@ -172,6 +174,8 @@ export function subscribeToTask(params: {
 
   } catch (error) {
     console.error('[Pusher] 订阅失败:', error)
+    // 仅 console.error 在生产不可见(如缺 NEXT_PUBLIC_* 时的静默失效),必须进 Sentry
+    Sentry.captureException(error, { tags: { component: 'pusher-client', action: 'subscribe' } })
     if (onError) {
       onError(error)
     }
