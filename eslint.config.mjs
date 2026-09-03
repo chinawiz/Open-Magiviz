@@ -11,6 +11,11 @@ const eslintConfig = [
       "react-hooks/set-state-in-effect": "warn",
       "react-hooks/immutability": "warn",
       "react-hooks/purity": "warn",
+      // 未用标识符:下划线前缀视为有意保留(如兼容调用方签名的未用参数)
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
     },
   },
   {

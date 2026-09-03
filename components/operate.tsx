@@ -37,6 +37,8 @@ import { getVideoDuration, getAllVideoDurations } from "@/components/operate/vid
 import { parseStoryboardRestoreData } from "@/components/operate/storyboard-restore"
 import { validateSeedanceMedia } from "@/components/operate/seedance-media"
 import { LibraryDialog } from "@/components/operate/LibraryDialog"
+import { ScriptDetailDialog } from "@/components/operate/ScriptDetailDialog"
+import { StoryboardDetailDialog } from "@/components/operate/StoryboardDetailDialog"
 import {
   RegenerateCharacterConfirmDialog,
   SaveEditCharacterConfirmDialog,
@@ -59,6 +61,7 @@ import {
 import { useProject, getProgressPercentage } from "@/hooks/useProject"
 import { useSubscriptionPlan } from "@/hooks/useSubscriptionPlan"
 import { useTaskEvents } from "@/hooks/use-task-events"
+import { useStoryboardGeneration } from "@/hooks/use-storyboard-generation"
 
 interface AIFunctionProps {
   onSend?: (message: string) => void
@@ -743,7 +746,6 @@ export function AIFunction({
   // 控制输入框显示
   const [showInputBox, setShowInputBox] = useState(true)
 
-
   // 辅助函数：等待工作流继续（处理暂停状态）
   const waitForWorkflowResume = () => {
     return new Promise<void>((resolve) => {
@@ -1138,540 +1140,6 @@ export function AIFunction({
 
     return finalCharacterData
   }
-
-  // 通用函数：生成单个分镜图并更新状态（含 Pusher 处理）
-  const generateStoryboardForScene = async (params: {
-    scene: StoryScene
-    sceneIndex: number
-    aspectRatio: string
-    characterImages: CharacterImageRef[]
-    consolePrefix: string
-    versionId?: string
-    versionGroupId?: string
-    itemId?: string
-    regenerateFrameType?: 'first' | 'last'  // 只重新生成单个帧
-  }): Promise<StoryboardItem> => {
-    const { scene, sceneIndex, aspectRatio, characterImages, consolePrefix, itemId, regenerateFrameType } = params
-    const versionGroupId = params.versionGroupId || versionGroupIdRef.current
-
-    const basePrompt = String(scene.storyboardPrompt ?? '') || String(scene.plot ?? '') || String(scene.description ?? '') || t('noPlotDescription')
-    const logPrefix = `${consolePrefix} 分镜图 ${sceneIndex + 1}`
-
-    // 首尾帧模式：从 scene 中提取首帧和尾帧提示词
-    const firstFramePrompt = String(scene.firstFramePrompt ?? '') || null
-    const lastFramePrompt = String(scene.lastFramePrompt ?? '') || null
-    const useFirstLastFrame = generationMode === 'first-last-frame' && firstFramePrompt && lastFramePrompt
-
-    console.log(
-      `${logPrefix} - request:`,
-      {
-        storyboardPrompt: basePrompt,
-        aspectRatio,
-        characterImagesCount: characterImages?.length ?? 0,
-        itemId: itemId || scene.id,
-        versionGroupId,
-        generationMode,
-        useFirstLastFrame,
-      }
-    )
-
-    const requestBody: Record<string, unknown> = {
-      storyboardPrompt: basePrompt,
-      aspectRatio,
-      characterImages,
-      projectId: currentProjectIdRef.current || undefined,
-      versionId: params.versionId || currentEditVersionId.current || undefined,
-      versionGroupId: versionGroupId || undefined,
-      itemId: itemId || scene.id,
-      // 图生图：用户上传的场景图作为参考图（如果有），将作为 image_input 的第一张图
-      referenceImage: (typeof scene.userImageUrl === 'string' && scene.userImageUrl.trim().length > 0)
-        ? scene.userImageUrl
-        : (typeof scene.referenceImage === 'string' && scene.referenceImage.trim().length > 0)
-          ? scene.referenceImage
-          : undefined,
-    }
-
-    // 如果是首尾帧模式，添加首尾帧提示词
-    // 但是如果指定了 regenerateFrameType，则只传递指定帧的提示词
-    if (useFirstLastFrame) {
-      if (regenerateFrameType === 'first') {
-        requestBody.regenerateFrameType = 'first'
-        requestBody.firstFramePrompt = firstFramePrompt
-        // 不传递 lastFramePrompt，让后端只生成首帧
-      } else if (regenerateFrameType === 'last') {
-        requestBody.regenerateFrameType = 'last'
-        requestBody.lastFramePrompt = lastFramePrompt
-        // 不传递 firstFramePrompt，让后端只生成尾帧
-      } else {
-        // 正常情况，两个都传递
-        requestBody.firstFramePrompt = firstFramePrompt
-        requestBody.lastFramePrompt = lastFramePrompt
-      }
-    }
-
-    const storyboardResponse = await fetch('/api/ai/generate-storyboard-image', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-      signal: abortControllerRef.current?.signal,
-    })
-
-    // 先检查响应状态，再解析 JSON
-    if (!storyboardResponse.ok) {
-      let errorData: any = {}
-      let errorText = ''
-      try {
-        errorText = await storyboardResponse.text()
-        errorData = errorText ? JSON.parse(errorText) : {}
-      } catch (e) {
-        // 如果解析失败，使用原始文本
-        errorData = { error: errorText || `HTTP ${storyboardResponse.status}` }
-      }
-
-      // 检查是否是积分不足错误（只有在响应体非空时才检查）
-      if ((errorData.code === 'INSUFFICIENT_POINTS' || (errorData.error && errorData.error.includes('积分不足'))) && errorText) {
-        setCurrentPoints(errorData.currentPoints || 0)
-        setPurchaseDialogType('points')
-        setShowPurchaseDialog(true)
-        const errorMessage = t("pointsInsufficientDesc", { points: errorData.currentPoints || 0 })
-        
-        // 立即暂停工作流
-        workflowPausedRef.current = true
-        setWorkflowPaused(true)
-        workflowInterruptedRef.current = true // 标记工作流被中断，以便后续可以继续
-        console.log('[generateStoryboardForScene] 检测到积分不足，已暂停工作流')
-        
-        const errorItem = {
-          id: `storyboard_${sceneIndex + 1}`,
-          url: '',
-          sceneId: scene.id,
-          sceneIndex,
-          aspectRatio,
-          prompt: basePrompt,
-          generatedAt: new Date().toISOString(),
-          error: errorMessage,
-          code: 'INSUFFICIENT_POINTS'
-        }
-
-        // 实时更新错误状态
-        setStoryboardImages((prev: any[]) => {
-          const newItems = [...prev]
-          newItems[sceneIndex] = errorItem
-          return newItems
-        })
-
-        return errorItem
-      }
-      
-      // 积分不足是可预期的业务错误，不打印 error 级别日志
-      const isPointsInsufficient = errorData.code === 'INSUFFICIENT_POINTS' || (errorData.error && errorData.error.includes('积分不足'))
-      if (isPointsInsufficient) {
-        console.warn(`${logPrefix} 积分不足，跳过生成分镜图`)
-      } else {
-        console.error(`${logPrefix} 生成失败:`, storyboardResponse.status, errorData)
-      }
-      
-      const errorMessage =
-        errorData.error || t('storyboardGenerationFailed') + ` (status ${storyboardResponse.status})`
-
-      const errorItem = {
-        id: `storyboard_${sceneIndex + 1}`,
-        url: '',
-        sceneId: scene.id,
-        sceneIndex,
-        aspectRatio,
-        prompt: basePrompt,
-        generatedAt: new Date().toISOString(),
-        error: errorMessage,
-      }
-
-      // 实时更新错误状态
-      setStoryboardImages((prev: any[]) => {
-        const newItems = [...prev]
-        newItems[sceneIndex] = errorItem
-        return newItems
-      })
-
-      return errorItem
-    }
-
-    const storyboardResult = await storyboardResponse.json().catch((e) => {
-      console.error(`${logPrefix} - 解析 JSON 失败:`, e)
-      const errorMessage = t('parseStoryboardResponseFailed')
-
-      const errorItem = {
-        id: `storyboard_${sceneIndex + 1}`,
-        url: '',
-        sceneId: scene.id,
-        sceneIndex,
-        aspectRatio,
-        prompt: basePrompt,
-        generatedAt: new Date().toISOString(),
-        error: errorMessage,
-      }
-
-      setStoryboardImages((prev: any[]) => {
-        const newItems = [...prev]
-        newItems[sceneIndex] = errorItem
-        return newItems
-      })
-
-      return errorItem
-    })
-
-    // 如果返回值本身带 error 字段，直接按错误处理
-    if (storyboardResult && storyboardResult.error) {
-      // 检查是否是积分不足错误
-      if (storyboardResult.code === 'INSUFFICIENT_POINTS' || storyboardResult.error?.includes('积分不足')) {
-        setCurrentPoints(storyboardResult.currentPoints || 0)
-        setPurchaseDialogType('points')
-        setShowPurchaseDialog(true)
-        // 立即暂停工作流
-        workflowPausedRef.current = true
-        setWorkflowPaused(true)
-        workflowInterruptedRef.current = true // 标记工作流被中断，以便后续可以继续
-        console.log('[generateStoryboardForScene] 检测到积分不足（从结果中），已暂停工作流')
-      }
-      const errorItem = {
-        id: `storyboard_${sceneIndex + 1}`,
-        url: '',
-        sceneId: scene.id,
-        sceneIndex,
-        aspectRatio,
-        prompt: storyboardResult.prompt || basePrompt,
-        generatedAt: new Date().toISOString(),
-        error: storyboardResult.error,
-      }
-
-      setStoryboardImages((prev: any[]) => {
-        const newItems = [...prev]
-        newItems[sceneIndex] = errorItem
-        return newItems
-      })
-
-      return errorItem
-    }
-
-    // ========== Pusher 模式处理 ==========
-    let storyboardUrl =
-      storyboardResult.images?.[0]?.url ||
-      storyboardResult.imageUrl ||
-      storyboardResult.images?.[0]
-
-    // 检查是否是首尾帧模式（返回多个 requestId）
-    const isFirstLastFrameMode = storyboardResult.requestIds && storyboardResult.requestIds.length >= 2
-    
-    if (storyboardResult.requestId && !storyboardUrl) {
-      console.log(`${logPrefix} 使用 Pusher 模式:`, {
-        requestId: storyboardResult.requestId,
-        requestIds: storyboardResult.requestIds,
-        isFirstLastFrameMode,
-      })
-
-      try {
-        // 单帧重新生成模式：只等待一个 Pusher 结果
-        if (params.regenerateFrameType) {
-          const pusherData = await waitForGenerationResult({
-            taskId: storyboardResult.requestId,
-            type: 'storyboard',
-            timeoutMs: 900000,
-          })
-
-          if (pusherData?.error) {
-            const errorItem = {
-              id: `storyboard_${sceneIndex + 1}`,
-              url: '',
-              sceneId: scene.id,
-              sceneIndex,
-              aspectRatio,
-              prompt: storyboardResult.prompt || basePrompt,
-              generatedAt: new Date().toISOString(),
-              error: pusherData.error,
-            }
-
-            setStoryboardImages((prev: any[]) => {
-              const newItems = [...prev]
-              newItems[sceneIndex] = errorItem
-              return newItems
-            })
-
-            return errorItem
-          }
-
-          // 获取生成的图片 URL
-          const imageUrl = String(pusherData?.imageUrl || pusherData?.resultUrls?.[0] || '')
-          
-          console.log(`${logPrefix} 单帧 Pusher 结果 (${params.regenerateFrameType}):`, { imageUrl })
-          
-          if (!imageUrl) {
-            const errorItem = {
-              id: `storyboard_${sceneIndex + 1}`,
-              url: '',
-              sceneId: scene.id,
-              sceneIndex,
-              aspectRatio,
-              prompt: storyboardResult.prompt || basePrompt,
-              generatedAt: new Date().toISOString(),
-              error: t('storyboardGenerationFailed'),
-            }
-
-            setStoryboardImages((prev: any[]) => {
-              const newItems = [...prev]
-              newItems[sceneIndex] = errorItem
-              return newItems
-            })
-
-            return errorItem
-          }
-
-          // 返回单个帧的 URL
-          return {
-            id: `storyboard_${sceneIndex + 1}`,
-            url: imageUrl,
-            sceneId: scene.id,
-            sceneIndex,
-            aspectRatio,
-            prompt: storyboardResult.prompt || basePrompt,
-            generatedAt: new Date().toISOString(),
-            [params.regenerateFrameType === 'first' ? 'firstFrameUrl' : 'lastFrameUrl']: imageUrl,
-          }
-        }
-        
-        // 首尾帧模式：等待两个 Pusher 结果
-        if (isFirstLastFrameMode) {
-          const [firstPusherData, lastPusherData] = await Promise.all([
-            waitForGenerationResult({
-              taskId: storyboardResult.requestIds[0],
-              type: 'storyboard',
-              timeoutMs: 900000,
-            }),
-            waitForGenerationResult({
-              taskId: storyboardResult.requestIds[1],
-              type: 'storyboard',
-              timeoutMs: 900000,
-            }),
-          ])
-
-          // 检查是否有错误
-          const firstError = firstPusherData?.error
-          const lastError = lastPusherData?.error
-
-          if (firstError || lastError) {
-            const errorItem = {
-              id: `storyboard_${sceneIndex + 1}`,
-              url: '',
-              sceneId: scene.id,
-              sceneIndex,
-              aspectRatio,
-              prompt: storyboardResult.prompt || basePrompt,
-              generatedAt: new Date().toISOString(),
-              error: firstError || lastError || 'Generation failed',
-            }
-
-            setStoryboardImages((prev: any[]) => {
-              const newItems = [...prev]
-              newItems[sceneIndex] = errorItem
-              return newItems
-            })
-
-            return errorItem
-          }
-
-          // 提取首帧和尾帧 URL
-          const firstFrameUrl = String(firstPusherData?.imageUrl || firstPusherData?.resultUrls?.[0] || '')
-          const lastFrameUrl = String(lastPusherData?.imageUrl || lastPusherData?.resultUrls?.[0] || '')
-          
-          console.log(`${logPrefix} 首尾帧 Pusher 结果:`, { firstFrameUrl, lastFrameUrl })
-          
-          // 如果没有有效的首帧 URL，返回错误
-          if (!firstFrameUrl) {
-            const errorItem = {
-              id: `storyboard_${sceneIndex + 1}`,
-              url: '',
-              sceneId: scene.id,
-              sceneIndex,
-              aspectRatio,
-              prompt: storyboardResult.prompt || basePrompt,
-              generatedAt: new Date().toISOString(),
-              error: t('storyboardGenerationFailed'),
-            }
-
-            setStoryboardImages((prev: StoryboardItem[]) => {
-              const newItems = [...prev]
-              newItems[sceneIndex] = errorItem
-              return newItems
-            })
-
-            return errorItem
-          }
-
-          // 构建 storyboardItem
-          const storyboardItem: StoryboardItem = {
-            id: `storyboard_${sceneIndex + 1}`,
-            url: firstFrameUrl,
-            sceneId: scene.id,
-            sceneIndex,
-            aspectRatio,
-            prompt: storyboardResult.prompt || basePrompt,
-            generatedAt: new Date().toISOString(),
-            firstFrameUrl,
-            lastFrameUrl,
-            firstFramePrompt: firstFramePrompt ?? undefined,
-            lastFramePrompt: lastFramePrompt ?? undefined,
-          }
-
-          setStoryboardImages((prev: StoryboardItem[]) => {
-            const newItems = [...prev]
-            newItems[sceneIndex] = {
-              ...storyboardItem,
-              error: undefined,
-            }
-            return newItems
-          })
-
-          console.log(`${logPrefix} 首尾帧模式已更新显示`, {
-            hasFirstFrame: !!firstFrameUrl,
-            hasLastFrame: !!lastFrameUrl,
-          })
-
-          return storyboardItem
-        }
-
-        // 普通模式：等待单个 Pusher 结果
-        const pusherData = await waitForGenerationResult({
-          taskId: storyboardResult.requestId,
-          type: 'storyboard',
-          timeoutMs: 900000,
-        })
-
-        // 检查是否有错误（onFail 会 resolve 包含 error 的数据）
-        if (pusherData?.error) {
-          const errorItem = {
-            id: `storyboard_${sceneIndex + 1}`,
-            url: '',
-            sceneId: scene.id,
-            sceneIndex,
-            aspectRatio,
-            prompt: storyboardResult.prompt || basePrompt,
-            generatedAt: new Date().toISOString(),
-            error: pusherData.error,
-          }
-
-          setStoryboardImages((prev: any[]) => {
-            const newItems = [...prev]
-            newItems[sceneIndex] = errorItem
-            return newItems
-          })
-
-          return errorItem
-        }
-
-        storyboardUrl = String(pusherData.imageUrl || pusherData.resultUrls?.[0] || '')
-        console.log(`${logPrefix} Pusher 结果:`, storyboardUrl)
-      } catch (pusherError) {
-        console.error(`${logPrefix} Pusher 等待失败:`, pusherError)
-        const errorMessage = pusherError instanceof Error ? pusherError.message : t('generationFailed')
-        // 超时不显示错误，任务可能还在后台处理
-        if (errorMessage.includes('等待生成结果超时')) {
-          return {
-            id: `storyboard_${sceneIndex + 1}`,
-            url: '',
-            sceneId: scene.id,
-            sceneIndex,
-            aspectRatio,
-            prompt: storyboardResult.prompt || basePrompt,
-            generatedAt: new Date().toISOString(),
-            error: undefined,
-          }
-        }
-
-        const errorItem = {
-          id: `storyboard_${sceneIndex + 1}`,
-          url: '',
-          sceneId: scene.id,
-          sceneIndex,
-          aspectRatio,
-          prompt: storyboardResult.prompt || basePrompt,
-          generatedAt: new Date().toISOString(),
-          error: errorMessage,
-        }
-
-        setStoryboardImages((prev: any[]) => {
-          const newItems = [...prev]
-          newItems[sceneIndex] = errorItem
-          return newItems
-        })
-
-        return errorItem
-      }
-    }
-
-    // 提取图片 URL（支持首尾帧模式和普通模式）
-    const firstFrameUrl = storyboardResult.images?.firstFrame?.url || 
-                          storyboardResult.images?.[0]?.url || 
-                          storyboardResult.imageUrl || 
-                          ''
-    const lastFrameUrl = storyboardResult.images?.lastFrame?.url || ''
-
-    if (!firstFrameUrl) {
-      console.error(`${logPrefix} - 未返回有效图片 URL`, storyboardResult)
-      const errorItem = {
-        id: `storyboard_${sceneIndex + 1}`,
-        url: '',
-        sceneId: scene.id,
-        sceneIndex,
-        aspectRatio,
-        prompt: storyboardResult.prompt || basePrompt,
-        generatedAt: new Date().toISOString(),
-        error: t('storyboardGenerationFailed'),
-      }
-
-      setStoryboardImages((prev: any[]) => {
-        const newItems = [...prev]
-        newItems[sceneIndex] = errorItem
-        return newItems
-      })
-
-      return errorItem
-    }
-
-    const storyboardItem: StoryboardItem = {
-      id: `storyboard_${sceneIndex + 1}`,
-      url: firstFrameUrl,
-      sceneId: scene.id,
-      sceneIndex,
-      aspectRatio,
-      prompt: storyboardResult.prompt || basePrompt,
-      generatedAt: new Date().toISOString(),
-    }
-
-    // 如果是首尾帧模式，添加首帧和尾帧信息
-    if (useFirstLastFrame) {
-      storyboardItem.firstFrameUrl = firstFrameUrl
-      storyboardItem.lastFrameUrl = lastFrameUrl
-      storyboardItem.firstFramePrompt = firstFramePrompt
-      storyboardItem.lastFramePrompt = lastFramePrompt
-    }
-
-    // ========== 实时更新：每成功生成一个分镜图就立即更新状态 ==========
-    setStoryboardImages((prev: StoryboardItem[]) => {
-      const newItems = [...prev]
-      newItems[sceneIndex] = {
-        ...storyboardItem,
-        error: undefined, // 清除错误
-      }
-      return newItems
-    })
-    console.log(`${logPrefix} 已更新显示`, { 
-      hasFirstFrame: !!firstFrameUrl, 
-      hasLastFrame: !!lastFrameUrl,
-      useFirstLastFrame 
-    })
-    // ========== 实时更新结束 ==========
-
-    return storyboardItem
-  }
-
 
   // 通用函数：生成单个剧情视频并更新状态（含 Pusher 处理）
   const generateSceneVideoForScene = async (params: {
@@ -3235,7 +2703,6 @@ export function AIFunction({
     }
   }
 
-
   // 显示单个分镜图重新生成确认弹窗
   const handleShowRegenerateStoryboardDialog = (index: number) => {
     setStoryboardToRegenerate(index)
@@ -3246,383 +2713,6 @@ export function AIFunction({
   const handleShowRegenerateSingleFrame = (index: number, frameType: 'first' | 'last') => {
     setStoryboardToRegenerate(index)
     setShowRegenerateStoryboardDialog(true)
-  }
-
-  // 重新生成单个帧（首帧或尾帧）- 完整流程
-  const regenerateSingleFrame = async (index: number, frameType: 'first' | 'last') => {
-    if (!scriptData || !characterData) return
-
-    setIsRegeneratingStoryboard(index)
-    setWorkflowLoading(true)
-    setWorkflowError(null)
-
-    // 创建 AbortController 用于暂停
-    abortControllerRef.current = new AbortController()
-
-    const scene = (scriptData?.scenes ?? [])[index]
-    const storyboard = storyboardImages[index]
-    const vgId = generateVersionGroupId()
-
-    // 先设置 isGenerating: true，保留原有图片显示 + 生成中覆盖层
-    const updatedStoryboardsBeforeGenerate = [...storyboardImages]
-    updatedStoryboardsBeforeGenerate[index] = {
-      ...updatedStoryboardsBeforeGenerate[index],
-      isGenerating: true,
-    }
-    setStoryboardImages(updatedStoryboardsBeforeGenerate)
-
-    try {
-      // 获取场景的角色
-      const sceneCharacterIds = scene.characterIds || []
-      const relevantCharacters = characterData.filter((char: any) =>
-        sceneCharacterIds.includes(char.id)
-      )
-      const characterImages = relevantCharacters.length > 0
-        ? relevantCharacters.map((char: any) => ({
-            characterId: char.id,
-            imageUrl: char.imageUrl,
-            imagePrompt: char.generationPrompt || char.prompt || char.description || ''
-          }))
-        : []
-
-      console.log(`[regenerateSingleFrame] 开始重新生成${frameType === 'first' ? '首帧' : '尾帧'}:`, { sceneIndex: index, frameType })
-
-      // 1. 重新生成分镜图
-      setWorkflowStep('storyboard')
-
-      const storyboardItem = await generateStoryboardForScene({
-        scene,
-        sceneIndex: index,
-        aspectRatio,
-        characterImages,
-        consolePrefix: '[regenerateSingleFrame]',
-        versionId: currentEditVersionId.current || undefined,
-        versionGroupId: vgId,
-        itemId: scene.id,
-        regenerateFrameType: frameType,  // 只重新生成指定帧
-      })
-
-      // 检查错误
-      if (storyboardItem && storyboardItem.error) {
-        setWorkflowError(storyboardItem.error)
-        throw new Error(storyboardItem.error)
-      }
-
-      // 获取新生成的图片 URL
-      const newImageUrl = storyboardItem.images?.firstFrame?.url ||
-                          storyboardItem.images?.lastFrame?.url ||
-                          storyboardItem.url ||
-                          storyboardItem.imageUrl || ''
-
-      // 更新分镜图状态 - 只更新指定的帧，同时清除 isGenerating
-      const updatedStoryboards = [...storyboardImages]
-      const currentStoryboard = updatedStoryboards[index] || {}
-
-      if (frameType === 'first') {
-        // 更新首帧 - 保留原有的尾帧 URL
-        updatedStoryboards[index] = {
-          ...currentStoryboard,
-          ...storyboardItem,
-          firstFrameUrl: newImageUrl,
-          url: newImageUrl,  // 同时更新主 URL
-          lastFrameUrl: currentStoryboard.lastFrameUrl,  // 保留原有尾帧 URL
-          isGenerating: undefined,  // 清除生成中状态
-        }
-      } else {
-        // 更新尾帧 - 保留原有的首帧 URL
-        updatedStoryboards[index] = {
-          ...currentStoryboard,
-          ...storyboardItem,
-          firstFrameUrl: currentStoryboard.firstFrameUrl || currentStoryboard.url,  // 保留原有首帧 URL
-          lastFrameUrl: newImageUrl,
-          isGenerating: undefined,  // 清除生成中状态
-        }
-      }
-
-      setStoryboardImages(updatedStoryboards)
-
-      setWorkflowLoading(false)
-
-      // 检查是否暂停
-      await waitForWorkflowResume()
-
-    // 2. 重新生成该场景的剧情视频
-    setWorkflowStep('scenes')
-    setWorkflowLoading(true)
-
-    abortControllerRef.current = new AbortController()
-
-    // 清空该场景视频显示"生成中"状态
-    const currentSceneVideos = [...sceneVideos]
-    if (currentSceneVideos[index]) {
-      currentSceneVideos[index] = { ...currentSceneVideos[index], videoUrl: null }
-      setSceneVideos(currentSceneVideos)
-    }
-
-    const videoItem = await generateSceneVideoForScene({
-      scene,
-      sceneIndex: index,
-      storyboardImage: updatedStoryboards[index],
-        aspectRatio,
-        consolePrefix: '[regenerateSingleFrame]',
-        versionId: currentEditVersionId.current || undefined,
-        versionGroupId: vgId,
-      })
-
-      // 检查错误
-      if (videoItem && videoItem.error) {
-        throw new Error(videoItem.error)
-      }
-
-      // 合并回全量场景视频数组
-      const finalSceneVideos = [...sceneVideos]
-      finalSceneVideos[index] = videoItem
-      setSceneVideos(finalSceneVideos)
-
-      setWorkflowLoading(false)
-
-      // 检查是否暂停
-      await waitForWorkflowResume()
-
-      // 3. 重新生成完整视频
-      setWorkflowStep('video')
-      setWorkflowLoading(true)
-      setVideoData(null) // 清空旧的总视频
-
-      abortControllerRef.current = new AbortController()
-
-      const videoData = await composeSceneVideosWithFAL(
-        finalSceneVideos,
-        scriptData,
-        abortControllerRef.current?.signal,
-        currentProjectId || undefined,
-        currentEditVersionId.current || undefined,
-        vgId
-      )
-
-      setWorkflowLoading(false)
-      setIsRegeneratingStoryboard(null)
-
-      if (videoData) {
-        setVideoData(videoData)
-        toast({
-          title: frameType === 'first' ? t("firstFrameRegenerated") : t("lastFrameRegenerated"),
-          description: t("newStoryboardReady", { index: index + 1 }),
-        })
-      } else {
-        toast({
-          title: frameType === 'first' ? t("firstFrameRegenerated") : t("lastFrameRegenerated"),
-          description: t("videoComposeSkipped"),
-        })
-      }
-
-    } catch (error) {
-      // 清除 isGenerating 状态
-      const updatedStoryboardsOnError = [...storyboardImages]
-      if (updatedStoryboardsOnError[index]) {
-        updatedStoryboardsOnError[index] = {
-          ...updatedStoryboardsOnError[index],
-          isGenerating: undefined,
-        }
-        setStoryboardImages(updatedStoryboardsOnError)
-      }
-
-      // 如果是用户主动取消（暂停）
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log(`重新生成${frameType === 'first' ? '首帧' : '尾帧'}被用户暂停`)
-        workflowInterruptedRef.current = true
-        setWorkflowLoading(false)
-        abortControllerRef.current = null
-        setIsRegeneratingStoryboard(null)
-        return
-      }
-
-      console.error(`重新生成${frameType === 'first' ? '首帧' : '尾帧'}失败:`, error)
-      setWorkflowError(error instanceof Error ? error.message : t('regenerationFailed'))
-      toast({
-        title: t("regenerateFailed"),
-        description: error instanceof Error ? error.message : t("retryLater"),
-        variant: "destructive",
-      })
-      setWorkflowLoading(false)
-      abortControllerRef.current = null
-      setIsRegeneratingStoryboard(null)
-    }
-  }
-
-  // 执行单个分镜图重新生成
-  const handleConfirmRegenerateStoryboard = async () => {
-    if (storyboardToRegenerate === null || !scriptData || !characterData || characterData.length === 0) {
-      setShowRegenerateStoryboardDialog(false)
-      setIsRegeneratingStoryboard(null)
-      return
-    }
-
-    setShowRegenerateStoryboardDialog(false)
-    const index = storyboardToRegenerate
-    setIsRegeneratingStoryboard(index)
-
-    // 生成版本组ID（用于关联同一批次的重新生成任务）
-    const vgId = generateVersionGroupId()
-
-    // 清空旧的分镜图URL，显示"生成中"状态（与总视频重新生成一致）
-    const updatedStoryboards = [...storyboardImages]
-    updatedStoryboards[index] = null as unknown as StoryboardItem
-    setStoryboardImages(updatedStoryboards)
-
-    // 同时清空对应剧情视频的URL（因为本流程会重新生成该场景剧情视频）
-    if (sceneVideos[index]) {
-      const updatedSceneVideos = [...sceneVideos]
-      updatedSceneVideos[index] = { ...updatedSceneVideos[index], videoUrl: null }
-      setSceneVideos(updatedSceneVideos)
-    }
-
-    setWorkflowStep('storyboard')
-    setWorkflowLoading(true)
-    setWorkflowError(null)  // 初始化错误状态（与第一次生成一致）
-
-    // 创建 AbortController 用于暂停（与第一次生成一致）
-    abortControllerRef.current = new AbortController()
-
-    try {
-      const scene = (scriptData?.scenes ?? [])[index]
-      // 根据场景的 characterIds 筛选角色
-      const sceneCharacterIds = scene?.characterIds || []
-        const relevantCharacters = characterData.filter((char: CharacterItem) =>
-          sceneCharacterIds.includes(String(char.id))
-        )
-
-      // 构建角色图片数组
-      const characterImages = relevantCharacters.length > 0
-        ? relevantCharacters.map((char: any) => ({
-            characterId: char.id,
-            imageUrl: char.imageUrl,
-            imagePrompt: char.generationPrompt || char.prompt || char.description || ''
-          }))
-        : []
-
-      // 日志：记录即将发送的生成请求（与第一次生成一致）
-      console.log('[operate] regenerate storyboard - request:', { sceneIndex: index, storyboardPrompt: scene.storyboardPrompt || scene.plot || scene.description })
-
-      const storyboardItem = await generateStoryboardForScene({
-        scene,
-        sceneIndex: index,
-        aspectRatio,
-        characterImages,
-        consolePrefix: '[operate]',
-        versionId: currentEditVersionId.current || undefined,
-        versionGroupId: vgId,
-        itemId: scene.id,
-      })
-
-      // 如果是错误结果（有 error 字段），将 workflowError 一并设置并中断后续流程
-      if (storyboardItem && storyboardItem.error) {
-        const errorMessage = storyboardItem.error
-        setWorkflowError(errorMessage)
-        throw new Error(errorMessage)
-      }
-
-      // 更新分镜图状态（在重新生成剧情视频之前）
-      const updatedStoryboards = [...storyboardImages]
-      updatedStoryboards[index] = storyboardItem
-      setStoryboardImages(updatedStoryboards)
-
-      setWorkflowLoading(false)
-
-      // 检查是否暂停（与第一次生成一致）
-      await waitForWorkflowResume()
-
-      // 只重新生成对应的剧情视频（与重新生成主角一致）
-      setWorkflowStep('scenes')
-      setWorkflowLoading(true)
-
-      // 创建 AbortController 用于暂停（与第一次生成一致）
-      abortControllerRef.current = new AbortController()
-
-      const videoItem = await generateSceneVideoForScene({
-        scene,
-        sceneIndex: index,
-        storyboardImage: storyboardItem,
-        aspectRatio,
-        consolePrefix: '[handleConfirmRegenerateStoryboard]',
-        versionId: currentEditVersionId.current || undefined,
-        versionGroupId: vgId,
-      })
-
-      // 如果是错误结果（有 error 字段），直接抛出错误，中断后续的完整视频生成
-      if (videoItem && videoItem.error) {
-        throw new Error(videoItem.error)
-      }
-
-      // 合并回全量场景视频数组
-      const updatedSceneVideos = [...sceneVideos]
-      updatedSceneVideos[index] = videoItem
-
-      setWorkflowLoading(false)
-
-      // 检查是否暂停（与第一次生成一致）
-      await waitForWorkflowResume()
-
-      // 自动重新生成完整视频（与重新生成主角一致）
-      setWorkflowStep('video')
-      setWorkflowLoading(true)
-      setVideoData(null) // 清空旧的总视频，显示"生成中"状态
-
-      // 创建 AbortController 用于暂停（与第一次生成一致）
-      abortControllerRef.current = new AbortController()
-
-      // 使用通用函数生成完整视频
-      const videoData = await composeSceneVideosWithFAL(
-        updatedSceneVideos,
-        scriptData,
-        abortControllerRef.current?.signal,
-        currentProjectId || undefined,
-        currentEditVersionId.current || undefined,
-        vgId
-      )
-
-      if (!videoData) {
-        setWorkflowLoading(false)
-        setIsRegeneratingStoryboard(null)
-        toast({
-          title: t("videoComposeSkipped"),
-          description: t("noValidSceneVideosSkipFinal"),
-        })
-      } else {
-        setVideoData(videoData)
-        setWorkflowLoading(false)
-        setIsRegeneratingStoryboard(null)
-
-        toast({
-          title: t("storyboardRegenerated"),
-          description: t("newStoryboardReady", { index: index + 1 }),
-        })
-      }
-    } catch (error) {
-      // 如果是用户主动取消（暂停），设置中断标志（与第一次生成一致）
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('单个分镜图重新生成工作流被用户暂停')
-        workflowInterruptedRef.current = true
-        // 暂停时不设置 isGenerating 为 false，保持暂停按钮可见
-        setWorkflowLoading(false)
-        abortControllerRef.current = null
-        setIsRegeneratingStoryboard(null)
-        return
-      }
-
-      console.error('单个分镜图重新生成工作流错误:', error)
-      setWorkflowError(error instanceof Error ? error.message : t('regenerationFailed'))
-      toast({
-        title: t("regenerationFailed"),
-        description: error instanceof Error ? error.message : t("retryLater"),
-        variant: "destructive",
-      })
-
-      // 只有在真正出错时才设置 isGenerating 为 false
-      setWorkflowLoading(false)
-      abortControllerRef.current = null
-      setIsRegeneratingStoryboard(null)
-    }
   }
 
   // 显示单个剧情视频重新生成确认弹窗
@@ -3874,63 +2964,6 @@ export function AIFunction({
       })
       setIsGenerating(false)
     }
-  }
-
-  // 继续生成分镜图的辅助函数
-  const resumeStoryboardGeneration = async (characterResult: any) => {
-    setWorkflowStep('storyboard')
-    setWorkflowLoading(true)
-    abortControllerRef.current = new AbortController()
-
-    // 使用已生成的 characterData 主角数据
-    const mergedCharacterData = characterData
-    console.log('[resumeStoryboardGeneration] mergedCharacterData count:', mergedCharacterData.length)
-
-    const storyboardPromises = (scriptData?.scenes ?? []).map(async (scene: StoryScene, index: number) => {
-      // 根据场景的 characterIds 筛选角色，确保只传递该场景实际出现的角色
-      const sceneCharacterIds = (scene.characterIds && scene.characterIds.length > 0) ? scene.characterIds : []
-      console.log(`[resumeStoryboardGeneration] 分镜图 ${index + 1} - sceneCharacterIds:`, sceneCharacterIds)
-
-      // 只筛选出场景中实际出现的角色，如果没有指定角色则不传递任何主角
-      const relevantCharacters = sceneCharacterIds.length > 0
-        ? mergedCharacterData.filter((char: CharacterItem) => sceneCharacterIds.includes(String(char.id)))
-        : []
-
-      console.log(`[resumeStoryboardGeneration] 分镜图 ${index + 1} - relevantCharacters:`, relevantCharacters.map((c: CharacterItem) => ({ id: c.id, imageUrl: c.imageUrl })))
-
-      // 构建角色图片数组，包含 imageUrl 和 imagePrompt
-      const characterImages = relevantCharacters.length > 0
-        ? relevantCharacters.map((char: CharacterItem) => ({
-            characterId: char.id ?? '',
-            imageUrl: char.imageUrl ?? null,
-            imagePrompt: String(char.generationPrompt ?? char.description ?? '')
-          }))
-        : []
-
-      console.log(`[resumeStoryboardGeneration] 分镜图 ${index + 1} - characterImages:`, characterImages)
-
-      return await generateStoryboardForScene({
-        scene,
-        sceneIndex: index,
-        aspectRatio,
-        characterImages,
-        consolePrefix: '[resumeStoryboardGeneration]',
-        versionId: currentEditVersionId.current || undefined,
-        itemId: scene.id,
-      })
-    })
-
-    // 等待所有分镜图处理完成（错误不会中断流程）
-    const storyboardResults = await Promise.all(storyboardPromises)
-    console.log('[resumeStoryboardGeneration] 分镜图全部处理完成:', storyboardResults.map(sb => ({ url: sb?.url, sceneIndex: sb?.sceneIndex, error: sb?.error })))
-
-    setWorkflowLoading(false)
-
-    // 检查是否暂停
-    await waitForWorkflowResume()
-
-    // 继续下一步：生成剧情视频
-    await resumeSceneVideosGeneration()
   }
 
   // 继续生成剧情视频的辅助函数
@@ -5659,7 +4692,6 @@ export function AIFunction({
         throw new Error(videoItem.error)
       }
 
-
       // 检查是否暂停（与单个主角一致）
       await waitForWorkflowResume()
 
@@ -5879,7 +4911,6 @@ export function AIFunction({
       setEditingSceneVideoIndex(null)
       setEditedSceneVideoData(null)
     }
-
 
   // 处理主角图片上传
   const handleCharacterImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -6491,6 +5522,46 @@ export function AIFunction({
     return Math.round(durSec * getVideoUnitPointsFor(model, res))
   })()
   const [generationMode, setGenerationMode] = useState<string>("auto") // auto/first-last-frame
+  // 故事板/分镜图生成状态块（hooks/use-storyboard-generation.ts，函数体逐字搬移，行为与原来一致）
+  const {
+    generateStoryboardForScene,
+    regenerateSingleFrame,
+    handleConfirmRegenerateStoryboard,
+    resumeStoryboardGeneration,
+  } = useStoryboardGeneration({
+    abortControllerRef,
+    versionGroupIdRef,
+    currentProjectIdRef,
+    currentEditVersionId,
+    workflowPausedRef,
+    workflowInterruptedRef,
+    aspectRatio,
+    generationMode,
+    characterData,
+    scriptData,
+    sceneVideos,
+    storyboardImages,
+    currentProjectId,
+    storyboardToRegenerate,
+    setCurrentPoints,
+    setPurchaseDialogType,
+    setShowPurchaseDialog,
+    setWorkflowPaused,
+    setStoryboardImages,
+    setIsRegeneratingStoryboard,
+    setSceneVideos,
+    setVideoData,
+    setWorkflowError,
+    setWorkflowLoading,
+    setWorkflowStep,
+    setShowRegenerateStoryboardDialog,
+    waitForGenerationResult,
+    waitForWorkflowResume,
+    generateVersionGroupId,
+    generateSceneVideoForScene,
+    composeSceneVideosWithFAL,
+    resumeSceneVideosGeneration,
+  })
 
   // 上传视频/音频时，强制只允许 seedance2 / seedance2Fast / seedance2Mini / seedance25；当前模型不兼容则自动切换
   const hasMedia = uploadingItems.some(
@@ -7457,11 +6528,9 @@ export function AIFunction({
                           </div>
                         )}
 
-
                       </div>
                     ))}
                   </div>
-
 
                   {/* 操作按钮 */}
                   <div className="flex gap-2 pt-4 border-t border-border">
@@ -8420,167 +7489,19 @@ export function AIFunction({
         </button>
       </PricingDialog>
 
-      {/* 剧情详情预览对话框（编辑功能已禁用） */}
-      <Dialog open={showScriptPreview} onOpenChange={(open) => {
-        setShowScriptPreview(open)
-        if (!open) {
-          setIsEditingScript(false)
-          setEditedScriptData(null)
-        }
-      }}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">
-              {t("scriptDetails")}
-            </DialogTitle>
-          </DialogHeader>
-          {scriptData && (
-            <div className="space-y-4">
-              {/* 标题和基本信息 */}
-              <div>
-                <h3 className="text-lg font-bold mb-2">{scriptData.title}</h3>
-                <div className="flex gap-4 text-sm text-muted-foreground items-center whitespace-nowrap">
-                  <span>{t("durationLabel")} {scriptData.totalDuration}{t("seconds")}</span>
-                  <span className="flex items-center gap-2 whitespace-nowrap">
-                    {t("aspectRatioLabel")}
-                    <span>{scriptData.aspectRatio}</span>
-                  </span>
-                  <span>{t("sceneCount")} {scriptData.scenes?.length || 0}</span>
-                </div>
-              </div>
-
-              {/* 剧情场景列表 */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold">{t("sceneList")}</h4>
-                  {/* 编辑功能已禁用：添加场景按钮 */}
-                  {/* {isEditingScript && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleAddScene}
-                      disabled={isGeneratingScenePlot}
-                    >
-                      {isGeneratingScenePlot ? (
-                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                      ) : (
-                        <Plus className="w-3 h-3 mr-1" />
-                      )}
-                      {isGeneratingScenePlot ? t("generating") : t("addScene")}
-                    </Button>
-                  )} */}
-                </div>
-
-                {scriptData.scenes?.map((scene: any) => (
-                  <div key={scene.id} className={`p-4 rounded-lg border space-y-2 ${scene.isGenerating ? 'bg-muted/30 border-dashed animate-pulse' : 'bg-muted/50 border-border'}`}>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-1 rounded bg-primary/10 text-primary text-xs font-mono">
-                          {scene.isGenerating ? (
-                            <span className="flex items-center gap-1">
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                              {t("generating")}
-                            </span>
-                          ) : (
-                            t("sceneNumber", { number: scene.id })
-                          )}
-                        </span>
-                        {/* 编辑功能已禁用：场景时长编辑 */}
-                        {/* {isEditingScript && !scene.isGenerating ? (
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              value={scene.duration}
-                              onChange={(e) => handleUpdateScene(scene.id, 'duration', parseInt(e.target.value) || 5)}
-                              className="w-16 h-7 text-xs text-center"
-                              min="5"
-                              max="8"
-                            />
-                            <span className="text-xs text-muted-foreground flex items-center h-7">{t("seconds")}</span>
-                          </div>
-                        ) : ( */}
-                          <span className="text-xs text-muted-foreground">
-                            <Clock className="w-3 h-3 inline mr-1" />
-                            {scene.duration}{t("seconds")}
-                          </span>
-                        {/* )} */}
-                      </div>
-                      {/* 编辑功能已禁用：删除场景按钮 */}
-                      {/* {isEditingScript && !scene.isGenerating && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDeleteScene(scene.id)}
-                          className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      )} */}
-                    </div>
-
-                    {/* 剧情描述 */}
-                    {scene.plot && (
-                      <div>
-                        <p className="text-sm font-medium mb-1">{t("sceneDescription")}</p>
-                        {/* 编辑功能已禁用：场景描述编辑 */}
-                        {/* {isEditingScript ? (
-                          <Textarea
-                            value={scene.plot}
-                            onChange={(e) => handleUpdateScene(scene.id, 'plot', e.target.value)}
-                            className="text-sm min-h-[60px]"
-                            placeholder={t("sceneDescriptionPlaceholder")}
-                          />
-                        ) : ( */}
-                          <div className="p-3 rounded-lg bg-blue-50/50 border border-blue-200/50">
-                            <p className="text-sm text-blue-900 leading-relaxed">{scene.plot}</p>
-                          </div>
-                        {/* )} */}
-                      </div>
-                    )}
-
-                  </div>
-                ))}
-              </div>
-
-
-              {/* 操作按钮 */}
-              <div className="flex gap-2 pt-4 border-t border-border">
-                {/* 编辑功能已禁用：保存/取消按钮 */}
-                {/* {isEditingScript ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={handleCancelEditScript}
-                      className="flex-1"
-                    >
-                      {t("cancel")}
-                    </Button>
-                    <Button
-                      onClick={handleSaveEditedScript}
-                      className="flex-1"
-                    >
-                      {t("saveChanges")}
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    onClick={() => setShowScriptPreview(false)}
-                    className="flex-1"
-                  >
-                    {t("close")}
-                  </Button>
-                )} */}
-                <Button
-                  onClick={() => setShowScriptPreview(false)}
-                  className="flex-1"
-                >
-                  {t("close")}
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* 剧情详情预览对话框（components/operate/ScriptDetailDialog.tsx，拆分 T6，行为与原来一致；编辑功能已禁用） */}
+      <ScriptDetailDialog
+        open={showScriptPreview}
+        onOpenChange={(open) => {
+          setShowScriptPreview(open)
+          if (!open) {
+            setIsEditingScript(false)
+            setEditedScriptData(null)
+          }
+        }}
+        onClose={() => setShowScriptPreview(false)}
+        scriptData={scriptData}
+      />
 
       {/* 主角详情预览/编辑对话框 */}
       <Dialog open={showCharacterPreview} onOpenChange={(open) => {
@@ -8791,258 +7712,33 @@ export function AIFunction({
         </DialogContent>
       </Dialog>
 
-      {/* 分镜图详情预览/编辑对话框 */}
-      <Dialog open={showStoryboardPreview} onOpenChange={(open) => {
-        setShowStoryboardPreview(open)
-        if (!open) {
-          setIsEditingStoryboard(false)
-          setEditingStoryboardIndex(null)
-          setEditedStoryboardData(null)
-        }
-      }}>
-        <DialogContent className="w-full max-w-4xl max-h-[80vh] overflow-y-auto p-4">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">
-              {isEditingStoryboard ? t("editStoryboard") : t("storyboardDetails")}
-            </DialogTitle>
-          </DialogHeader>
-          {(isEditingStoryboard ? editedStoryboardData : (editingStoryboardIndex !== null ? storyboardImages[editingStoryboardIndex] : null)) && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                {/* 分镜图显示 */}
-                <div className="flex-shrink-0 w-full sm:w-80">
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">{t("storyboard")}</div>
-                    <div className="relative group">
-                      {(() => {
-                        const data = isEditingStoryboard ? editedStoryboardData : storyboardImages[editingStoryboardIndex!]
-                        // 如果是编辑单个帧模式，只显示该帧
-                        if (data?.isEditingFirstFrame) {
-                          return (
-                            <div className="relative">
-                              <img
-                                src={data.firstFrameUrl || data.url}
-                                alt={t("storyboardNumber", { number: (data.sceneIndex ?? 0) + 1 }) + " - " + t("firstFrame")}
-                                className="w-full rounded-lg"
-                                onPaste={(e) => {
-                                  if (isEditingStoryboard && !isUploadingStoryboardImage) {
-                                    handleStoryboardImagePaste(e)
-                                  }
-                                }}
-                              />
-                              <span className="absolute top-1 left-1 px-1.5 py-0.5 text-[10px] bg-blue-600 text-white rounded">
-                                {t("firstFrame")} ({t("editing")})
-                              </span>
-                            </div>
-                          )
-                        }
-                        if (data?.isEditingLastFrame) {
-                          return (
-                            <div className="relative">
-                              <img
-                                src={data.lastFrameUrl}
-                                alt={t("storyboardNumber", { number: (data.sceneIndex ?? 0) + 1 }) + " - " + t("lastFrame")}
-                                className="w-full rounded-lg"
-                              />
-                              <span className="absolute top-1 left-1 px-1.5 py-0.5 text-[10px] bg-purple-600 text-white rounded">
-                                {t("lastFrame")} ({t("editing")})
-                              </span>
-                            </div>
-                          )
-                        }
-                        return data?.url || data?.firstFrameUrl ? (
-                          <div className="relative">
-                            {/* 直接显示首帧和尾帧（并排） */}
-                            <div className="flex gap-1 rounded-lg overflow-hidden">
-                              {/* 首帧 */}
-                              <div className="flex-1 relative">
-                                <img
-                                  src={data.firstFrameUrl || data.url}
-                                  alt={t("storyboardNumber", { number: (data.sceneIndex ?? 0) + 1 })}
-                                  className="w-full rounded-lg"
-                                  onPaste={(e) => {
-                                    if (isEditingStoryboard && !isUploadingStoryboardImage) {
-                                      handleStoryboardImagePaste(e)
-                                    }
-                                  }}
-                                />
-                                <span className="absolute top-1 left-1 px-1.5 py-0.5 text-[10px] bg-blue-600 text-white rounded">
-                                  {t("firstFrame")}
-                                </span>
-                              </div>
-                              
-                              {/* 尾帧（如果有） */}
-                              {data.lastFrameUrl && data.lastFrameUrl !== data.firstFrameUrl && data.lastFrameUrl !== data.url && (
-                                <div className="flex-1 relative">
-                                  <img
-                                    src={data.lastFrameUrl}
-                                    alt={t("storyboardNumber", { number: (data.sceneIndex ?? 0) + 1 }) + " " + t("lastFrame")}
-                                    className="w-full rounded-lg"
-                                  />
-                                  <span className="absolute top-1 left-1 px-1.5 py-0.5 text-[10px] bg-purple-600 text-white rounded">
-                                    {t("lastFrame")}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="w-full h-48 bg-muted/30 flex items-center justify-center rounded-lg">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120" className="w-full max-w-xs h-28 text-muted-foreground">
-                              <rect x="2" y="2" width="196" height="116" rx="8" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.06" />
-                              <g stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none">
-                                <path d="M20 20 L180 100" opacity="0.12" />
-                                <path d="M20 100 L180 20" opacity="0.08" />
-                              </g>
-                            </svg>
-                          </div>
-                        )
-                      })()}
-                      {isEditingStoryboard && !isUploadingStoryboardImage && (
-                        <>
-                          {/* 更换图片按钮 */}
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => storyboardImageInputRef.current?.click()}
-                            >
-                              <Upload className="w-3 h-3 mr-1" />
-                              {t("changeImage")}
-                            </Button>
-                          </div>
-
-                          {/* 粘贴提示 */}
-                          <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="bg-black/60 backdrop-blur-sm rounded px-2 py-1">
-                              <p className="text-xs text-white/80 text-center">
-                                {t("pasteImageHint")}
-                              </p>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                      {isUploadingStoryboardImage && (
-                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center rounded-lg">
-                          <div className="flex flex-col items-center gap-1 text-white">
-                            <Loader2 className="w-6 h-6 animate-spin" />
-                            <span className="text-xs">{t("uploading")}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 隐藏的文件输入 */}
-                  {isEditingStoryboard && (
-                    <Input
-                      type="file"
-                      ref={storyboardImageInputRef}
-                      onChange={handleStoryboardImageUpload}
-                      accept="image/*"
-                      className="hidden"
-                    />
-                  )}
-                </div>
-
-                {/* 场景信息 */}
-                <div className="flex-1 space-y-4">
-                  <div>
-                    <div className="text-sm font-medium mb-2">{t("sceneInfoLabel")}</div>
-                    <div className="p-3 rounded-lg bg-muted/50 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{t("sceneNumberLabel")}</span>
-                        <span className="text-sm font-medium">
-                          {t("sceneNumber", { number: (((isEditingStoryboard ? editedStoryboardData : storyboardImages[editingStoryboardIndex!]) ?? ({} as StoryboardItem)).sceneIndex ?? 0) + 1 })}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{t("aspectRatioLabel2")}</span>
-                        <span className="text-sm font-medium">
-                          {((isEditingStoryboard ? editedStoryboardData : storyboardImages[editingStoryboardIndex!]) ?? ({} as StoryboardItem)).aspectRatio}
-                        </span>
-                      </div>
-
-                    </div>
-                  </div>
-
-                  {/* 剧情描述 */}
-                  {scriptData?.scenes?.[(((isEditingStoryboard ? editedStoryboardData : storyboardImages[editingStoryboardIndex!]) ?? ({} as StoryboardItem)).sceneIndex ?? 0)] && (
-                    <div>
-                      <div className="text-sm font-medium mb-2">{t("sceneDescriptionLabel")}</div>
-                      <div className="p-3 rounded-lg bg-muted/50">
-                        <p className="text-sm text-muted-foreground">
-                          {scriptData?.scenes?.[(((isEditingStoryboard ? editedStoryboardData : storyboardImages[editingStoryboardIndex!]) ?? ({} as StoryboardItem)).sceneIndex ?? 0)]?.plot}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Prompt 输入框（编辑模式） */}
-                  {isEditingStoryboard && (
-                    <div>
-                      <div className="text-sm font-medium mb-1">
-                        {t("prompt")}
-                        {storyboardEditMode === 'image' && (
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            ({t("imageSelected")})
-                          </span>
-                        )}
-                      </div>
-                      <Textarea
-                        value={editedStoryboardData?.prompt || ""}
-                        onChange={(e) => {
-                          setEditedStoryboardData({
-                            ...editedStoryboardData,
-                            prompt: e.target.value
-                          })
-                          // 用户开始编辑 Prompt 时设置为 prompt 模式
-                          if (storyboardEditMode !== 'image') {
-                            setStoryboardEditMode('prompt')
-                          }
-                        }}
-                        disabled={storyboardEditMode === 'image'}
-                        className={`min-h-[100px] ${storyboardEditMode === 'image' ? 'bg-muted/30 cursor-not-allowed' : ''}`}
-                        placeholder={storyboardEditMode === 'image' ? t("clearImageToEditPrompt") : (t("enterPrompt"))}
-                      />
-                    </div>
-                  )}
-
-                </div>
-              </div>
-
-
-              {/* 操作按钮（移动端每行一个） */}
-              <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-border min-w-0">
-                {isEditingStoryboard ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={handleCancelEditStoryboard}
-                      className="w-full sm:flex-1"
-                    >
-                      {t("cancel")}
-                    </Button>
-                    <Button
-                      onClick={handleShowSaveEditStoryboardDialog}
-                      className="w-full sm:flex-1"
-                    >
-                      {t("saveChanges")}
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    onClick={() => setShowStoryboardPreview(false)}
-                    className="w-full sm:flex-1"
-                  >
-                    {t("close")}
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* 分镜图详情预览/编辑对话框（components/operate/StoryboardDetailDialog.tsx，拆分 T6，行为与原来一致） */}
+      <StoryboardDetailDialog
+        open={showStoryboardPreview}
+        onOpenChange={(open) => {
+          setShowStoryboardPreview(open)
+          if (!open) {
+            setIsEditingStoryboard(false)
+            setEditingStoryboardIndex(null)
+            setEditedStoryboardData(null)
+          }
+        }}
+        onClose={() => setShowStoryboardPreview(false)}
+        isEditing={isEditingStoryboard}
+        editingIndex={editingStoryboardIndex}
+        editedData={editedStoryboardData}
+        onEditedDataChange={setEditedStoryboardData}
+        editMode={storyboardEditMode}
+        onEditModeChange={setStoryboardEditMode}
+        isUploadingImage={isUploadingStoryboardImage}
+        imageInputRef={storyboardImageInputRef}
+        onImageUpload={handleStoryboardImageUpload}
+        onImagePaste={handleStoryboardImagePaste}
+        onCancelEdit={handleCancelEditStoryboard}
+        onShowSaveEditDialog={handleShowSaveEditStoryboardDialog}
+        storyboardImages={storyboardImages}
+        scriptData={scriptData}
+      />
 
       {/* 剧情视频详情预览/编辑对话框 */}
       <Dialog open={showSceneVideoPreview} onOpenChange={(open) => {
