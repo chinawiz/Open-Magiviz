@@ -41,5 +41,5 @@
 - [x] T4 积分/计费/订阅展示段(**done 2026-09-03**:实际形态为 PurchaseDialog 三态购买弹窗;发现并移除不可达的 showPricingInline 死分支)。**批次二(展示组件)完工**:夹具页 GUI 回归 亮暗×中英 30 项断言+3 截图全过,operate.tsx →9,404 行,161 tests。
 - [x] T5 素材库选择状态块(**done 2026-09-03**:hooks/use-library-selection.ts 23 行;T3 抽壳后实际残留仅 1 state+1 回调,见 ticket 发现节;GUI 选片→带入→重选→去重全过,operate.tsx →9,401 行,棘轮 419→418)
 - [x] T6 故事板生成状态块(**done 2026-09-03**:hooks/use-storyboard-generation.ts 1094 行,4 函数逐字搬移且 diff 证明与原文一致;剧本/分镜图详情弹窗抽至 components/operate/;真实链路 GUI:生成→重载中断→续跑判据→hook 分镜 3/3→自动推进,夹具页三态弹窗截图全过;发现「剧情详情预览」弹窗本身不可达,见 ticket;棘轮 417→415)
-- [ ] T7 图片生成状态块(主角详情预览弹窗一并抽离)
+- [x] T7 图片生成状态块(**done 2026-09-03**:实际落地为 hooks/use-character-generation.ts 1362 行(主角引擎+重生成+编辑族+换图三入口,逐字切片),分镜图部分已在 T6;CharacterDetailDialog 抽出;真实链路 GUI:主角重生成→同步直返→分镜推进→注入→暂停拦截视频段,夹具页两态截图全过;棘轮 415→414,见 ticket 发现节)
 - [x] T8 Pusher 实时进度 → hooks/(**done 2026-09-03**:hooks/use-task-events.ts;真实 Pusher 链路验证=订阅→注入事件→解析→resolve→暂停放行→卸载清理全通;发现本地缺 NEXT_PUBLIC_PUSHER_* 时订阅静默失效,关联线上推送未达调查,见 ticket 发现节;棘轮 418→417。剧情视频详情预览弹窗仍随 T6/T7 就近处理)
