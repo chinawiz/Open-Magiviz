@@ -222,6 +222,7 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
     // 历史口径：3-15s 之外的输入一律收敛到 5s（计费按收敛后时长）
     parseDuration: raw => clampedSeconds(raw, 5, 3, 15, 5),
     validate: imageAndPromptValidator(),
+    supportedResolutions: ['720p', '1080p'],
     // 历史兜底：环境变量与调用方都未配置时，回退本服务 video-webhook
     //（带 projectId 时附场景定位参数，格式与历史一致）
     resolveWebhook: meta => {
@@ -234,13 +235,13 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
       }
       return self
     },
-    buildBody: (input, seconds, webhookUrl) => {
+    buildBody: (input, seconds, webhookUrl, resolution) => {
       const body: KieRequestBody = {
         model: 'happyhorse-1-1/image-to-video',
         input: {
           prompt: input.prompt,
           image_urls: [input.imageUrl!],
-          resolution: '720p',
+          resolution: resolution ?? '720p',
           duration: seconds,
         },
       }
@@ -255,7 +256,9 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
     // 历史口径：3-15s 之外的输入一律收敛到 5s（计费按收敛后时长）
     parseDuration: raw => clampedSeconds(raw, 5, 3, 15, 5),
     validate: imageAndPromptValidator(),
-    buildBody: (input, seconds, webhookUrl) => {
+    // Kling 3.0 分辨率跟模式走：std=720p / pro=1080p（官方文档 Resolution mapping）
+    supportedResolutions: ['720p', '1080p'],
+    buildBody: (input, seconds, webhookUrl, resolution) => {
       const lastFrameUrl = input.additionalImageUrls?.[0]
       const styleMap: Record<string, string> = {
         anime: 'anime style, Japanese animation style',
@@ -273,7 +276,7 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
           image_urls: lastFrameUrl ? [input.imageUrl!, lastFrameUrl] : [input.imageUrl!],
           duration: String(seconds),
           aspect_ratio: ['16:9', '9:16', '1:1'].includes(input.aspectRatio || '') ? input.aspectRatio! : '16:9',
-          mode: 'std',
+          mode: resolution === '1080p' ? 'pro' : 'std',
           sound: true,
           multi_shots: false, // false = 首尾帧模式（历史口径）
         },
@@ -316,17 +319,18 @@ export const VIDEO_SUBMITTERS: Record<string, VideoSubmitter> = {
     label: 'Wan 2.7',
     taskType: 'wan_2_7_video',
     endpointUrl: JOBS_CREATE_URL,
+    supportedResolutions: ['720p', '1080p'],
     // 历史口径：2-15s 之外的输入一律收敛到 5s（计费按收敛后时长）
     parseDuration: raw => clampedSeconds(raw, 5, 2, 15, 5),
     validate: imageAndPromptValidator(),
-    buildBody: (input, seconds, webhookUrl) => {
+    buildBody: (input, seconds, webhookUrl, resolution) => {
       const lastFrameUrl = input.additionalImageUrls?.[0] || ''
       const body: KieRequestBody = {
         model: 'wan/2-7-image-to-video',
         input: {
           prompt: input.prompt,
           first_frame_url: input.imageUrl,
-          resolution: '720p',
+          resolution: resolution ?? '720p',
           duration: seconds,
           prompt_extend: true,
           watermark: false,

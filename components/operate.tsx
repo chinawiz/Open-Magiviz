@@ -42,6 +42,7 @@ import { StorageLimitDialog } from "@/components/operate/StorageLimitDialog"
 import { formatBytes, computeFileSizeLimit } from "@/components/operate/format"
 import { getVideoDuration, getAllVideoDurations } from "@/components/operate/video"
 import { parseStoryboardRestoreData } from "@/components/operate/storyboard-restore"
+import { computeVideoPointsFor, type VideoResolution } from "@/lib/video-pricing"
 
 // 各模型可选分辨率档（UI 提示用；服务端注册表为权威——不支持档会被忽略并回落默认档）
 const VIDEO_MODEL_RESOLUTIONS: Record<string, string[]> = {
@@ -49,6 +50,9 @@ const VIDEO_MODEL_RESOLUTIONS: Record<string, string[]> = {
   seedance2Fast: ["480p", "720p"],
   seedance2Mini: ["480p", "720p"],
   seedance2: ["480p", "720p"],
+  wan27: ["720p", "1080p"],
+  happyHorse: ["720p", "1080p"],
+  kling3: ["720p", "1080p"],
 }
 import { useProject, getProgressPercentage } from "@/hooks/useProject"
 import { useSubscriptionPlan } from "@/hooks/useSubscriptionPlan"
@@ -6699,6 +6703,17 @@ export function AIFunction({
   }
   const [videoModel, setVideoModel] = useState<string>("auto") // auto/veo31Fast/veo31Lite/veo31Quality/geminiOmni/seedance25/seedance2Fast/seedance2Mini/seedance2/kling3/happyHorse/wan27/minimaxH3
   const [videoResolution, setVideoResolution] = useState<string>("720p") // 480p/720p/1080p（仅声明支持的模型可选，默认档跟随现状）
+  // 场景视频生成积分预估（与路由预检同源：主模型×所选分辨率档；auto 视为默认路由 veo31Fast）
+  const estimateSceneVideoPoints = (sceneIndex?: number | null): number => {
+    const model = videoModel !== 'auto' ? videoModel : 'veo31Fast'
+    const res = VIDEO_MODEL_RESOLUTIONS[model]?.includes(videoResolution)
+      ? (videoResolution as VideoResolution)
+      : undefined
+    const scene = scriptData?.scenes?.[sceneIndex ?? -1] as { duration?: number } | undefined
+    const duration = Number(scene?.duration)
+    const seconds = Number.isFinite(duration) && duration > 0 ? duration : 8
+    return computeVideoPointsFor(model, seconds, res)
+  }
   const [generationMode, setGenerationMode] = useState<string>("auto") // auto/first-last-frame
 
   // 上传视频/音频时，强制只允许 seedance2 / seedance2Fast / seedance2Mini / seedance25；当前模型不兼容则自动切换
@@ -9922,7 +9937,7 @@ export function AIFunction({
                   onClick={handleConfirmRegenerateSceneVideo}
                   className="flex-1"
                 >
-                  {t("confirmRegenerate")}
+                  {t("confirmRegenerate")} · {t("estimatedPoints", { points: estimateSceneVideoPoints(sceneVideoToRegenerate ?? undefined) })}
                 </Button>
               </div>
             </div>

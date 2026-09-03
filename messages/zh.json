@@ -1559,6 +1559,7 @@
     "regenerateSceneVideoWithCharacter": "• 重新生成对应的剧情视频",
     "updateFinalVideo": "• 更新生成后的完整视频",
     "confirmRegenerate": "确认重新生成",
+    "estimatedPoints": "预计消耗 {points} 积分",
     "saveCharacterEdit": "🎭 保存主角修改",
     "saveCharacterEditDesc": "将保存主角的修改内容",
     "noChanges": "未做修改",

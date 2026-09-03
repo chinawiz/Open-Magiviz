@@ -133,6 +133,12 @@ describe('分辨率两维定价（480p/720p/1080p）', () => {
     expect(computeVideoPointsFor('seedance2', 8, '1080p')).toBe(60)  // 8×7.5
   })
 
+  it('Wan/HappyHorse/Kling 1080p 档不低于像素比成本底线（4/5/5）', () => {
+    expect(getVideoUnitPointsFor('wan27', '1080p')).toBe(4)        // max(3.0, floor(0.1125)=4.0)
+    expect(getVideoUnitPointsFor('happyHorse', '1080p')).toBe(5)   // max(3.75, floor(0.135)=5.0)
+    expect(getVideoUnitPointsFor('kling3', '1080p')).toBe(5)
+  })
+
   it('注册表声明的每个模型×分辨率组合都有价可查（与 submit 注册表对账）', async () => {
     const { VIDEO_SUBMITTERS } = await import('@/lib/providers/submit')
     for (const [key, sub] of Object.entries(VIDEO_SUBMITTERS)) {

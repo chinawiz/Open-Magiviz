@@ -1560,6 +1560,7 @@
     "regenerateSceneVideoWithCharacter": "• Regenerate corresponding scene videos",
     "updateFinalVideo": "• Update the complete video",
     "confirmRegenerate": "Confirm Regenerate",
+    "estimatedPoints": "Est. {points} pts",
     "saveCharacterEdit": "🎭 Save Character Changes",
     "saveCharacterEditDesc": "Will save the character modifications",
     "noChanges": "No changes",
