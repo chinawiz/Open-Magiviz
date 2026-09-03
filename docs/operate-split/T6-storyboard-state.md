@@ -21,7 +21,7 @@
 - 与 operate 的耦合经 deps 对象注入(约 30 项:共享 refs/当次渲染状态值/setter/工作流回调 waitForWorkflowResume、generateVersionGroupId、generateSceneVideoForScene、composeSceneVideosWithFAL、resumeSceneVideosGeneration、waitForGenerationResult);hook 自持 `useTranslations("operate")` 与 `useToast`。调用点零改动(解构沿用原函数名)。
 - **TDZ 规避**:hook 调用点放在最晚声明依赖 `generationMode`(useState)之后;更早定义的闭包(handleSend 等)引用后置解构名,运行期安全。
 - 两个详情弹窗一并抽离:`components/operate/ScriptDetailDialog.tsx`(剧情详情,编辑已禁用仅预览)、`components/operate/StoryboardDetailDialog.tsx`(分镜图详情,预览/编辑双态),JSX 逐字搬移+props 注入;夹具页视觉验证(预览态/编辑态/剧本态三截图)全过。
-- 状态清理:hook deps 剔除误报的 `videoData`;删 `regenerateSingleFrame` 内死本地变量;`resumeStoryboardGeneration` 未用参数改 `_` 前缀(eslint 新增 `argsIgnorePattern/varsIgnorePattern: "^_"`)。
+- 状态清理:hook deps 剔除误报的 `videoData`;删 `regenerateSingleFrame` 内死本地变量;`resumeStoryboardGeneration` 未用参数改 `_` 前缀(eslint 新增 `argsIgnorePattern/varsIgnorePattern: "^_"`);引擎内一处 `catch (e)` → `catch`(行为等价,code-review 指出此前漏报,补记)。
 - `npm run check` 全绿(161 tests),warning 棘轮 417→415;operate.tsx 9,401→7,972 行。
 
 ## GUI 回归(本地 dev 3100,真实登录+真实工作流+真实 Pusher 链路)
