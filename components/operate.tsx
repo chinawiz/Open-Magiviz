@@ -27,7 +27,7 @@ import { useTranslations, useLocale } from "next-intl"
 import { useSession } from "next-auth/react"
 import { SignInDialog } from "@/components/auth/signin-dialog"
 import { useToast } from "@/hooks/use-toast"
-import { LibrarySelectorContent } from "@/components/library-selector"
+import { useLibrarySelection } from "@/hooks/use-library-selection"
 import { FileSizeLimitDialog } from "@/components/operate/FileSizeLimitDialog"
 import { LinkInputDialog } from "@/components/operate/LinkInputDialog"
 import { MediaValidationDialog } from "@/components/operate/MediaValidationDialog"
@@ -195,9 +195,6 @@ export function AIFunction({
     storageLimit: number
     availableStorage: number
   } | null>(null)
-
-  // 素材库选择弹窗状态
-  const [showLibraryDialog, setShowLibraryDialog] = useState(false)
 
   // 订阅计划状态（hooks/useSubscriptionPlan.ts，行为与原来一致）
   const { subscriptionPlan, subscriptionStatus, isLoadingSubscription } = useSubscriptionPlan()
@@ -6575,6 +6572,9 @@ export function AIFunction({
     }
   }
 
+  // 素材库选择弹窗状态（hooks/use-library-selection.ts，行为与原来一致）
+  const { libraryOpen, openLibrary, handleSelect: handleLibrarySelect, setLibraryOpen } = useLibrarySelection(addImageUrl)
+
   const removeImageUrl = (index: number) => {
     setImageUrls(imageUrls.filter((_, i) => i !== index))
   }
@@ -7097,7 +7097,7 @@ export function AIFunction({
                       <button
                         onClick={() => {
                           setShowUploadPopover(false)
-                          setShowLibraryDialog(true)
+                          openLibrary()
                         }}
                         className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-primary hover:text-primary-foreground border border-border hover:border-primary transition-all duration-200"
                       >
@@ -8414,12 +8414,9 @@ export function AIFunction({
 
       {/* 素材库选择弹窗 */}
       <LibraryDialog
-        open={showLibraryDialog}
-        onOpenChange={setShowLibraryDialog}
-        onSelect={(url) => {
-          addImageUrl(url)
-          setShowLibraryDialog(false)
-        }}
+        open={libraryOpen}
+        onOpenChange={setLibraryOpen}
+        onSelect={handleLibrarySelect}
       />
 
       {/* 链接输入模态框 */}
