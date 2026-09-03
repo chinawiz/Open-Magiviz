@@ -1212,17 +1212,6 @@ export function useCharacterGeneration(deps: CharacterGenerationDeps) {
     })()
   }
 
-  // 处理主角图片URL输入
-  const handleCharacterImageUrl = (url: string) => {
-    if (!url.trim()) return
-
-    setEditedCharacterData({
-      ...editedCharacterData,
-      imageUrl: url,
-      thumbnailUrl: url
-    })
-  }
-
   // 处理粘贴图片
   const handleCharacterImagePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items
@@ -1309,7 +1298,6 @@ export function useCharacterGeneration(deps: CharacterGenerationDeps) {
     handleConfirmSaveEditedCharacter,
     handleCancelEditCharacter,
     handleCharacterImageUpload,
-    handleCharacterImageUrl,
     handleCharacterImagePaste,
   }
 }

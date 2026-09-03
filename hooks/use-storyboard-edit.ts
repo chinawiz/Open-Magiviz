@@ -342,17 +342,6 @@ export function useStoryboardEdit(deps: StoryboardEditDeps) {
             }
           }
 
-          // 发送保存成功事件
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('storyboard-saved', {
-              detail: {
-                index: indexToSave,
-                data: finalStoryboardData,
-                frameType: editedData.isEditingFirstFrame ? 'first' : 'last'
-              }
-            }))
-          }
-
           return
         }
         

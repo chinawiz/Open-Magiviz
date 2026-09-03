@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { useState, useRef, useEffect, type KeyboardEvent } from "react"
-import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type {
   CharacterItem,
@@ -30,7 +29,6 @@ import {
   MEDIA_COMPATIBLE_VIDEO_MODELS,
 } from "@/lib/providers/video-models"
 
-import { useProject, getProgressPercentage } from "@/hooks/useProject"
 import { useSubscriptionPlan } from "@/hooks/useSubscriptionPlan"
 import { useTaskEvents } from "@/hooks/use-task-events"
 import { useFileStorage } from "@/hooks/use-file-storage"
@@ -52,12 +50,6 @@ interface AIFunctionProps {
 }
 
 // 视频风格映射
-const VIDEO_STYLE_MAP: Record<string, string> = {
-  auto: "auto",
-  anime: "videoStyleAnime",
-  hollywood: "videoStyleHollywood",
-  ads: "videoStyleAdsEducation"
-}
 
 
 export function AIFunction({
@@ -179,7 +171,6 @@ export function AIFunction({
   const [editingSceneVideoIndex, setEditingSceneVideoIndex] = useState<number | null>(null)
   const [editedSceneVideoData, setEditedSceneVideoData] = useState<SceneVideoItem | null>(null)
   const [isRegeneratingStoryboard, setIsRegeneratingStoryboard] = useState<number | null>(null)
-  const [isGeneratingScenePlot, setIsGeneratingScenePlot] = useState(false)
   const [isRegeneratingSceneVideo, setIsRegeneratingSceneVideo] = useState<number | null>(null)
   const [isRegeneratingCharacterId, setIsRegeneratingCharacterId] = useState<string | null>(null)
   const [showCharacterPreview, setShowCharacterPreview] = useState(false)
@@ -1215,23 +1206,6 @@ export function AIFunction({
     // }
   }, [status])
 
-  // 获取文件大小超限提示
-  const getFileSizeExceededMessage = (type: "image" | "audio" | "video"): { title: string; description: string } => {
-    const limit = computeFileSizeLimit(subscriptionPlan)
-    const limitMB = Math.round(limit / (1024 * 1024))
-    let limitText = `${limitMB}MB`
-
-    // Annual 显示无限制
-    if (subscriptionPlan === 'annual') {
-      limitText = t("noLimit")
-    }
-
-    const typeText = type === "image" ? t("image") : (type === "audio" ? t("audio") : t("video"))
-    return {
-      title: t("fileTooLarge"),
-      description: t("fileSizeExceeded", { type: typeText, limit: limitText })
-    }
-  }
 
   // 上传清单/链接图片清单管理（hooks/use-upload-items.ts，拆分 T11，函数体逐字搬移，行为与原来一致）
   const {

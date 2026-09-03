@@ -5,6 +5,7 @@
 import { useTranslations } from "next-intl"
 import { useToast } from "@/hooks/use-toast"
 import type { Dispatch, SetStateAction } from "react"
+import { tryParsePossiblyMalformedJson } from "@/lib/json-parse"
 import type { CharacterItem, StoryScene, StoryboardItem } from "@/lib/types"
 import type { CharacterImageRef } from "@/lib/types"
 import type {
@@ -210,7 +211,24 @@ export function useRegeneration(deps: RegenerationDeps) {
       }
 
       // 解析返回：兼容 data 对象或 output 文本
-      const parsedScriptData: any = null
+      // 【bug 修复 2026-09-04】原实现此行恒为 null,mapToUiScriptData(null) 在
+      // Array.isArray(data.scenes) 处抛 TypeError,导致「重新生成全部剧情」一直是失败路径。
+      // 现对齐 use-workflow-pipeline(handleSend)的解析逻辑(T16 为正确参照实现)。
+      let parsedScriptData: any = null
+
+      if (scriptResult.output && typeof scriptResult.output === 'string') {
+        const parsed = tryParsePossiblyMalformedJson(scriptResult.output)
+        if (parsed !== null) {
+          parsedScriptData = parsed
+        } else {
+          console.error('parse scriptResult.output failed: invalid JSON, falling back to raw', { output: scriptResult.output })
+          parsedScriptData = scriptResult.raw ?? scriptResult.output
+        }
+      } else if (scriptResult.data) {
+        parsedScriptData = scriptResult.data
+      } else {
+        parsedScriptData = scriptResult
+      }
 
       // 映射并填入 UI
       const mapToUiScriptData = (data: any) => {
@@ -477,12 +495,6 @@ export function useRegeneration(deps: RegenerationDeps) {
     setShowRegenerateStoryboardDialog(true)
   }
 
-  // 显示单个帧重新生成确认弹窗
-  const handleShowRegenerateSingleFrame = (index: number, _frameType: 'first' | 'last') => {
-    setStoryboardToRegenerate(index)
-    setShowRegenerateStoryboardDialog(true)
-  }
-
   // 显示单个剧情视频重新生成确认弹窗
   const handleShowRegenerateSceneVideoDialog = (index: number) => {
     setSceneVideoToRegenerate(index)
@@ -717,7 +729,6 @@ export function useRegeneration(deps: RegenerationDeps) {
     handleConfirmRegenerateScript,
     handleRegenerateScript,
     handleShowRegenerateStoryboardDialog,
-    handleShowRegenerateSingleFrame,
     handleShowRegenerateSceneVideoDialog,
     handleConfirmRegenerateSceneVideo,
     regenerateCorrespondingSceneVideo,

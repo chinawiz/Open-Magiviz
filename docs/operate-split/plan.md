@@ -110,3 +110,15 @@ T14-T18 五票全部落地,operate.tsx 5,256→**2,117 行**(批次五 −3,139;
 4. **金钱路径**:T11 积分预估自述「与路由预检同源」,抽离时与 submit seam 双向核对口径(§3b),发现漂移记「发现」节不顺手修。
 5. **storyboard-restore.ts 与续跑判据「有主角缺图」是历史事故固化(resume-checkpoint),不得顺手动**;续跑回归必须走真实中断→重载→续跑闭环。
 6. GUI 前环境两坑:先 `drizzle-kit push` 对齐本地 schema;.env.local 补 `NEXT_PUBLIC_PUSHER_KEY/CLUSTER`;贵价段用「先暂停挂起、再注入放行」+服务端 Pusher SDK 注入 status 事件控制成本。
+
+## 深度重构立项(2026-09-04,第 6 批·待开工)
+
+目标:从 2,117 行压到完工线 <1,500。方向(按收益排序,预估净 -650 行):
+- **T19 死代码终清**:被注释的历史代码块(151a5c3 保留的产品决策记录,现拆分已完成、其语境已消失,~250 行)——需用户点头后删除;遗留 warning 清偿(operate 保留段 e 参数/tWorkflow 等)。
+- **T20 state 合并入 hook 自持**:输入区族(message/duration/videoModel/videoStyle/aspectRatio/generationMode/showSettingsPopover 等 ~15 个 state)随 T12 已抽的 create-panel 下沉为 use-create-form;工作流指示器族(workflowStep/workflowLoading/workflowPaused)并入 use-workflow-resume。预计 -300 行。
+- **T21 接线收敛**:7 个 hook 的 deps 列表(每处 30-45 行)用共享 deps 对象整体透传(operate 组装一个 `workflowDeps` 对象一次传),预计 -200 行;附带 mapToUiScriptData 双份合一(pipeline 版含首尾帧映射为准)+ characterImages 组装块 ×3 抽共享(清理票遗留,含 vitest)。
+风险升序:T19(零风险)→ T21(接线重构,tsc+diff 兜底)→ T20(state 归属变更,需全量矩阵)。
+
+## 清理票完成(2026-09-04)
+
+孤儿函数 3 个(handleAutoRegenerateAfterSave ~194 行/handleShowRegenerateSingleFrame/handleCharacterImageUrl)、storyboard-saved 死事件派发、getFileSizeExceededMessage/VIDEO_STYLE_MAP/isGeneratingScenePlot 死代码——已全部删除;**resumeVideoSynthesis 经核实有内部调用保留**(立项日误判,领票盘点纪律再次生效)。tryParsePossiblyMalformedJson 落为 lib/json-parse.ts 纯模块+4 用例(军规补课)。operate.tsx 死导入清偿后 **0 warning**。178 tests 全绿。
