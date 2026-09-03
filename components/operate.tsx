@@ -8,11 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { PricingDialog } from "@/components/pricing-dialog"
-import { PricingSection } from "@/components/pricing-section"
+import { PurchaseDialog } from "@/components/operate/PurchaseDialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
-import { Plus, Sparkles, X, Zap, ChevronLeft, ChevronRight, Link, Upload, Loader2, Eye, Clock, Trash2, Download, Film, SlidersHorizontal, Play, CheckCircle2, HardDrive, Image as ImageIcon, FolderOpen, Music, Video, CreditCard } from "lucide-react"
+import { Plus, Sparkles, X, Zap, ChevronLeft, ChevronRight, Link, Upload, Loader2, Eye, Clock, Trash2, Download, Film, SlidersHorizontal, Play, CheckCircle2, HardDrive, Image as ImageIcon, FolderOpen, Music, Video } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type {
   CharacterItem,
@@ -36,6 +36,16 @@ import { formatBytes, computeFileSizeLimit } from "@/components/operate/format"
 import { getVideoDuration, getAllVideoDurations } from "@/components/operate/video"
 import { parseStoryboardRestoreData } from "@/components/operate/storyboard-restore"
 import { validateSeedanceMedia } from "@/components/operate/seedance-media"
+import { LibraryDialog } from "@/components/operate/LibraryDialog"
+import {
+  RegenerateCharacterConfirmDialog,
+  SaveEditCharacterConfirmDialog,
+  RegenerateStoryboardConfirmDialog,
+  SaveEditStoryboardConfirmDialog,
+  RegenerateScriptConfirmDialog,
+  RegenerateSceneVideoConfirmDialog,
+  SaveEditSceneVideoConfirmDialog,
+} from "@/components/operate/confirm-dialogs"
 import { computeVideoPointsFor, getVideoUnitPointsFor, type VideoResolution } from "@/lib/video-pricing"
 import {
   VIDEO_MODEL_RESOLUTIONS,
@@ -165,11 +175,9 @@ export function AIFunction({
   const [isSignInDialogOpen, setIsSignInDialogOpen] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false)
-  const [showPricingInline, setShowPricingInline] = useState(false)
   const pricingDialogTriggerRef = useRef<HTMLButtonElement>(null)
   const [currentPoints, setCurrentPoints] = useState<number | null>(null)
   const [purchaseDialogType, setPurchaseDialogType] = useState<'points' | 'subscription' | 'card_verify'>('points') // 积分不足 / 订阅不足 / 免费用户视频能力锁（验卡或升级）
-  const [isVerifyingCard, setIsVerifyingCard] = useState(false)
   const { data: session, status } = useSession()
   const { toast } = useToast()
 
@@ -8405,30 +8413,14 @@ export function AIFunction({
       )}
 
       {/* 素材库选择弹窗 */}
-      <Dialog open={showLibraryDialog} onOpenChange={setShowLibraryDialog}>
-        <DialogContent className="sm:max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <FolderOpen className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <DialogTitle className="text-lg font-semibold">{t("selectFromLibrary")}</DialogTitle>
-                <p className="text-sm text-muted-foreground mt-1">{t("selectFromLibraryDesc")}</p>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <div className="px-6 pb-6 flex-1 overflow-y-auto min-h-0">
-            <LibrarySelectorContent
-              onSelect={(url) => {
-                addImageUrl(url)
-                setShowLibraryDialog(false)
-              }}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+      <LibraryDialog
+        open={showLibraryDialog}
+        onOpenChange={setShowLibraryDialog}
+        onSelect={(url) => {
+          addImageUrl(url)
+          setShowLibraryDialog(false)
+        }}
+      />
 
       {/* 链接输入模态框 */}
       <LinkInputDialog
@@ -8494,114 +8486,20 @@ export function AIFunction({
       </div>
 
       {/* 积分不足购买弹窗 */}
-      <Dialog open={showPurchaseDialog} onOpenChange={setShowPurchaseDialog}>
-        {!showPricingInline ? (
-          <DialogContent className="sm:max-w-lg p-0 overflow-hidden">
-            <div className="p-6 pb-4">
-              <DialogHeader className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <DialogTitle className="text-lg font-semibold">
-                      {purchaseDialogType === 'points'
-                        ? t("pointsInsufficient")
-                        : purchaseDialogType === 'card_verify'
-                          ? t("videoLockedTitle")
-                          : t("upgradeTitle")}
-                    </DialogTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {purchaseDialogType === 'points'
-                        ? t("pointsInsufficientDesc", { points: currentPoints || 0 })
-                        : purchaseDialogType === 'card_verify'
-                          ? t("videoLockedDesc")
-                          : t("subscriptionDialogMessage")
-                      }
-                    </p>
-                  </div>
-                </div>
-              </DialogHeader>
-            </div>
-
-            <div className="px-6 pb-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-end gap-3 pt-2 flex-wrap">
-                  {purchaseDialogType === 'card_verify' && (
-                    <Button
-                      variant="outline"
-                      autoFocus
-                      disabled={isVerifyingCard}
-                      onClick={async () => {
-                        setIsVerifyingCard(true)
-                        try {
-                          const res = await fetch('/api/stripe/verify-card', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ locale }),
-                          })
-                          const data = await res.json()
-                          if (res.ok && data.url) {
-                            window.location.href = data.url
-                            return
-                          }
-                          toast({
-                            title: data.alreadyVerified ? t('cardAlreadyVerified') : t('cardVerifyFailed'),
-                            description: data.alreadyVerified ? undefined : data.error,
-                          })
-                          if (data.alreadyVerified) setShowPurchaseDialog(false)
-                        } catch {
-                          toast({ title: t('cardVerifyFailed') })
-                        } finally {
-                          setIsVerifyingCard(false)
-                        }
-                      }}
-                      className="px-4 flex items-center gap-2"
-                    >
-                      <CreditCard className="w-4 h-4" />
-                      {t('verifyCardCta')}
-                    </Button>
-                  )}
-                  <Button
-                    autoFocus={purchaseDialogType !== 'card_verify'}
-                    onClick={() => {
-                      // 关闭当前提示弹窗，触发订阅弹窗
-                      setShowPurchaseDialog(false)
-                      // 延迟一下再触发，避免冲突
-                      setTimeout(() => {
-                        pricingDialogTriggerRef.current?.click()
-                      }, 100)
-                    }}
-                    className="px-6 flex items-center gap-2"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    {purchaseDialogType === 'card_verify' ? t('upgradeCtaShort') : t("upgrade")}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setShowPurchaseDialog(false)}
-                    className="px-4"
-                  >
-                    {t("cancel")}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        ) : (
-          <DialogContent className="max-w-5xl p-0 overflow-hidden">
-            <div className="p-4 flex items-center justify-between">
-              <DialogTitle className="text-lg font-semibold">{t("upgradeTitle")}</DialogTitle>
-              <Button variant="ghost" onClick={() => { setShowPricingInline(false); setShowPurchaseDialog(false); }}>
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="p-4">
-              <PricingSection />
-            </div>
-          </DialogContent>
-        )}
-      </Dialog>
+      <PurchaseDialog
+        open={showPurchaseDialog}
+        onOpenChange={setShowPurchaseDialog}
+        dialogType={purchaseDialogType}
+        currentPoints={currentPoints || 0}
+        onUpgrade={() => {
+          // 关闭当前提示弹窗，触发订阅弹窗
+          setShowPurchaseDialog(false)
+          // 延迟一下再触发，避免冲突
+          setTimeout(() => {
+            pricingDialogTriggerRef.current?.click()
+          }, 100)
+        }}
+      />
 
       {/* 文件大小超限弹窗 */}
       <FileSizeLimitDialog
@@ -9436,471 +9334,69 @@ export function AIFunction({
       </Dialog>
 
       {/* 单个主角重新生成确认弹窗 */}
-      <Dialog open={showRegenerateCharacterDialog} onOpenChange={setShowRegenerateCharacterDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">
-              {t("regenerateCharacter")}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-              <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
-                <span className="text-lg">👤</span>
-              </div>
-              <div className="flex-1">
-                <p className="font-medium">{characterToRegenerate?.name || t("characterTitle")}</p>
-                <p className="text-sm text-muted-foreground">{t("regenerateCharacterDesc")}</p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="font-medium text-sm">{t("regenerateWarning")}</h4>
-              <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-                <li>{t("clearCharacterImage")}</li>
-                <li>{t("regenerateCharacterImage")}</li>
-                <li>{t("regenerateStoryboardWithCharacter")}</li>
-                <li>{t("regenerateSceneVideoWithCharacter")}</li>
-                <li>{t("updateFinalVideo")}</li>
-              </ul>
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowRegenerateCharacterDialog(false)}
-                className="flex-1"
-              >
-                {t("cancel")}
-              </Button>
-              <Button
-                onClick={handleConfirmRegenerateCharacter}
-                className="flex-1"
-              >
-                {t("confirmRegenerate")}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <RegenerateCharacterConfirmDialog
+        open={showRegenerateCharacterDialog}
+        onOpenChange={setShowRegenerateCharacterDialog}
+        characterName={characterToRegenerate?.name}
+        onConfirm={handleConfirmRegenerateCharacter}
+      />
 
       {/* 编辑主角保存确认弹窗 */}
-      <Dialog open={showSaveEditCharacterDialog} onOpenChange={setShowSaveEditCharacterDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">
-              {t("saveCharacterEdit")}
-            </DialogTitle>
-          </DialogHeader>
-
-          {editedCharacterData && characterData && (() => {
-            const originalCharacter = characterData.find(char => char.id === editedCharacterData.id)
-            const originalImageUrl = originalCharacter ? (originalCharacter.imageUrl ?? originalCharacter.thumbnailUrl ?? '') : ''
-            // 检查 URL 是否变化，或者用户是否上传了新图片
-            const imageUrlChanged = Boolean(editedCharacterData.imageUrl && editedCharacterData.imageUrl !== originalImageUrl)
-            const imageChanged = imageUrlChanged || Boolean(characterImageFile)
-
-            // 检查 prompt 是否被修改 - 更宽松的比较
-            const originalPrompt = originalCharacter 
-              ? String(originalCharacter.generationPrompt ?? originalCharacter.prompt ?? originalCharacter.generation_prompt ?? '') 
-              : ''
-            const currentPrompt = String(editedCharacterData.generationPrompt ?? editedCharacterData.prompt ?? '')
-            const promptChanged = currentPrompt.trim() !== originalPrompt.trim()
-
-            const hasChanges = imageChanged || promptChanged
-
-            const affectedScenes = scriptData?.scenes?.filter((scene: any) => {
-              const plotText = scene.plot || ''
-              const narrationText = scene.narration || ''
-              const fullText = `${plotText} ${narrationText}`.toLowerCase()
-              return fullText.includes(String(editedCharacterData.name ?? '').toLowerCase())
-            }) || []
-
-            return (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
-                    <span className="text-lg">👤</span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">{editedCharacterData.name}</p>
-                    <p className="text-sm text-muted-foreground">{hasChanges ? t("saveCharacterEditDesc") : t("noChanges")}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">{t("saveCharacterEditWarning")}</h4>
-                  <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-                    {imageChanged && !promptChanged && (
-                      <>
-                        <li>{t("replaceCharacterImage")}</li>
-                        <li>{t("regenerateStoryboardWithCharacter")}</li>
-                        <li>{t("regenerateSceneVideoWithCharacter")}</li>
-                        <li>{t("updateFinalVideo")}</li>
-                      </>
-                    )}
-                    {promptChanged && !imageChanged && (
-                      <>
-                        <li>{t("regenerateCharacterWithNewPrompt")}</li>
-                        <li>{t("regenerateStoryboardWithCharacter")}</li>
-                        <li>{t("regenerateSceneVideoWithCharacter")}</li>
-                        <li>{t("updateFinalVideo")}</li>
-                      </>
-                    )}
-                    {imageChanged && promptChanged && (
-                      <>
-                        <li>{t("replaceCharacterImage")}</li>
-                        <li>{t("regenerateStoryboardWithCharacter")}</li>
-                        <li>{t("regenerateSceneVideoWithCharacter")}</li>
-                        <li>{t("updateFinalVideo")}</li>
-                      </>
-                    )}
-                    {!hasChanges && <li>{t("noChanges")}</li>}
-                  </ul>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowSaveEditCharacterDialog(false)}
-                    className="flex-1"
-                  >
-                    {t("cancel")}
-                  </Button>
-                  {hasChanges ? (
-                    <Button
-                      onClick={handleConfirmSaveEditedCharacter}
-                      className="flex-1"
-                    >
-                      {t("saveCharacter")}
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      disabled
-                      className="flex-1"
-                    >
-                      {t("noChanges")}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )
-          })()}
-        </DialogContent>
-      </Dialog>
+      <SaveEditCharacterConfirmDialog
+        open={showSaveEditCharacterDialog}
+        onOpenChange={setShowSaveEditCharacterDialog}
+        editedCharacterData={editedCharacterData}
+        characterData={characterData}
+        hasNewImageFile={Boolean(characterImageFile)}
+        onConfirm={handleConfirmSaveEditedCharacter}
+      />
 
       {/* 分镜图重新生成确认弹窗 */}
-      <Dialog open={showRegenerateStoryboardDialog} onOpenChange={setShowRegenerateStoryboardDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">
-              {t("regenerateStoryboard")}
-            </DialogTitle>
-          </DialogHeader>
-
-          {storyboardToRegenerate !== null && scriptData?.scenes?.[storyboardToRegenerate] && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
-                  <span className="text-lg">🎬</span>
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium">{t("sceneNumber", { number: storyboardToRegenerate + 1 })}</p>
-                  <p className="text-sm text-muted-foreground">{t("regenerateStoryboardDesc")}</p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-medium text-sm">{t("regenerateWarning")}</h4>
-                <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-                  <li>{t("clearStoryboard")}</li>
-                  <li>{t("regenerateStoryboardImage")}</li>
-                  <li>{t("regenerateSceneVideo")}</li>
-                  <li>{t("updateFinalVideo")}</li>
-                </ul>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowRegenerateStoryboardDialog(false)}
-                  className="flex-1"
-                >
-                  {t("cancel")}
-                </Button>
-              <Button
-                onClick={handleConfirmRegenerateStoryboard}
-                className="flex-1"
-              >
-                {t("confirmRegenerate")}
-              </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <RegenerateStoryboardConfirmDialog
+        open={showRegenerateStoryboardDialog}
+        onOpenChange={setShowRegenerateStoryboardDialog}
+        sceneIndex={storyboardToRegenerate}
+        sceneExists={storyboardToRegenerate !== null && Boolean(scriptData?.scenes?.[storyboardToRegenerate])}
+        onConfirm={handleConfirmRegenerateStoryboard}
+      />
 
       {/* 编辑分镜图保存确认弹窗 */}
-      <Dialog open={showSaveEditStoryboardDialog} onOpenChange={setShowSaveEditStoryboardDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">
-              {t("saveStoryboardEdit")}
-            </DialogTitle>
-          </DialogHeader>
-
-          {editedStoryboardData && editingStoryboardIndex !== null && (() => {
-            const originalStoryboard = storyboardImages[editingStoryboardIndex]
-            const originalUrl = originalStoryboard?.url || ''
-            // 检查 URL 是否变化，或者用户是否上传了新图片
-            const imageUrlChanged = Boolean(editedStoryboardData.url && editedStoryboardData.url !== originalUrl)
-            const imageChanged = imageUrlChanged || Boolean(storyboardImageFile)
-
-            // 检查 prompt 是否被修改
-            const currentPrompt = editedStoryboardData.prompt || ''
-            const originalPrompt = originalStoryboard?.prompt || ''
-            const promptChanged = currentPrompt.trim() !== originalPrompt.trim()
-
-            const hasChanges = imageChanged || promptChanged
-
-            return (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
-                    <span className="text-lg">🎬</span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">{t("sceneNumber", { number: editingStoryboardIndex + 1 })}</p>
-                    <p className="text-sm text-muted-foreground">{hasChanges ? t("saveStoryboardEditDesc") : t("noChanges")}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">{t("saveStoryboardEditWarning")}</h4>
-                  <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-                    {imageChanged && !promptChanged && (
-                      <>
-                        <li>{t("replaceStoryboardImage")}</li>
-                        <li>{t("regenerateSceneVideo")}</li>
-                        <li>{t("updateFinalVideo")}</li>
-                      </>
-                    )}
-                    {promptChanged && !imageChanged && (
-                      <>
-                        <li>{t("regenerateStoryboardWithNewPrompt")}</li>
-                        <li>{t("regenerateSceneVideo")}</li>
-                        <li>{t("updateFinalVideo")}</li>
-                      </>
-                    )}
-                    {imageChanged && promptChanged && <li>{t("chooseImageOrPrompt")}</li>}
-                    {!hasChanges && <li>{t("noChanges")}</li>}
-                  </ul>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowSaveEditStoryboardDialog(false)}
-                    className="flex-1"
-                  >
-                    {t("cancel")}
-                  </Button>
-                  {hasChanges ? (
-                    <Button
-                      onClick={handleConfirmSaveEditedStoryboard}
-                      className="flex-1"
-                    >
-                      {t("confirmSave")}
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      disabled
-                      className="flex-1"
-                    >
-                      {t("noChanges")}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )
-          })()}
-        </DialogContent>
-      </Dialog>
+      <SaveEditStoryboardConfirmDialog
+        open={showSaveEditStoryboardDialog}
+        onOpenChange={setShowSaveEditStoryboardDialog}
+        editedStoryboardData={editedStoryboardData}
+        sceneIndex={editingStoryboardIndex}
+        originalStoryboard={editingStoryboardIndex !== null ? storyboardImages[editingStoryboardIndex] : null}
+        hasNewImageFile={Boolean(storyboardImageFile)}
+        onConfirm={handleConfirmSaveEditedStoryboard}
+      />
 
       {/* 重新生成全部剧情确认弹窗 */}
-      <Dialog open={showRegenerateScriptDialog} onOpenChange={setShowRegenerateScriptDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">
-              {t("regenerateAllScript")}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-              <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
-                <span className="text-lg">📄</span>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-muted-foreground">{t("regenerateAllScriptDesc")}</p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="font-medium text-sm">{t("regenerateAllScriptWarning")}</h4>
-              <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-                <li>{t("clearAllScenes")}</li>
-                <li>{t("clearAllCharacters")}</li>
-                <li>{t("clearAllStoryboards")}</li>
-                <li>{t("clearAllSceneVideos")}</li>
-                <li>{t("clearFinalVideo")}</li>
-                <li>{t("regenerateWorkflow")}</li>
-              </ul>
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowRegenerateScriptDialog(false)}
-                className="flex-1"
-              >
-                {t("cancel")}
-              </Button>
-              <Button
-                onClick={handleConfirmRegenerateScript}
-                className="flex-1"
-              >
-                {t("confirmRegenerate")}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <RegenerateScriptConfirmDialog
+        open={showRegenerateScriptDialog}
+        onOpenChange={setShowRegenerateScriptDialog}
+        onConfirm={handleConfirmRegenerateScript}
+      />
 
       {/* 剧情视频重新生成确认弹窗 */}
-      <Dialog open={showRegenerateSceneVideoDialog} onOpenChange={setShowRegenerateSceneVideoDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">
-              {t("regenerateSceneVideoTitle")}
-            </DialogTitle>
-          </DialogHeader>
-
-          {sceneVideoToRegenerate !== null && scriptData?.scenes?.[sceneVideoToRegenerate] && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
-                  <span className="text-lg">🎥</span>
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium">{t("sceneNumber", { number: sceneVideoToRegenerate + 1 })}</p>
-                  <p className="text-sm text-muted-foreground">{t("regenerateSceneVideoDesc")}</p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-medium text-sm">{t("regenerateWarning")}</h4>
-                <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-                  <li>{t("clearSceneVideo")}</li>
-                  <li>{t("regenerateVideoSegment")}</li>
-                  <li>{t("updateFinalVideo")}</li>
-                </ul>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowRegenerateSceneVideoDialog(false)}
-                  className="flex-1"
-                >
-                  {t("cancel")}
-                </Button>
-                <Button
-                  onClick={handleConfirmRegenerateSceneVideo}
-                  className="flex-1"
-                >
-                  {t("confirmRegenerate")} · {t("estimatedPoints", { points: estimateSceneVideoPoints(sceneVideoToRegenerate ?? undefined) })}
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <RegenerateSceneVideoConfirmDialog
+        open={showRegenerateSceneVideoDialog}
+        onOpenChange={setShowRegenerateSceneVideoDialog}
+        sceneIndex={sceneVideoToRegenerate}
+        sceneExists={sceneVideoToRegenerate !== null && Boolean(scriptData?.scenes?.[sceneVideoToRegenerate])}
+        estimatedPoints={estimateSceneVideoPoints(sceneVideoToRegenerate ?? undefined)}
+        onConfirm={handleConfirmRegenerateSceneVideo}
+      />
 
       {/* 编辑剧情视频保存确认弹窗 */}
-      <Dialog open={showSaveEditSceneVideoDialog} onOpenChange={setShowSaveEditSceneVideoDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">
-              {t("saveSceneVideoEdit")}
-            </DialogTitle>
-          </DialogHeader>
-
-          {editedSceneVideoData && editingSceneVideoIndex !== null && (() => {
-            const originalSceneVideo = sceneVideos[editingSceneVideoIndex]
-            // 更宽松的比较，处理空值和空格
-            const currentPrompt = editedSceneVideoData.prompt || ''
-            const originalPrompt = originalSceneVideo?.prompt || ''
-            const promptChanged = currentPrompt.trim() !== originalPrompt.trim()
-
-            return (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
-                    <span className="text-lg">🎥</span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">{t("sceneNumber", { number: editingSceneVideoIndex + 1 })}</p>
-                    <p className="text-sm text-muted-foreground">{promptChanged ? t("saveSceneVideoEditDesc") : t("noChanges")}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">{t("saveSceneVideoEditWarning")}</h4>
-                  <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-                    {promptChanged && (
-                      <>
-                        <li>{t("regenerateSceneVideoFromEdit")}</li>
-                        <li>{t("updateFinalVideo")}</li>
-                      </>
-                    )}
-                    {!promptChanged && <li>{t("noChanges")}</li>}
-                  </ul>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowSaveEditSceneVideoDialog(false)}
-                    className="w-full sm:flex-1"
-                  >
-                    {t("cancel")}
-                  </Button>
-                  {promptChanged ? (
-                    <Button
-                      onClick={handleConfirmSaveEditedSceneVideo}
-                      className="w-full sm:flex-1"
-                    >
-                      {t("confirmSave")}
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      disabled
-                      className="w-full sm:flex-1"
-                    >
-                      {t("noChanges")}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )
-          })()}
-        </DialogContent>
-      </Dialog>
+      <SaveEditSceneVideoConfirmDialog
+        open={showSaveEditSceneVideoDialog}
+        onOpenChange={setShowSaveEditSceneVideoDialog}
+        editedSceneVideoData={editedSceneVideoData}
+        sceneIndex={editingSceneVideoIndex}
+        originalSceneVideo={editingSceneVideoIndex !== null ? sceneVideos[editingSceneVideoIndex] : null}
+        onConfirm={handleConfirmSaveEditedSceneVideo}
+      />
 
       <SignInDialog open={isSignInDialogOpen} onOpenChange={setIsSignInDialogOpen} />
     </div>
