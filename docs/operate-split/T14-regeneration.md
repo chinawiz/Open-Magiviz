@@ -1,6 +1,13 @@
 # T14 剧情与分镜再生族 → hooks/
 
-- status: todo | batch: 五(状态管线) | blocked-by: 无(建议 T16 先行:族内 `handleConfirmRegenerateSceneVideo` 会 `await handleSend`,deps 注入可解,先行可避免二次接线)
+- status: done 2026-09-03 | batch: 五(状态管线) | blocked-by: 无(实际未依赖 T16 先行:handleConfirmRegenerateSceneVideo 并未调用 handleSend,立项票面判断有误)
+
+## 实际落地(2026-09-03)
+
+- 新文件 `hooks/use-regeneration.ts`(~730 行):剧情再生完整管线(handleRegenerateScript 及 confirm/show 包装)、分镜/单帧/场景视频再生确认族、`regenerateCorrespondingSceneVideo`(编辑族接缝)。deps 接口 extends `WorkflowGenerationDeps`(单源复用)+ 16 项专属依赖;i18n/toast hook 内自持。
+- **diff 证明**:8 函数对 HEAD 全部逐字(238/238、103/103、56/56 等,零失配)。文档化替换仅 3 处:`_frameType` 未用参数前缀、文件级 `no-explicit-any` disable(14 处存量 any,理由:逐处改类型将淹没 diff 证明)、`currentEditVersionId.current` 写入改为注入 `setCurrentEditVersionId` 回调(hook 参数不可变,react-compiler 规则;兄弟 hook 只读 dep refs 故无此问题)。
+- 接线点置于 showSettingsPopover 声明后(TDZ:最晚依赖 videoStyle 与 T6/T7 hook 生成器之后)。operate.tsx 5,256→4,733 行;174 tests 全绿;新文件 0 warning。
+- **发现(疑似存量 bug,未修)**:`handleRegenerateScript` 内 `const parsedScriptData: any = null` 恒为 null,`mapToUiScriptData(null)` 在 `Array.isArray(data.scenes)` 处抛 TypeError→剧情重新生成疑似**从来都是失败路径**(注释自述「兼容 data 对象或 output 文本」但解析从未接上,疑似历史重构残留)。catch 会优雅展示错误,不影响页面其他功能。**修复属产品决策+行为变更,不在拆分票**;真实链路点检时以「错误路径行为保真」验证。
 
 ## 职责
 再生确认与执行链(立项日快照 ~790 行):

@@ -94,6 +94,14 @@ T9–T13 无硬阻塞;T14/T15/T16 无硬阻塞(T14 内 await handleSend 走 deps
 
 T9-T13 五票全部落地,operate.tsx 6,657→**5,256 行**(−1,401),warning 棘轮 410→**381**(清偿后下调),174 tests 全绿(164→174,+10)。新增模块:`components/operate/{operate-dialogs,SceneVideoDetailDialog,create-panel,create-settings,workflow-steps}.tsx`、`hooks/{use-file-storage,use-upload-items}.ts`、`lib/points-estimate.{ts,test.ts}`(+getFileType 入 format.ts)。每票逐字切片+diff 证明;**精简 GUI 回归已执行**:亮暗×中英×桌面/移动 6 组合截图+断言全过,素材库/链接输入弹窗开合抽查通过,模型切换→分辨率回落→预估价 48 积分实时联动验证。批次四验收达成。发现存档:死代码 getFileSizeExceededMessage/VIDEO_STYLE_MAP(待清理票)、T6/T7 遗留兄弟组件 4 warning。剩余:批次五(状态管线 T14-T18)→ 完工线 <1,500。
 
+### 批次五(状态管线)完工 2026-09-03 + 专项收官
+
+T14-T18 五票全部落地,operate.tsx 5,256→**2,117 行**(批次五 −3,139;两批累计 10,037→2,117),warning 棘轮 381→**332**,174 tests 全绿。新增模块:`hooks/{use-regeneration,use-storyboard-edit,use-workflow-pipeline,use-workflow-resume,use-project-restore}.ts`、`components/operate/result-panels.tsx`。每票逐字切片+diff 证明(0-4 处文档化替换)。
+
+**真实链路验证(已执行)**:恢复挂载+判据(缺图主角→回到主角步,库里空 URL 分镜解析为 0=正确)→继续生成→主角再生→分镜再生(Pusher 注入 type 字段后全解析)→场景视频(本地快速失败路径)→完整视频跳过判定→工作流收束;再生弹窗开合、卸载清理(SPA 导航离开回项目列表)通过。**成本控制**:剧情视频真实供应商段未实跑(其实现 diff 证明字节一致,批次三已验过真实链路)。
+
+**完工线复验:<1,500 未达(2,117 行)**。剩余构成:86 个 useState 装配 + 7 个 hook 接线的 deps 列表(~450 行)+ 弹窗/面板 props 透传调用点(~350 行)+ 被注释的历史代码块(151a5c3 产品决策保留,~250 行)+ 存量死代码(getFileSizeExceededMessage/VIDEO_STYLE_MAP/孤儿函数 5 个/死 state 对)。进一步收敛需「多 state 合并入 hook 自持」的深度重构+死代码清理票,超出纯搬移范畴,如实记录待后续立项。专项主体目标达成:operate.tsx 从 9 倍第二大文件降为编排+装配层。
+
 ### 方法纪律(承接批次三沉淀,methods §17)
 
 1. **领票先盘点实际残留**:本节行号是立项日快照,会随后续票漂移;按职责落刀,不为凑票面硬拆。

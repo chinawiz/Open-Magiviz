@@ -1,6 +1,19 @@
 # T17 恢复/续跑族 → hooks/
 
-- status: todo | batch: 五(状态管线) | blocked-by: T16(建议先行:resume 族多处 `await handleSend`,T16 落地后接线一次到位)
+- status: done 2026-09-03 | batch: 五(状态管线) | blocked-by: T16(实际接线顺序:T16 先行,resume 族经前向桥引用 handleSend)
+
+## 实际落地(2026-09-03)
+
+- **按职责落刀拆为两 hook**(票面预留的拆分点):
+  - `hooks/use-workflow-resume.ts`(811 行):createProject、resumeWorkflow/resumeSceneVideosGeneration/resumeVideoSynthesis、handlePauseResumeWorkflow、handleAutoRegenerateAfterSave、handleResumeContinueGeneration。
+  - `hooks/use-project-restore.ts`(459 行):restoreProjectData、handleResumeContinue、resumeProjectId 监听 effect、恢复后步骤判定 effect;restoreProjectRef 随迁。
+- **红线遵守**:storyboard-restore.ts 解析器与「有主角缺图」判据只引用未动;续跑判据逻辑(handleResumeContinue 的五级步骤判定)逐字随迁。
+- **按职责修正票面两处**:①`waitForWorkflowResume`/`resumeCheckTimersRef`/`generateVersionGroupId` 是被 T6/T7/T14/T15/T16 五个 hook 共享的等待与 ID 原语,留 operate(迁走会造成循环依赖),非「恢复族私有」;②restoredVersionHasVideo/restoredProjectCompleted state 留 operate(WorkflowHeader T13 组件与续跑族两侧消费)。
+- **循环依赖断环**:`resumeSceneVideosGeneration`(T6 需要其作 dep)与 `resumeWorkflow`/`createProject`(T16 需要)采用「前向桥」模式——operate 声明 let 桥变量→T6/T16 接线传转发闭包→resume hook 接线后回填实现;运行期于渲染完成前赋值,行为等价。
+- ref 写入按惯用法收敛为注入回调:`setCurrentProjectIdRefValue`/`setVersionGroupIdRefValue`/`setCurrentEditVersionIdRefValue`(react-compiler hook 参数不可变)。
+- **diff 证明**:9 函数对 HEAD 逐字——handleAutoRegenerateAfterSave 337/337、handleResumeContinueGeneration 204/204、handlePauseResumeWorkflow 44/44 等全 OK;唯一差异=ref 写入回调化 5 处+`_mergedChars` lint 前缀。
+- operate.tsx 3,756→2,803 行;174 tests 全绿;新文件 0 warning(两 effect 的 exhaustive-deps 用 disable 注释保原 dep 数组=保触发时机)。
+- **发现**:①暂停流程伸手 pendingTasksRef(T8 发现#2 的兑现点)随迁进 resume hook 依赖,收敢单源留后续深化票;②恢复监听 effect 与恢复判定 effect 的 dep 数组刻意保真,code-review 时勿按「缺依赖」误修;③`_mergedChars`:resumeWorkflow 主角步骤的合并结果在旧代码即未被消费(步骤3 用的是各自闭包内局部),存量死赋值留清理票。
 
 ## 职责
 断点恢复与续跑全族(立项日快照 ~1,490 行,批次五最大一票):
