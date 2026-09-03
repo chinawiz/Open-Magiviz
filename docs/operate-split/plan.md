@@ -42,4 +42,4 @@
 - [x] T5 素材库选择状态块(**done 2026-09-03**:hooks/use-library-selection.ts 23 行;T3 抽壳后实际残留仅 1 state+1 回调,见 ticket 发现节;GUI 选片→带入→重选→去重全过,operate.tsx →9,401 行,棘轮 419→418)
 - [ ] T6 故事板生成状态块(含剧本/分镜图详情预览弹窗一并抽离)
 - [ ] T7 图片生成状态块(主角详情预览弹窗一并抽离)
-- [ ] T8 Pusher 实时进度 → hooks/(剧情视频详情预览弹窗随 T6/T7 就近处理)
+- [x] T8 Pusher 实时进度 → hooks/(**done 2026-09-03**:hooks/use-task-events.ts;真实 Pusher 链路验证=订阅→注入事件→解析→resolve→暂停放行→卸载清理全通;发现本地缺 NEXT_PUBLIC_PUSHER_* 时订阅静默失效,关联线上推送未达调查,见 ticket 发现节;棘轮 418→417。剧情视频详情预览弹窗仍随 T6/T7 就近处理)

@@ -58,9 +58,7 @@ import {
 
 import { useProject, getProgressPercentage } from "@/hooks/useProject"
 import { useSubscriptionPlan } from "@/hooks/useSubscriptionPlan"
-
-// Pusher 客户端导入
-import { subscribeToTask, disconnectPusher } from '@/lib/pusher-client'
+import { useTaskEvents } from "@/hooks/use-task-events"
 
 interface AIFunctionProps {
   onSend?: (message: string) => void
@@ -679,18 +677,10 @@ export function AIFunction({
   const [characterEditMode, setCharacterEditMode] = useState<'none' | 'image' | 'prompt'>('none')
   const characterImageInputRef = useRef<HTMLInputElement>(null)
 
-  // ========== Pusher 实时推送状态 ==========
-  // 存储活跃的 Pusher 订阅（用于组件卸载时清理）
-  const pusherUnsubscribeRef = useRef<(() => void) | null>(null)
-  // 存储待处理的生成任务（key: taskId, value: { type, resolve, reject }）
-  const pendingTasksRef = useRef<Map<string, {
-    type: 'character' | 'storyboard' | 'video' | 'compose'
-    resolve: (data: unknown) => void
-    reject: (error: unknown) => void
-  }>>(new Map())
+  // ========== Pusher 实时推送（hooks/use-task-events.ts，行为与原来一致） ==========
+  const { waitForGenerationResult, cleanupTaskSubscription, pendingTasksRef } = useTaskEvents()
 
-  // ========== Pusher 清理 effect ==========
-  // 用于跟踪组件是否已挂载
+  // 用于跟踪组件是否已挂载（断点续跑等待用）
   const isMountedRef = useRef(false)
   // 用于跟踪所有活跃的 waitForWorkflowResume 定时器
   const resumeCheckTimersRef = useRef<Set<NodeJS.Timeout>>(new Set())
@@ -699,7 +689,7 @@ export function AIFunction({
     // 组件挂载时标记
     isMountedRef.current = true
 
-    // 组件卸载时清理所有 Pusher 订阅和定时器
+    // 组件卸载时清理所有活跃的等待恢复检查定时器
     return () => {
       isMountedRef.current = false
       // 清理所有活跃的等待恢复检查定时器
@@ -707,123 +697,8 @@ export function AIFunction({
         clearTimeout(timer)
       })
       resumeCheckTimersRef.current.clear()
-      if (pusherUnsubscribeRef.current) {
-        console.log('[Pusher] 组件卸载，清理订阅')
-        pusherUnsubscribeRef.current()
-        pusherUnsubscribeRef.current = null
-      }
-      disconnectPusher()
-      pendingTasksRef.current.clear()
     }
   }, [])
-
-  // ========== Pusher 辅助函数 ==========
-
-  /**
-   * 使用 Pusher 实时等待生成结果
-   * 
-   * @param taskId - Kie.ai 返回的任务 ID
-   * @param type - 生成类型 ('character' | 'storyboard')
-   * @param timeoutMs - 超时时间（默认 480000ms = 8分钟）
-   * @returns 生成结果数据
-   */
-  async function waitForGenerationResult(params: {
-    taskId: string
-    type: 'character' | 'storyboard' | 'video' | 'compose'
-    timeoutMs?: number
-  }): Promise<ComposedVideoResult> {
-    const { taskId, type, timeoutMs = 480000 } = params
-
-    console.log(`[Pusher] 开始等待生成结果:`, { taskId, type })
-
-    return new Promise((resolve, reject) => {
-      // 设置超时
-      const timeoutId = setTimeout(() => {
-        // 清理pending状态
-        pendingTasksRef.current.delete(taskId)
-        // 取消订阅
-        if (pusherUnsubscribeRef.current) {
-          pusherUnsubscribeRef.current()
-          pusherUnsubscribeRef.current = null
-        }
-        console.warn(`[Pusher] 等待超时:`, { taskId })
-        reject(new Error(t('waitingGenerationResultTimeout', { seconds: timeoutMs / 1000 })))
-      }, timeoutMs)
-
-      // 保存任务到 pendingTasks
-      pendingTasksRef.current.set(taskId, {
-        type,
-        resolve: (data: unknown) => {
-          // 检查组件是否已挂载
-          if (!isMountedRef.current) {
-            console.log(`[Pusher] 组件已卸载，跳过状态更新:`, { taskId })
-            return
-          }
-          clearTimeout(timeoutId)
-          pendingTasksRef.current.delete(taskId)
-          console.log(`[Pusher] 任务完成:`, { taskId, data })
-          resolve(data as ComposedVideoResult)
-        },
-        reject: (error: unknown) => {
-          // 检查组件是否已挂载
-          if (!isMountedRef.current) {
-            console.log(`[Pusher] 组件已卸载，跳过状态更新:`, { taskId })
-            return
-          }
-          clearTimeout(timeoutId)
-          pendingTasksRef.current.delete(taskId)
-          reject(error)
-        }
-      })
-
-      // 订阅 Pusher 频道
-      const unsubscribe = subscribeToTask({
-        taskId,
-        onSuccess: (data) => {
-          console.log(`[Pusher] 收到成功事件:`, { taskId, data })
-          const pending = pendingTasksRef.current.get(taskId)
-          if (pending) {
-            pending.resolve(data)
-          }
-        },
-        onFail: (data) => {
-          console.log(`[Pusher] 收到失败事件:`, { taskId, data })
-          const pending = pendingTasksRef.current.get(taskId)
-          if (pending) {
-            // 使用 resolve 而不是 reject，避免抛出错误（页面已显示错误信息）
-            pending.resolve({
-              error: data?.error || t('generationFailed'),
-              imageUrl: '',
-              videoUrl: '',
-              resultUrls: []
-            })
-          }
-        },
-        onProgress: (data) => {
-          console.log(`[Pusher] 收到进度事件:`, { taskId, data })
-          // 可选：更新 UI 显示进度
-        },
-        onError: (error) => {
-          console.error(`[Pusher] Pusher 错误:`, { taskId, error })
-          // Pusher 连接错误不一定是任务失败，继续等待
-        }
-      })
-
-      // 保存取消订阅函数
-      pusherUnsubscribeRef.current = unsubscribe
-    })
-  }
-
-  /**
-   * 清理指定任务的 Pusher 订阅
-   */
-  function cleanupTaskSubscription(taskId: string): void {
-    const pending = pendingTasksRef.current.get(taskId)
-    if (pending) {
-      pendingTasksRef.current.delete(taskId)
-      console.log(`[Pusher] 清理任务:`, { taskId })
-    }
-  }
 
   // 追踪当前编辑会话的版本 ID：首次保存时由后端返回，后续复用
   const currentEditVersionId = useRef<string | null>(null)
