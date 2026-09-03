@@ -20,3 +20,14 @@ export function formatBytes(bytes: number): string {
 export function computeFileSizeLimit(plan: string | null): number {
   return getFileSizeLimit(plan)
 }
+
+/**
+ * 文件类型分类：按 MIME 前缀归类，未命中时默认当作图片
+ * （自 operate.tsx 拆出，拆分 T10，行为不变）。
+ */
+export function getFileType(file: File): "image" | "audio" | "video" {
+  if (file.type.startsWith("image/")) return "image"
+  if (file.type.startsWith("audio/")) return "audio"
+  if (file.type.startsWith("video/")) return "video"
+  return "image" // 默认当作图片
+}

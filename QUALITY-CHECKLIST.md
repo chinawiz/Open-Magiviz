@@ -33,7 +33,7 @@
 
 ## 进行中的专项:operate.tsx 拆分
 
-10,037 行 / 82 个 useState 的单体组件,风险升序专项拆分,**完工线:operate.tsx < 1500 行只管编排+布局**。计划与逐块 tickets 见 `docs/operate-split/`;钱权单测(points/points-manager/webhook-security/payments)先行作安全网,验收按批次回归(纯函数批 vitest → 展示组件批精简 GUI → 状态编排批全量 GUI 矩阵)。
+单体组件风险升序专项拆分,**完工线:operate.tsx < 1500 行只管编排+布局**。T1-T8(批次一二三)+ T9-T13(批次四·展示与外围)已完工 2026-09-03,operate.tsx 10,037→5,256 行,棘轮 430→381,174 tests;**批次五(状态管线 T14-T18)已领票未开工**,计划与逐块 tickets 见 `docs/operate-split/`;批次五验收=全量 GUI 矩阵,完工即专项收官复验完工线。
 
 ### 3. 推送前(较大改动)
 - 过一遍 `/code-review`(Standards + Spec 两轴)。实证:它抓到过「计费同源只做一半」的二轮漂移(methods §3b)。

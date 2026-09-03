@@ -4,15 +4,7 @@ import type React from "react"
 
 import { useState, useRef, useEffect, type KeyboardEvent } from "react"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { PricingDialog } from "@/components/pricing-dialog"
-import { PurchaseDialog } from "@/components/operate/PurchaseDialog"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Progress } from "@/components/ui/progress"
-import { Plus, Sparkles, X, Zap, ChevronLeft, ChevronRight, Link, Upload, Loader2, Eye, Clock, Trash2, Download, Film, SlidersHorizontal, Play, CheckCircle2, HardDrive, Image as ImageIcon, FolderOpen, Music, Video } from "lucide-react"
+import { ChevronLeft, ChevronRight, Loader2, Eye, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type {
   CharacterItem,
@@ -25,42 +17,28 @@ import type {
 } from "@/lib/types"
 import { useTranslations, useLocale } from "next-intl"
 import { useSession } from "next-auth/react"
-import { SignInDialog } from "@/components/auth/signin-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { useLibrarySelection } from "@/hooks/use-library-selection"
-import { FileSizeLimitDialog } from "@/components/operate/FileSizeLimitDialog"
-import { LinkInputDialog } from "@/components/operate/LinkInputDialog"
-import { MediaValidationDialog } from "@/components/operate/MediaValidationDialog"
-import { StorageLimitDialog } from "@/components/operate/StorageLimitDialog"
-import { formatBytes, computeFileSizeLimit } from "@/components/operate/format"
-import { getVideoDuration, getAllVideoDurations } from "@/components/operate/video"
+import { computeFileSizeLimit } from "@/components/operate/format"
+import { MediaDialogMounts, OverlayDialogMounts } from "@/components/operate/operate-dialogs"
+import { CreatePanel } from "@/components/operate/create-panel"
+import { WorkflowHeader, ScriptStep, FinalVideoStep } from "@/components/operate/workflow-steps"
+import { getAllVideoDurations } from "@/components/operate/video"
 import { parseStoryboardRestoreData } from "@/components/operate/storyboard-restore"
+import { estimateSceneVideoPoints as estimateSceneVideoPointsPure, estimateWorkflowPoints } from "@/lib/points-estimate"
 import { validateSeedanceMedia } from "@/components/operate/seedance-media"
-import { LibraryDialog } from "@/components/operate/LibraryDialog"
-import { StoryboardDetailDialog } from "@/components/operate/StoryboardDetailDialog"
-import { CharacterDetailDialog } from "@/components/operate/CharacterDetailDialog"
-import {
-  RegenerateCharacterConfirmDialog,
-  SaveEditCharacterConfirmDialog,
-  RegenerateStoryboardConfirmDialog,
-  SaveEditStoryboardConfirmDialog,
-  RegenerateScriptConfirmDialog,
-  RegenerateSceneVideoConfirmDialog,
-  SaveEditSceneVideoConfirmDialog,
-} from "@/components/operate/confirm-dialogs"
-import { computeVideoPointsFor, getVideoUnitPointsFor, type VideoResolution } from "@/lib/video-pricing"
 import {
   VIDEO_MODEL_RESOLUTIONS,
-  VIDEO_MODEL_I18N_KEYS as videoModelMap,
   VIDEO_MODEL_OPTION_ORDER,
   MEDIA_COMPATIBLE_VIDEO_MODELS,
   FIRST_LAST_FRAME_UNSUPPORTED_MODELS,
-  AUTO_MODEL_FALLBACK,
 } from "@/lib/providers/video-models"
 
 import { useProject, getProgressPercentage } from "@/hooks/useProject"
 import { useSubscriptionPlan } from "@/hooks/useSubscriptionPlan"
 import { useTaskEvents } from "@/hooks/use-task-events"
+import { useFileStorage } from "@/hooks/use-file-storage"
+import { useUploadItems } from "@/hooks/use-upload-items"
 import { useStoryboardGeneration } from "@/hooks/use-storyboard-generation"
 import { useCharacterGeneration } from "@/hooks/use-character-generation"
 
@@ -71,8 +49,6 @@ interface AIFunctionProps {
   resumeProjectId?: string | null
   resumeVersionId?: string | null  // 指定恢复的版本ID
 }
-
-const MAX_CHARACTERS = 10000
 
 // 视频风格映射
 const VIDEO_STYLE_MAP: Record<string, string> = {
@@ -157,15 +133,6 @@ export function AIFunction({
   const [message, setMessage] = useState("")
   const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [imageUrls, setImageUrls] = useState<string[]>([])
-  type UploadingItem = {
-    id: string
-    filename: string
-    localUrl: string
-    status: "uploading" | "done" | "error"
-    url?: string
-    type: "image" | "audio" | "video"
-  }
-  const [uploadingItems, setUploadingItems] = useState<UploadingItem[]>([])
   const [videoUrls, setVideoUrls] = useState<string[]>([])
   const [audioUrls, setAudioUrls] = useState<string[]>([])
   const [previewImage, setPreviewImage] = useState<string | null>(null)
@@ -174,6 +141,8 @@ export function AIFunction({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [showUploadPopover, setShowUploadPopover] = useState(false)
+  const [showLinkInput, setShowLinkInput] = useState(false)
+  const [linkInput, setLinkInput] = useState("")
   const [isSignInDialogOpen, setIsSignInDialogOpen] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false)
@@ -716,6 +685,22 @@ export function AIFunction({
 
   // 下载状态（用于显示正在下载）
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null)
+
+  // 下载/文件类型/存储用量外围（hooks/use-file-storage.ts，拆分 T10，函数体逐字搬移；getFileType 纯函数移入 components/operate/format.ts）
+  const {
+    handleDownloadFile,
+    handleFileSizeExceeded,
+    fetchStorageInfo,
+    checkStorageAvailable,
+    handleStorageLimitExceeded,
+  } = useFileStorage({
+    subscriptionPlan,
+    setFileSizeLimitMB,
+    setShowFileSizeLimitDialog,
+    setStorageLimitInfo,
+    setShowStorageLimitDialog,
+    setDownloadingKey,
+  })
 
   // 单个主角重新生成确认弹窗
   const [showRegenerateCharacterDialog, setShowRegenerateCharacterDialog] = useState(false)
@@ -2441,117 +2426,6 @@ export function AIFunction({
   }
 
   // 通用下载文件（图片/视频）
-  const handleDownloadFile = async (url?: string, filename?: string, key?: string) => {
-    if (!url) {
-      toast({
-        title: t("downloadFailed"),
-        description: t("noFileToDownload"),
-        variant: "destructive",
-      })
-      return
-    }
-
-    const downloadKey = key || filename || url.split('/').pop() || Date.now().toString()
-    setDownloadingKey(downloadKey)
-
-    try {
-      // 检查是否是 Kie.ai 的 URL（需要先转换）
-      let finalUrl = url
-      if (url.includes('kie.ai') || url.includes('tempfile.')) {
-        try {
-          const downloadResp = await fetch('/api/ai/kie/download-url', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
-          })
-          const downloadData = await downloadResp.json()
-          if (downloadData.success && downloadData.downloadUrl) {
-            finalUrl = downloadData.downloadUrl
-          }
-        } catch (e) {
-          console.error('获取下载 URL 失败:', e)
-        }
-      }
-
-      // 尝试使用 fetch 流式下载以显示进度（若被 CORS 限制则回退到直接打开链接下载）
-      const resp = await fetch(finalUrl)
-      if (!resp.ok) throw new Error(t('downloadFailed'))
-
-      const contentLength = resp.headers.get('content-length')
-      if (!resp.body || !contentLength) {
-        // 回退：使用 a 标签直接下载（不可获取进度）
-        const a = document.createElement('a')
-        a.href = url
-        a.download = filename || url.split('/').pop() || 'file'
-        a.target = '_blank'
-        a.rel = 'noopener noreferrer'
-        document.body.appendChild(a)
-        a.click()
-        a.remove()
-        toast({
-          title: t("downloadStarted"),
-          description: filename || t("fileDownloading"),
-        })
-        setDownloadingKey(null)
-        return
-      }
-
-      const total = parseInt(contentLength, 10)
-      const reader = resp.body.getReader()
-      const chunks: Uint8Array[] = []
-      let received = 0
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        if (value) {
-          chunks.push(value)
-          received += value.length
-        }
-      }
-
-      const blob = new Blob(chunks as any)
-      const downloadUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = downloadUrl
-      a.download = filename || url.split('/').pop() || 'file'
-      a.target = '_blank'
-      a.rel = 'noopener noreferrer'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(downloadUrl)
-
-      toast({
-        title: t("downloadCompleted"),
-        description: filename || t("fileDownloaded"),
-      })
-    } catch (error) {
-      // 如果 fetch 出错，降级到 a 标签下载尝试
-      try {
-        const a = document.createElement('a')
-        a.href = url
-        a.download = filename || url.split('/').pop() || 'file'
-        a.target = '_blank'
-        a.rel = 'noopener noreferrer'
-        document.body.appendChild(a)
-        a.click()
-        a.remove()
-        toast({
-          title: t("downloadStarted"),
-          description: filename || t("fileDownloading"),
-        })
-      } catch (err) {
-        toast({
-          title: t("downloadFailed"),
-          description: error instanceof Error ? error.message : t("retryLater"),
-          variant: "destructive",
-        })
-      }
-    } finally {
-      setDownloadingKey(null)
-    }
-  }
-
   // 编辑剧情后，在保存脚本后自动重新生成后续步骤（主角 -> 分镜图 -> 剧情视频 -> 完整视频）
   // 注意：保存脚本后 setScriptData 是异步的，因此这里必须使用保存时的脚本快照，避免读到旧的 scriptData。
   const handleAutoRegenerateAfterSave = async (scriptOverride?: any) => {
@@ -4079,14 +3953,6 @@ export function AIFunction({
     // }
   }, [status])
 
-  // 获取文件类型分类
-  const getFileType = (file: File): "image" | "audio" | "video" => {
-    if (file.type.startsWith("image/")) return "image"
-    if (file.type.startsWith("audio/")) return "audio"
-    if (file.type.startsWith("video/")) return "video"
-    return "image" // 默认当作图片
-  }
-
   // 获取文件大小超限提示
   const getFileSizeExceededMessage = (type: "image" | "audio" | "video"): { title: string; description: string } => {
     const limit = computeFileSizeLimit(subscriptionPlan)
@@ -4105,238 +3971,48 @@ export function AIFunction({
     }
   }
 
-  // 处理文件大小超限 - 打开弹窗
-  const handleFileSizeExceeded = () => {
-    const limitMB = Math.round(computeFileSizeLimit(subscriptionPlan) / (1024 * 1024))
-    if (subscriptionPlan === 'annual') {
-      // Annual 不应该超限，这只是保底处理
-      toast({
-        title: t("fileTooLarge"),
-        description: t("uploadFailed"),
-        variant: "destructive",
-      })
-      return
-    }
-    setFileSizeLimitMB(limitMB)
-    setShowFileSizeLimitDialog(true)
-  }
-
-  // 获取存储空间信息
-  const fetchStorageInfo = async () => {
-    try {
-      const res = await fetch("/api/library/storage")
-      if (res.ok) {
-        const data = await res.json()
-        return {
-          usedStorage: data.usedStorage,
-          storageLimit: data.storageLimit,
-          availableStorage: data.storageLimit - data.usedStorage,
-        }
-      }
-    } catch (err) {
-      console.error("获取存储空间失败:", err)
-    }
-    return null
-  }
-
-  // 检查存储空间是否足够
-  const checkStorageAvailable = async (totalFileSize: number): Promise<{ available: boolean; storageInfo?: { usedStorage: number; storageLimit: number; availableStorage: number } }> => {
-    // Annual 无限制
-    if (subscriptionPlan === 'annual') {
-      return { available: true }
-    }
-
-    const storageInfo = await fetchStorageInfo()
-    if (!storageInfo) {
-      return { available: true } // 获取失败时允许上传
-    }
-
-    if (totalFileSize > storageInfo.availableStorage) {
-      return { available: false, storageInfo }
-    }
-
-    return { available: true, storageInfo }
-  }
-
-  // 处理存储空间不足 - 打开弹窗
-  const handleStorageLimitExceeded = (storageInfo: { usedStorage: number; storageLimit: number; availableStorage: number }) => {
-    setStorageLimitInfo(storageInfo)
-    setShowStorageLimitDialog(true)
-  }
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    if (files.length === 0) return
-
-    // 支持图片、音频、视频
-    const validFiles = files.filter((f) => {
-      const type = getFileType(f)
-      return type === "image" || type === "audio" || type === "video"
-    })
-    const invalidCount = files.length - validFiles.length
-    if (invalidCount > 0) {
-      toast({
-        title: t("fileTypeError"),
-        description: t("invalidFileType"),
-        variant: "destructive",
-      })
-    }
-    if (validFiles.length === 0) return
-
-    // 分类文件：图片添加到 selectedImages，音频/视频单独处理
-    const imageFiles = validFiles.filter((f) => getFileType(f) === "image")
-    const mediaFiles = validFiles.filter((f) => getFileType(f) !== "image")
-
-    if (imageFiles.length > 0) {
-      setSelectedImages((prev) => [...prev, ...imageFiles])
-    }
-
-    // 计算所有文件的总大小
-    const totalSize = validFiles.reduce((sum, file) => sum + file.size, 0)
-
-    // 检查存储空间是否足够
-    ;(async () => {
-      const { available, storageInfo } = await checkStorageAvailable(totalSize)
-      if (!available && storageInfo) {
-        handleStorageLimitExceeded(storageInfo)
-        return
-      }
-
-      // 处理所有文件的上传
-      validFiles.forEach((file) => {
-        const fileType = getFileType(file)
-        const sizeLimit = computeFileSizeLimit(subscriptionPlan)
-
-        // 检查文件大小
-        if (file.size > sizeLimit) {
-          handleFileSizeExceeded()
-          return
-        }
-
-        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      const localUrl = URL.createObjectURL(file)
-
-      // 图片文件触发 onImageUpload
-      if (fileType === "image") {
-        onImageUpload?.(file)
-      }
-
-      setUploadingItems((prev) => [...prev, { id, filename: file.name, localUrl, status: "uploading", type: fileType }])
-
-      ;(async () => {
-        try {
-          const reader = new FileReader()
-          const dataUrl: string = await new Promise((resolve, reject) => {
-            reader.onerror = () => reject(new Error("File read error"))
-            reader.onload = () => resolve(String(reader.result))
-            reader.readAsDataURL(file)
-          })
-          const match = dataUrl.match(/^data:(.+);base64,(.+)$/)
-          if (!match) throw new Error("Invalid file data")
-          const contentType = match[1]
-          const base64 = match[2]
-
-          const res = await fetch("/api/upload", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              filename: file.name,
-              contentType,
-              data: base64,
-              assetType: fileType,
-            }),
-          })
-          if (!res.ok) {
-            const data = await res.json().catch(() => ({}))
-            console.error("Upload failed", data.message || t('uploadFailed'))
-            setUploadingItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: "error" } : it)))
-          } else {
-            const json = await res.json()
-            if (json?.url) {
-              setUploadingItems((prev) =>
-                prev.map((it) => (it.id === id ? { ...it, status: "done", url: json.url } : it))
-              )
-              // 只将图片 URL 添加到 imageUrls
-              if (fileType === "image") {
-                setImageUrls((prev) => [...prev, json.url])
-              } else if (fileType === "video") {
-                setVideoUrls((prev) => [...prev, json.url])
-              } else if (fileType === "audio") {
-                setAudioUrls((prev) => [...prev, json.url])
-              }
-              try {
-                URL.revokeObjectURL(localUrl)
-              } catch {}
-            } else {
-              setUploadingItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: "error" } : it)))
-            }
-          }
-        } catch (err) {
-          console.error("Upload error:", err)
-          setUploadingItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: "error" } : it)))
-        }
-      })()
-      })
-    })()
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
-    // close upload popover after selecting files
-    setShowUploadPopover(false)
-  }
-
-  const addImageUrl = (url: string) => {
-    if (url.trim() && !imageUrls.includes(url.trim())) {
-      setImageUrls([...imageUrls, url.trim()])
-    }
-  }
+  // 上传清单/链接图片清单管理（hooks/use-upload-items.ts，拆分 T11，函数体逐字搬移，行为与原来一致）
+  const {
+    uploadingItems,
+    setUploadingItems,
+    handleFileSelect,
+    addImageUrl,
+    removeImageUrl,
+    handleAddLink,
+  } = useUploadItems({
+    subscriptionPlan,
+    checkStorageAvailable,
+    handleStorageLimitExceeded,
+    handleFileSizeExceeded,
+    onImageUpload,
+    setSelectedImages,
+    imageUrls,
+    setImageUrls,
+    setVideoUrls,
+    setAudioUrls,
+    fileInputRef,
+    setShowUploadPopover,
+    linkInput,
+    setLinkInput,
+    setShowLinkInput,
+  })
 
   // 素材库选择弹窗状态（hooks/use-library-selection.ts，行为与原来一致）
   const { libraryOpen, openLibrary, handleSelect: handleLibrarySelect, setLibraryOpen } = useLibrarySelection(addImageUrl)
 
-  const removeImageUrl = (index: number) => {
-    setImageUrls(imageUrls.filter((_, i) => i !== index))
-  }
-
-  const handleAddLink = () => {
-    if (linkInput.trim()) {
-      addImageUrl(linkInput.trim())
-      setLinkInput("")
-      setShowLinkInput(false)
-    }
-  }
-
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
-  const [showLinkInput, setShowLinkInput] = useState(false)
-  const [linkInput, setLinkInput] = useState("")
 
   const [videoModel, setVideoModel] = useState<string>("auto") // auto/veo31Fast/veo31Lite/veo31Quality/geminiOmni/seedance25/seedance2Fast/seedance2Mini/seedance2/kling3/happyHorse/wan27/minimaxH3
   const [videoResolution, setVideoResolution] = useState<string>("720p") // 480p/720p/1080p（仅声明支持的模型可选，默认档跟随现状）
-  // 场景视频生成积分预估（与路由预检同源：主模型×所选分辨率档；auto 视为默认路由 veo31Fast）
+  // 场景视频生成积分预估（与路由预检同源：主模型×所选分辨率档；auto 视为默认路由）——公式在 lib/points-estimate.ts（拆分 T11）
   const estimateSceneVideoPoints = (sceneIndex?: number | null): number => {
-    const model = videoModel !== 'auto' ? videoModel : AUTO_MODEL_FALLBACK
-    const res = VIDEO_MODEL_RESOLUTIONS[model]?.includes(videoResolution)
-      ? (videoResolution as VideoResolution)
-      : undefined
     const scene = scriptData?.scenes?.[sceneIndex ?? -1] as { duration?: number } | undefined
-    const duration = Number(scene?.duration)
-    const seconds = Number.isFinite(duration) && duration > 0 ? duration : 8
-    return computeVideoPointsFor(model, seconds, res)
+    return estimateSceneVideoPointsPure({ videoModel, videoResolution, sceneDuration: scene?.duration })
   }
 
-  // 一键生成积分预估：大头是视频生成（总时长 × 选中模型×分辨率单价）；
-  // 剧本/主角/分镜为小额固定项未计入，故为「起」价。auto 模型按默认路由 veo31Fast、时长 auto 按 24s 估。
-  const pointsCost = (() => {
-    const model = videoModel !== 'auto' ? videoModel : AUTO_MODEL_FALLBACK
-    const res = VIDEO_MODEL_RESOLUTIONS[model]?.includes(videoResolution)
-      ? (videoResolution as VideoResolution)
-      : undefined
-    const durSec = duration === 'auto' ? 24 : parseInt(String(duration), 10) || 24
-    return Math.round(durSec * getVideoUnitPointsFor(model, res))
-  })()
+  // 一键生成积分预估：大头是视频生成（总时长 × 选中模型×分辨率单价）；剧本/主角/分镜为
+  // 小额固定项未计入，故为「起」价。auto 模型按默认路由、时长 auto 按 24s 估——公式在 lib/points-estimate.ts
+  const pointsCost = estimateWorkflowPoints({ videoModel, videoResolution, duration })
   const [generationMode, setGenerationMode] = useState<string>("auto") // auto/first-last-frame
   // 故事板/分镜图生成状态块（hooks/use-storyboard-generation.ts，函数体逐字搬移，行为与原来一致）
   const {
@@ -4459,13 +4135,6 @@ export function AIFunction({
     }
   }, [hasMedia])
 
-  // 视频风格映射
-  const videoStyleMap: Record<string, string> = {
-    auto: "auto",
-    anime: "videoStyleAnime",
-    hollywood: "videoStyleHollywood",
-    ads: "videoStyleAdsEducation"
-  }
   const [videoStyle, setVideoStyle] = useState<string>("auto")
   const [showSettingsPopover, setShowSettingsPopover] = useState(false)
 
@@ -4620,8 +4289,6 @@ export function AIFunction({
     })()
   }
 
-  const characterCount = message.length
-  const isNearLimit = characterCount > MAX_CHARACTERS * 0.9
   const touchStartX = useRef<number | null>(null)
   const touchEndX = useRef<number | null>(null)
 
@@ -4665,556 +4332,58 @@ export function AIFunction({
       <div className="w-full max-w-full px-2 md:px-0">
         <div className="relative">
           {showInputBox && (
-            <div
-              className={cn(
-                "rounded-[28px]",
-                "max-w-2xl mx-auto",
-                "bg-background/95 backdrop-blur-md border border-border",
-                "px-6 py-8",
-                "focus-within:ring-2 focus-within:ring-primary/20",
-                "transition-all duration-300",
-                "shadow-2xl shadow-primary/5",
-              )}
-            >
-              {(uploadingItems.length > 0 || imageUrls.length > 0) && (
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {/* 上传中的缩略图 */}
-                  {uploadingItems.filter((it) => it.status !== "done").map((it) => (
-                    <div key={`upload-${it.id}`} className="relative w-20 h-20 rounded-lg border bg-muted overflow-hidden group cursor-pointer" onClick={() => it.url ? openPreview(it.url) : setPreviewImage(it.localUrl)}>
-                      {it.type === "audio" ? (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-purple-500/20 to-pink-500/20 text-foreground">
-                          <Music className="w-7 h-7" />
-                          <span className="text-[10px] mt-1 px-1 truncate max-w-full">{it.filename}</span>
-                        </div>
-                      ) : it.type === "video" ? (
-                        <video
-                          src={it.url || it.localUrl}
-                          muted
-                          playsInline
-                          className="w-full h-full object-cover transition-transform group-hover:scale-105 opacity-90"
-                        />
-                      ) : (
-                        <img
-                          src={it.url || it.localUrl || "/placeholder.svg"}
-                          alt={t("preview", { index: 1 })}
-                          className="w-full h-full object-cover transition-transform group-hover:scale-105 opacity-90"
-                        />
-                      )}
-                      {it.status === "uploading" && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                          <Loader2 className="w-5 h-5 animate-spin text-white" />
-                        </div>
-                      )}
-                      {it.status === "error" && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-xs">
-                          {t("uploadError") ?? "Upload failed"}
-                        </div>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          // remove from uploading items; if already has remote url, also remove from imageUrls
-                          setUploadingItems((prev) => prev.filter((x) => x.id !== it.id))
-                          if (it.url) {
-                            if (it.type === "image") {
-                              setImageUrls((prev) => prev.filter((u) => u !== it.url))
-                            } else if (it.type === "video") {
-                              setVideoUrls((prev) => prev.filter((u) => u !== it.url))
-                            } else if (it.type === "audio") {
-                              setAudioUrls((prev) => prev.filter((u) => u !== it.url))
-                            }
-                          }
-                        }}
-                        className="absolute top-1 right-1 w-5 h-5 bg-background/80 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-
-                  {/* 远端已上传缩略图 */}
-                  {imageUrls.map((url, index) => (
-                    <div key={`url-thumb-${index}`} className="relative w-20 h-20 rounded-lg border bg-muted overflow-hidden group cursor-pointer" onClick={() => openPreviewAt(index)}>
-                      <img
-                        src={url || "/placeholder.svg"}
-                        alt={t("preview", { index: index + 1 })}
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                      />
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          removeImageUrl(index)
-                        }}
-                        className="absolute top-1 right-1 w-5 h-5 bg-background/80 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-
-                  {/* 已上传的视频缩略图 */}
-                  {videoUrls.map((url, index) => (
-                    <div key={`video-thumb-${index}`} className="relative w-20 h-20 rounded-lg border bg-muted overflow-hidden group">
-                      <video
-                        src={url}
-                        muted
-                        playsInline
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                      />
-                      <div className="absolute top-1 left-1 px-1.5 py-0.5 text-[10px] rounded bg-primary text-primary-foreground flex items-center gap-0.5">
-                        <Video className="w-2.5 h-2.5" />
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setVideoUrls((prev) => prev.filter((_, i) => i !== index))
-                        }}
-                        className="absolute top-1 right-1 w-5 h-5 bg-background/80 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-
-                  {/* 已上传的音频缩略图 */}
-                  {audioUrls.map((url, index) => (
-                    <div key={`audio-thumb-${index}`} className="relative w-20 h-20 rounded-lg border bg-muted overflow-hidden group">
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-purple-500/20 to-pink-500/20 text-foreground">
-                        <Music className="w-7 h-7" />
-                      </div>
-                      <div className="absolute top-1 left-1 px-1.5 py-0.5 text-[10px] rounded bg-primary text-primary-foreground flex items-center gap-0.5">
-                        <Music className="w-2.5 h-2.5" />
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setAudioUrls((prev) => prev.filter((_, i) => i !== index))
-                        }}
-                        className="absolute top-1 right-1 w-5 h-5 bg-background/80 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* 输入框 */}
-              <textarea
-            ref={textareaRef}
-            value={message}
-            onChange={(e) => {
-              if (e.target.value.length <= MAX_CHARACTERS) {
-                setMessage(e.target.value)
-              }
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholderText}
-            rows={1}
-            className={cn(
-              "w-full bg-transparent",
-              "text-foreground placeholder:text-muted-foreground placeholder:text-sm",
-              "resize-none outline-none",
-              "text-base leading-7",
-              "max-h-32 overflow-y-auto",
-              "mb-4",
-              "placeholder:whitespace-normal placeholder:break-words",
-            )}
-            style={{
-              minHeight: "48px",
-              height: "auto",
-            }}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement
-              target.style.height = "auto"
-              target.style.height = target.scrollHeight + "px"
-            }}
-            onPaste={handlePaste}
-              />
-
-              {/* 冷启动示例：输入为空时展示可一键填充的创作示例 */}
-              {!message && !isGenerating && (
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {(['a', 'b', 'c'] as const).map((key) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => {
-                        setMessage(t(`examplePrompts.${key}`))
-                        textareaRef.current?.focus()
-                      }}
-                      className="px-3 py-1.5 rounded-full border border-border bg-card text-xs text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer"
-                    >
-                      {t(`examplePrompts.${key}`)}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {characterCount > 0 && (
-                <div className="mb-3 flex justify-end">
-                  <span
-                    className={cn("text-xs transition-colors", isNearLimit ? "text-destructive" : "text-muted-foreground")}
-                  >
-                    {characterCount} / {MAX_CHARACTERS}
-                  </span>
-                </div>
-              )}
-
-              <div className="flex flex-row items-center gap-3 overflow-x-auto whitespace-nowrap">
-              {/* 上传按钮 */}
-                <Popover open={showUploadPopover} onOpenChange={setShowUploadPopover}>
-                  <PopoverTrigger asChild>
-                    <button
-                      className={cn(
-                        "w-10 h-10 rounded-full flex-shrink-0",
-                        "hover:bg-primary hover:shadow-lg hover:shadow-primary/20",
-                        "transition-all duration-200",
-                        "flex items-center justify-center"
-                      )}
-                      aria-label={t("addImage")}
-                      onClick={async () => {
-                        if (status !== "authenticated") {
-                          setIsSignInDialogOpen(true)
-                          return
-                        }
-                        // 打开时刷新存储空间信息
-                        const info = await fetchStorageInfo()
-                        if (info) {
-                          setStorageLimitInfo({
-                            usedStorage: info.usedStorage,
-                            storageLimit: info.storageLimit,
-                            availableStorage: info.availableStorage,
-                          })
-                        }
-                        setShowUploadPopover(true)
-                      }}
-                    >
-                      <Plus className="w-5 h-5 text-muted-foreground hover:text-white transition-colors" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent side="top" sideOffset={12} avoidCollisions={true} className="w-full md:w-64 p-3" align="start">
-                    <div className="space-y-3">
-                      {/* 存储空间使用情况 */}
-                      <div className="bg-muted/50 rounded-lg p-2 space-y-1.5">
-                        <div className="flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-1.5 text-muted-foreground">
-                            <HardDrive className="w-3.5 h-3.5" />
-                            <span>{t("storageUsed")}</span>
-                          </div>
-                          <span className="font-medium">
-                            {storageLimitInfo ? `${formatBytes(storageLimitInfo.usedStorage)} / ${formatBytes(storageLimitInfo.storageLimit)}` : '...'}
-                          </span>
-                        </div>
-                        <Progress value={storageLimitInfo && storageLimitInfo.storageLimit > 0 ? (storageLimitInfo.usedStorage / storageLimitInfo.storageLimit) * 100 : 0} className="h-1.5" />
-                      </div>
-
-                      <p className="text-xs text-muted-foreground px-1 text-center">
-                        {t("uploadFileTypeTip", { limit: Math.round(computeFileSizeLimit(subscriptionPlan) / (1024 * 1024)) })}
-                      </p>
-                      <button
-                        onClick={() => {
-                          setShowUploadPopover(false)
-                          fileInputRef.current?.click()
-                        }}
-                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-primary hover:text-primary-foreground border border-border hover:border-primary transition-all duration-200"
-                      >
-                        <Upload className="w-4 h-4" />
-                        {t("upload")}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowUploadPopover(false)
-                          openLibrary()
-                        }}
-                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-primary hover:text-primary-foreground border border-border hover:border-primary transition-all duration-200"
-                      >
-                        <FolderOpen className="w-4 h-4" />
-                        {t("selectFromLibrary")}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowUploadPopover(false)
-                          setShowLinkInput(true)
-                        }}
-                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-primary hover:text-primary-foreground border border-border hover:border-primary transition-all duration-200"
-                      >
-                        <Link className="w-4 h-4" />
-                        {t("inputLink")}
-                      </button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*,audio/*,video/*"
-                  multiple
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-
-                {/* 参数设置面板 */}
-                <Popover open={showSettingsPopover} onOpenChange={setShowSettingsPopover}>
-                  <PopoverTrigger asChild>
-                    <button className="w-auto min-w-[100px] h-9 px-3 rounded-full border border-border bg-background hover:bg-background/80 hover:border-primary/40 hover:shadow-md transition-all duration-200 flex items-center gap-1 flex-shrink-0 justify-center" aria-label={t("params")}>
-                      <SlidersHorizontal className="w-4 h-4 text-primary flex-shrink-0" />
-                      <span className="hidden md:inline text-sm font-medium flex-1 text-center whitespace-nowrap">
-                        {videoModel !== "auto"
-                          ? t(videoModelMap[videoModel as keyof typeof videoModelMap] as any)
-                          : videoStyle !== "auto"
-                          ? t(videoStyleMap[videoStyle] as any)
-                          : t("params")}
-                        {videoStyle !== "auto" && videoModel !== "auto" && ` · ${t(videoStyleMap[videoStyle] as any)}`}
-                        {aspectRatio && ` · ${aspectRatio}`}
-                        {duration !== "auto" && ` · ${duration}s`}
-                      </span>
-                      <span className="md:hidden text-sm font-medium text-primary">{t("params")}</span>
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent side="bottom" sideOffset={12} avoidCollisions={true} className="w-80 p-4 max-h-[50vh] overflow-y-auto" align="start">
-                    <div className="space-y-4">
-
-                      {/* 视频模型 */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">{t("videoModel")}</label>
-                        {hasMedia && (
-                          <p className="text-xs text-amber-600 dark:text-amber-400">
-                            {t("videoModelMediaLockedHint")}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap gap-1">
-                          {(() => {
-                            const allowed = (k: string) => !hasMedia || MEDIA_COMPATIBLE_VIDEO_MODELS.includes(k)
-                            return VIDEO_MODEL_OPTION_ORDER.map((key) => ({
-                              key,
-                              label: key === "auto" ? t("videoModelAuto") : t(videoModelMap[key] as any),
-                            })).map((item) => {
-                              const disabled = !allowed(item.key)
-                              return (
-                                <button
-                                  key={item.key}
-                                  onClick={() => {
-                                    if (disabled) return
-                                    setVideoModel(item.key)
-                                    // 切换模型后分辨率回落默认档（新模型可能不支持原档位）
-                                    if (!VIDEO_MODEL_RESOLUTIONS[item.key]?.includes(videoResolution)) {
-                                      setVideoResolution("720p")
-                                    }
-                                  }}
-                                  disabled={disabled}
-                                  title={disabled ? t("videoModelMediaLockedTooltip") : undefined}
-                                  className={cn(
-                                    "px-2.5 py-1 text-xs rounded-full border transition-all duration-200",
-                                    videoModel === item.key
-                                      ? "bg-primary text-primary-foreground border-primary"
-                                      : "border-border bg-background hover:border-primary",
-                                    disabled && "opacity-40 cursor-not-allowed hover:border-border"
-                                  )}
-                                >
-                                  {item.label}
-                                </button>
-                              )
-                            })
-                          })()}
-                        </div>
-                      </div>
-
-                      {/* 分辨率（仅支持多档的模型显示；单价随档位变化，480p≈6折/1080p≈1.5×起） */}
-                      {VIDEO_MODEL_RESOLUTIONS[videoModel] && (
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-muted-foreground">{t("videoResolution")}</label>
-                          <div className="flex flex-wrap gap-1">
-                            {VIDEO_MODEL_RESOLUTIONS[videoModel].map((res) => (
-                              <button
-                                key={res}
-                                onClick={() => setVideoResolution(res)}
-                                className={cn(
-                                  "px-2.5 py-1 text-xs rounded-full border transition-all duration-200",
-                                  videoResolution === res
-                                    ? "bg-primary text-primary-foreground border-primary"
-                                    : "border-border bg-background hover:border-primary"
-                                )}
-                              >
-                                {res.toUpperCase()}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 生成模式 */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">{t("generationMode")}</label>
-                        <div className="flex gap-1.5">
-                          <button
-                            onClick={() => setGenerationMode("auto")}
-                            className={cn(
-                              "px-3 py-1 text-xs rounded-full border transition-all duration-200",
-                              generationMode === "auto"
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "border-border bg-background hover:border-primary"
-                            )}
-                          >
-                            {t("generationModeAuto")}
-                          </button>
-                          <button
-                            onClick={() => !FIRST_LAST_FRAME_UNSUPPORTED_MODELS.includes(videoModel) && setGenerationMode("first-last-frame")}
-                            disabled={FIRST_LAST_FRAME_UNSUPPORTED_MODELS.includes(videoModel)}
-                            className={cn(
-                              "px-3 py-1 text-xs rounded-full border transition-all duration-200",
-                              FIRST_LAST_FRAME_UNSUPPORTED_MODELS.includes(videoModel)
-                                ? "bg-muted text-muted-foreground border-muted cursor-not-allowed opacity-50"
-                                : generationMode === "first-last-frame"
-                                  ? "bg-primary text-primary-foreground border-primary"
-                                  : "border-border bg-background hover:border-primary"
-                            )}
-                          >
-                            {t("generationModeFirstLast")}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 画面比例 */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">{t("aspectRatio")}</label>
-                        <div className="flex gap-1">
-                          {["16:9", "9:16"].map((r) => (
-                            <button
-                              key={r}
-                              onClick={() => setAspectRatio(r)}
-                              className={cn(
-                                "px-2.5 py-1 text-xs rounded-full border transition-all duration-200",
-                                aspectRatio === r
-                                  ? "bg-primary text-primary-foreground border-primary"
-                                  : "border-border bg-background hover:border-primary"
-                              )}
-                            >
-                              {r === "auto" ? t("auto") : r}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 时长 */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">{t("duration")}</label>
-                        <div className="flex gap-1">
-                          {["auto", "15", "30", "60"].map((r) => (
-                            <button
-                              key={r}
-                              onClick={() => setDuration(r)}
-                              className={cn(
-                                "px-2.5 py-1 text-xs rounded-full border transition-all duration-200",
-                                duration === r
-                                  ? "bg-primary text-primary-foreground border-primary"
-                                  : "border-border bg-background hover:border-primary"
-                              )}
-                            >
-                              {r === "auto" ? t("auto") : `${r}${t("seconds")}`}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 视频风格 */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">{t("videoStyle")}</label>
-                        <div className="flex flex-wrap gap-1">
-                          {Object.entries(videoStyleMap).map(([key, translationKey]) => (
-                            <button
-                              key={key}
-                              onClick={() => setVideoStyle(key)}
-                              className={cn(
-                                "px-2.5 py-1 text-xs rounded-full border transition-all duration-200",
-                                videoStyle === key
-                                  ? "bg-primary text-primary-foreground border-primary"
-                                  : "border-border bg-background hover:border-primary"
-                              )}
-                            >
-                              {t(translationKey as any)}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 当前选择 */}
-                      <div className="pt-2 border-t border-border">
-                        <div className="text-xs text-muted-foreground mb-1.5">{t("currentSelection")}</div>
-                        <div className="flex flex-wrap gap-1.5">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/20">
-                            {t("videoModel")}: {videoModel === "auto" ? t("videoModelAuto") : t(videoModelMap[videoModel] as any)}
-                          </span>
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/20">
-                            {t("generationMode")}: {generationMode === "auto" ? t("generationModeAuto") : t("generationModeFirstLast")}
-                          </span>
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/20">
-                            {t("aspectRatio")}: {aspectRatio}
-                          </span>
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/20">
-                            {t("duration")}: {duration === "auto" ? t("auto") : `${duration}${t("seconds")}`}
-                          </span>
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/20">
-                            {t("videoStyle")}: {t(videoStyleMap[videoStyle] as any)}
-                          </span>
-                        </div>
-                      </div>
-
-                    </div>
-                  </PopoverContent>
-                </Popover>
-
-                {/* 右侧按钮组 */}
-                <div className="flex flex-row items-center gap-2 md:ml-auto w-full md:w-auto overflow-x-auto whitespace-nowrap">
-
-                  {/* TODO: 测试阶段暂时注释积分显示，正式上线时取消注释 */}
-                  {/* 移动端积分提示 */}
-                  {/* <div className="md:hidden flex items-center gap-1 px-3 py-2 bg-primary/10 border border-primary/20 rounded-full text-sm text-primary h-10">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                    </svg>
-                    <span>{t("pointsShort", { points: pointsCost })}</span>
-                  </div> */}
-
-                  {/* 桌面端积分提示 */}
-                  {/* <div className="hidden md:flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/20 rounded-full text-sm text-primary h-9">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                    </svg>
-                    <span>{t("pointsLabel", { points: pointsCost })}</span>
-                  </div> */}
-
-                  {/* 生成按钮 */}
-                  <Button
-                    onClick={handleSend}
-                    disabled={(!message.trim() && selectedImages.length === 0 && imageUrls.length === 0) || isGenerating}
-                    className={cn(
-                      "inline-flex w-10 h-10 md:w-auto md:px-6 md:py-2 rounded-full flex-shrink-0 ml-auto md:ml-0",
-                      "bg-primary hover:bg-primary/90",
-                      "disabled:opacity-50 disabled:cursor-not-allowed",
-                      "transition-all",
-                      "shadow-lg shadow-primary/20",
-                      "flex items-center justify-center gap-2"
-                    )}
-                    aria-label={t("sendMessage")}
-                  >
-                    {isGenerating ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-4 h-4" />
-                    )}
-                    <span className="hidden md:inline text-sm font-medium">
-                      {isGenerating ? t("generating") : t("applyEdit")}
-                      {!isGenerating && (
-                        <span className="opacity-80 font-normal ml-1">· {t("estimatedPoints", { points: pointsCost })}</span>
-                      )}
-                    </span>
-                  </Button>
-                </div>
-
-              </div>
-	            </div>
-	          )}
+            <CreatePanel
+              message={message}
+              setMessage={setMessage}
+              isGenerating={isGenerating}
+              status={status}
+              handleSend={handleSend}
+              handleKeyDown={handleKeyDown}
+              handlePaste={handlePaste}
+              placeholderText={placeholderText}
+              uploadingItems={uploadingItems}
+              setUploadingItems={setUploadingItems}
+              imageUrls={imageUrls}
+              setImageUrls={setImageUrls}
+              videoUrls={videoUrls}
+              setVideoUrls={setVideoUrls}
+              audioUrls={audioUrls}
+              setAudioUrls={setAudioUrls}
+              selectedImages={selectedImages}
+              hasMedia={hasMedia}
+              showUploadPopover={showUploadPopover}
+              setShowUploadPopover={setShowUploadPopover}
+              showSettingsPopover={showSettingsPopover}
+              setShowSettingsPopover={setShowSettingsPopover}
+              setShowLinkInput={setShowLinkInput}
+              fileInputRef={fileInputRef}
+              textareaRef={textareaRef}
+              handleFileSelect={handleFileSelect}
+              openLibrary={openLibrary}
+              fetchStorageInfo={fetchStorageInfo}
+              openPreview={openPreview}
+              openPreviewAt={openPreviewAt}
+              removeImageUrl={removeImageUrl}
+              setPreviewImage={setPreviewImage}
+              setStorageLimitInfo={setStorageLimitInfo}
+ storageLimitInfo={storageLimitInfo}
+              setIsSignInDialogOpen={setIsSignInDialogOpen}
+              subscriptionPlan={subscriptionPlan}
+              videoModel={videoModel}
+              setVideoModel={setVideoModel}
+              videoResolution={videoResolution}
+              setVideoResolution={setVideoResolution}
+              generationMode={generationMode}
+              setGenerationMode={setGenerationMode}
+              aspectRatio={aspectRatio}
+              setAspectRatio={setAspectRatio}
+              duration={duration}
+              setDuration={setDuration}
+              videoStyle={videoStyle}
+              setVideoStyle={setVideoStyle}
+              pointsCost={pointsCost}
+            />
+          )}
 	        </div>
 
         {/* 工作流步骤展示 - 独立区域 */}
@@ -5225,217 +4394,28 @@ export function AIFunction({
               workflowPaused ? "border-orange-500/50 bg-orange-500/5" : "border-border"
             )}>
               <div className="space-y-4">
-              {/* 步骤指示器 */}
-              <div className="flex flex-col sm:flex-row gap-2 md:gap-3 overflow-x-auto justify-center items-center">
-                <div className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
-                  workflowStep === 'script' ? "bg-primary/10 border-primary" : scriptData ? "bg-green-500/10 border-green-500" : "bg-muted border-border"
-                )}>
-                  <div className={cn(
-                    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
-                    workflowStep === 'script' ? "bg-primary text-primary-foreground" : scriptData ? "bg-green-500 text-white" : "bg-muted-foreground/20 text-muted-foreground"
-                  )}>
-                    {scriptData ? "✓" : "1"}
-                  </div>
-                  <span className="text-sm font-medium">{t("generateScriptWithCount", { count: scriptData?.scenes?.length || 0 })}</span>
-                  {workflowStep === 'script' && workflowLoading && <Loader2 className="w-4 h-4 animate-spin ml-auto" />}
-                </div>
-
-                <div className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
-                  workflowStep === 'character' ? "bg-primary/10 border-primary" : (characterData && characterData.length > 0) ? "bg-green-500/10 border-green-500" : "bg-muted border-border"
-                )}>
-                  <div className={cn(
-                    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
-                    workflowStep === 'character' ? "bg-primary text-primary-foreground" : (characterData && characterData.length > 0) ? "bg-green-500 text-white" : "bg-muted-foreground/20 text-muted-foreground"
-                  )}>
-                    {(characterData && characterData.length > 0) ? "✓" : "2"}
-                  </div>
-                  <span className="text-sm font-medium">{t("generateCharacterWithCount", { count: characterData?.length || 0 })}</span>
-                  {workflowStep === 'character' && workflowLoading && <Loader2 className="w-4 h-4 animate-spin ml-auto" />}
-                </div>
-
-                <div className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
-                  workflowStep === 'storyboard' ? "bg-primary/10 border-primary" : storyboardImages.length > 0 ? "bg-green-500/10 border-green-500" : "bg-muted border-border"
-                )}>
-                  <div className={cn(
-                    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
-                    workflowStep === 'storyboard' ? "bg-primary text-primary-foreground" : storyboardImages.length > 0 ? "bg-green-500 text-white" : "bg-muted-foreground/20 text-muted-foreground"
-                  )}>
-                    {storyboardImages.length > 0 ? "✓" : "3"}
-                  </div>
-                  <span className="text-sm font-medium">{t("generateStoryboardWithCount", { count: storyboardImages?.length || 0 })}</span>
-                  {workflowStep === 'storyboard' && workflowLoading && <Loader2 className="w-4 h-4 animate-spin ml-auto" />}
-                </div>
-
-                <div className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
-                  workflowStep === 'scenes' ? "bg-primary/10 border-primary" : sceneVideos.length > 0 ? "bg-green-500/10 border-green-500" : "bg-muted border-border"
-                )}>
-                  <div className={cn(
-                    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
-                    workflowStep === 'scenes' ? "bg-primary text-primary-foreground" : sceneVideos.length > 0 ? "bg-green-500 text-white" : "bg-muted-foreground/20 text-muted-foreground"
-                  )}>
-                    {sceneVideos.length > 0 ? "✓" : "4"}
-                  </div>
-                  <span className="text-sm font-medium">{t("generateSceneVideoWithCount", { count: sceneVideos?.length || 0 })}</span>
-                  {workflowStep === 'scenes' && workflowLoading && <Loader2 className="w-4 h-4 animate-spin ml-auto" />}
-                </div>
-
-                <div className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
-                  workflowStep === 'video' ? "bg-primary/10 border-primary" : videoData ? "bg-green-500/10 border-green-500" : "bg-muted border-border"
-                )}>
-                  <div className={cn(
-                    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
-                    workflowStep === 'video' ? "bg-primary text-primary-foreground" : videoData ? "bg-green-500 text-white" : "bg-muted-foreground/20 text-muted-foreground"
-                  )}>
-                    {videoData ? "✓" : "5"}
-                  </div>
-                  <span className="text-sm font-medium">{t('workflow.step5')} ({videoData ? 1 : 0})</span>
-                  {workflowStep === 'video' && workflowLoading && <Loader2 className="w-4 h-4 animate-spin ml-auto" />}
-                </div>
-
-                {/* 工作流控制按钮 */}
-                {isGenerating && (
-                  <div className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all cursor-pointer",
-                    workflowPaused ? "bg-primary/10 border-primary" : "bg-muted border-border hover:bg-muted/80"
-                  )} onClick={() => {
-                    console.log('暂停按钮被点击')
-                    handlePauseResumeWorkflow()
-                  }}>
-                    <div className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
-                      workflowPaused ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"
-                    )}>
-                      {workflowPaused ? "▶" : "⏸"}
-                    </div>
-                    <span className="text-sm font-medium">
-                      {workflowPaused ? t("resumeWorkflow") : t("pauseWorkflow")}
-                    </span>
-                  </div>
-                )}
-
-                {/* 继续生成按钮 - 仅恢复项目显示（仅当恢复的版本没有最终视频且项目未完成时显示） */}
-                {resumeProjectId && !isGenerating && !workflowPaused && !restoredVersionHasVideo && !restoredProjectCompleted && (
-                  <div
-                    className={cn(
-                      "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all cursor-pointer",
-                      "bg-muted border-border hover:bg-muted/80"
-                    )}
-                    onClick={handleResumeContinue}
-                  >
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-primary text-primary-foreground">
-                      ▶
-                    </div>
-                    <span className="text-sm font-medium">
-                      {t("resume.continueButton")}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* 生成过程中显示的提示 */}
-              {workflowLoading && (
-                <div className="mt-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800">
-                  <p className="text-sm text-blue-700 dark:text-blue-300 text-center">
-                    💡 {tWorkflow("generationTip")}
-                  </p>
-                </div>
-              )}
-
-              {/* 步骤1: 剧情展示 */}
-              {scriptData && (
-                <div className="p-6 rounded-lg bg-muted/50 border border-border space-y-4">
-                  {/* 标题和基本信息 */}
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold mb-2">📝 {scriptData.title}</h3>
-                      <div className="flex flex-col md:flex-row gap-2 text-sm text-muted-foreground">
-                        <div className="w-full md:w-auto whitespace-nowrap">{t("totalDurationLabel", { duration: String(scriptData.totalDuration ?? '') })}</div>
-                        <div className="w-full md:w-auto whitespace-nowrap">{t("aspectRatioDisplay", { ratio: String(scriptData.aspectRatio ?? '') })}</div>
-                        <div className="w-full md:w-auto whitespace-nowrap">{t("sceneCountDisplay", { count: scriptData.scenes?.length || 0 })}</div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {/* 编辑功能已禁用 */}
-                      {/* <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleStartEditScript}
-                        disabled={workflowLoading}
-                        className="h-8 text-xs"
-                      >
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        {t("editScriptButton")}
-                      </Button> */}
-                    </div>
-                  </div>
-
-                  {/* 场景详细列表 */}
-                  <div className="space-y-4">
-                    <h4 className="font-semibold text-sm flex items-center gap-2">
-                      <span className="w-2 h-2 bg-primary rounded-full"></span>
-                      {t("scriptDetailsWithCount", { count: scriptData?.scenes?.length || 0 })}
-                    </h4>
-                    {scriptData.scenes?.map((scene: any, index: number) => (
-                      <div key={scene.id} className="p-4 rounded-lg bg-background/50 border border-border space-y-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 border border-primary/20">
-                            <span className="text-sm font-bold text-primary">{scene.id}</span>
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 text-sm">
-                              <span className="font-medium">{t("sceneNumberDisplay", { number: scene.id })}</span>
-                              <span className="text-muted-foreground">•</span>
-                              <span className="text-muted-foreground">{t("durationSeconds", { count: scene.duration })}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 剧情描述 */}
-                        {scene.plot && (
-                          <div>
-                            <div className="text-sm font-medium mb-2 flex items-center gap-2">
-                              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-                              {t("scenePlotLabel")}
-                            </div>
-                            <div className="p-3 rounded-lg bg-blue-50/50 border border-blue-200/50">
-                              <p className="text-sm text-blue-900 leading-relaxed">{scene.plot}</p>
-                            </div>
-                          </div>
-                        )}
-
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 操作按钮 */}
-                  <div className="flex gap-2 pt-4 border-t border-border">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleShowRegenerateScriptDialog}
-                      disabled={workflowLoading || workflowPaused}
-                      className="flex-1"
-                    >
-                      {workflowLoading ? (
-                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                      ) : (
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                      )}
-                      {t("regenerateAllScriptButton")}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
+              <WorkflowHeader
+                workflowStep={workflowStep}
+                workflowPaused={workflowPaused}
+                workflowLoading={workflowLoading}
+                isGenerating={isGenerating}
+                scriptData={scriptData}
+                characterData={characterData}
+                storyboardImages={storyboardImages}
+                sceneVideos={sceneVideos}
+                videoData={videoData}
+                resumeProjectId={resumeProjectId}
+                restoredVersionHasVideo={restoredVersionHasVideo}
+                restoredProjectCompleted={restoredProjectCompleted}
+                handlePauseResumeWorkflow={handlePauseResumeWorkflow}
+                handleResumeContinue={handleResumeContinue}
+              />
+              <ScriptStep
+                scriptData={scriptData}
+                workflowLoading={workflowLoading}
+                workflowPaused={workflowPaused}
+                handleShowRegenerateScriptDialog={handleShowRegenerateScriptDialog}
+              />
               {/* 步骤2: 主角展示 */}
               {characterData && characterData.length > 0 && (
                 <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-4">
@@ -6143,515 +5123,134 @@ export function AIFunction({
                 </div>
               )}
 
-              {/* 步骤5: 完整视频展示（仅在已生成完整视频时显示） */}
-              {videoData ? (
-                <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
-                  <div>
-                    <h3 className="text-sm font-bold mb-2">🎬 {tWorkflow("videoTitle")}</h3>
-                    <video
-                      src={videoData.url}
-                      controls
-                      className="w-full rounded-lg"
-                      poster={videoData.thumbnailUrl}
-                    />
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      <div className="flex flex-col sm:flex-row gap-2 min-w-0">
-                        <div className="w-full sm:w-auto whitespace-nowrap">
-                          {tWorkflow("videoDuration", { duration: String(videoData.duration ?? '') })}
-                        </div>
-                        <div className="w-full sm:w-auto whitespace-nowrap">
-                          {tWorkflow("videoAspectRatio", { ratio: String(videoData.aspectRatio ?? '') })}
-                        </div>
-                        <div className="w-full sm:w-auto whitespace-nowrap">
-                          {tWorkflow("videoSize", { size: String(videoData.fileSize ?? '') })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 操作按钮（移动端每行一个，移除“重新生成”） */}
-                  <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-border min-w-0">
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="w-full sm:flex-1 min-w-0"
-                      onClick={() => {
-                        const key = 'total-video'
-                        handleDownloadFile(videoData.url, `${scriptData?.title || 'video'}.mp4`, key)
-                      }}
-                    >
-                      {downloadingKey === 'total-video' ? (
-                        <>
-                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          {t("downloading")}
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                          </svg>
-                          {t("downloadVideo")}
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              ) : (workflowLoading && workflowStep === 'video') ? (
-                <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
-                  <div>
-                    <h3 className="text-sm font-bold mb-2">🎬 {tWorkflow("videoTitle")}</h3>
-                    <div className="w-full rounded-lg bg-muted/30 h-48 flex items-center justify-center relative">
-                      <div className="text-center">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 200 120"
-                          className="mx-auto w-full max-w-xs h-28 text-muted-foreground"
-                          role="img"
-                          aria-label={t("videoTitle") + " " + t("previewImageAlt")}
-                        >
-                          <rect x="2" y="2" width="196" height="116" rx="8" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.06" />
-                          <g stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none">
-                            <path d="M20 20 L180 100" opacity="0.12" />
-                            <path d="M20 100 L180 20" opacity="0.08" />
-                          </g>
-                        </svg>
-                      </div>
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-lg">
-                        <div className="flex items-center gap-2 text-white">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          {tWorkflow("generatingVideo")}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* 错误提示 */}
-              {workflowError && (
-                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive text-destructive text-sm">
-                  ❌ {workflowError}
-                </div>
-              )}
+              <FinalVideoStep
+                videoData={videoData}
+                workflowLoading={workflowLoading}
+                workflowStep={workflowStep}
+                workflowError={workflowError}
+                scriptData={scriptData}
+                downloadingKey={downloadingKey}
+                handleDownloadFile={handleDownloadFile}
+              />
             </div>
           </div>
         </div>
       )}
 
-      {/* 素材库选择弹窗 */}
-      <LibraryDialog
-        open={libraryOpen}
-        onOpenChange={setLibraryOpen}
-        onSelect={handleLibrarySelect}
+      {/* 素材库/链接输入/图片预览弹窗（components/operate/operate-dialogs.tsx，拆分 T9，行为与原来一致） */}
+      <MediaDialogMounts
+        libraryOpen={libraryOpen}
+        setLibraryOpen={setLibraryOpen}
+        handleLibrarySelect={handleLibrarySelect}
+        showLinkInput={showLinkInput}
+        setShowLinkInput={setShowLinkInput}
+        linkInput={linkInput}
+        setLinkInput={setLinkInput}
+        handleAddLink={handleAddLink}
+        previewImage={previewImage}
+        closePreview={closePreview}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        showPrev={showPrev}
+        showNext={showNext}
+        selectedImages={selectedImages}
       />
-
-      {/* 链接输入模态框 */}
-      <LinkInputDialog
-        open={showLinkInput}
-        onOpenChange={setShowLinkInput}
-        value={linkInput}
-        onValueChange={setLinkInput}
-        onAdd={handleAddLink}
-        onCancel={() => {
-          setShowLinkInput(false)
-          setLinkInput("")
-        }}
-      />
-
-      {/* 图片预览模态框 */}
-      {previewImage && (
-        <>
-          {/* 全屏黑色背景遮罩 */}
-          <div
-            className="fixed inset-0 bg-black z-50"
-            onClick={closePreview}
-          />
-          {/* 图片显示层 */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div
-              className="relative max-w-5xl max-h-full flex items-center justify-center"
-              onTouchStart={onTouchStart}
-              onTouchEnd={onTouchEnd}
-            >
-              <img
-                src={previewImage}
-                alt={t("previewImageAlt")}
-                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              />
-              {selectedImages.length > 1 && (
-                <>
-                  <button
-                    onClick={(e) => showPrev(e)}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-background/80 hover:bg-background shadow-md flex items-center justify-center"
-                  >
-                    <ChevronLeft className="w-5 h-5 text-foreground" />
-                  </button>
-                  <button
-                    onClick={(e) => showNext(e)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-background/80 hover:bg-background shadow-md flex items-center justify-center"
-                  >
-                    <ChevronRight className="w-5 h-5 text-foreground" />
-                  </button>
-                </>
-              )}
-              <button
-                onClick={closePreview}
-                className="absolute top-4 right-4 w-12 h-12 bg-background/90 hover:bg-background rounded-full flex items-center justify-center text-foreground hover:text-primary transition-colors shadow-lg"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
-        </>
-      )}
 
       </div>
 
-      {/* 积分不足购买弹窗 */}
-      <PurchaseDialog
-        open={showPurchaseDialog}
-        onOpenChange={setShowPurchaseDialog}
-        dialogType={purchaseDialogType}
-        currentPoints={currentPoints || 0}
-        onUpgrade={() => {
-          // 关闭当前提示弹窗，触发订阅弹窗
-          setShowPurchaseDialog(false)
-          // 延迟一下再触发，避免冲突
-          setTimeout(() => {
-            pricingDialogTriggerRef.current?.click()
-          }, 100)
-        }}
-      />
-
-      {/* 文件大小超限弹窗 */}
-      <FileSizeLimitDialog
-        open={showFileSizeLimitDialog}
-        onOpenChange={setShowFileSizeLimitDialog}
-        limitMB={fileSizeLimitMB}
-        onUpgrade={() => {
-          setShowFileSizeLimitDialog(false)
-          setTimeout(() => {
-            pricingDialogTriggerRef.current?.click()
-          }, 100)
-        }}
-      />
-
-      {/* 存储空间超限弹窗 */}
-      <StorageLimitDialog
-        open={showStorageLimitDialog}
-        onOpenChange={setShowStorageLimitDialog}
-        info={storageLimitInfo}
-        onUpgrade={() => {
-          setShowStorageLimitDialog(false)
-          setTimeout(() => {
-            pricingDialogTriggerRef.current?.click()
-          }, 100)
-        }}
-      />
-
-      {/* 媒体文件不符合 Seedance 约束弹窗 */}
-      <MediaValidationDialog
-        open={showMediaValidationDialog}
-        onOpenChange={(v) => {
-          setShowMediaValidationDialog(v)
-          if (!v) setMediaValidationMessage("")
-        }}
-        message={mediaValidationMessage}
-      />
-
-      {/* 订阅弹窗（使用PricingDialog组件） */}
-      <PricingDialog>
-        <button
-          ref={pricingDialogTriggerRef}
-          className="hidden"
-          aria-hidden="true"
-        >
-          {t("upgrade")}
-        </button>
-      </PricingDialog>
-
-      {/* 主角详情预览/编辑对话框（components/operate/CharacterDetailDialog.tsx，拆分 T7，行为与原来一致） */}
-      <CharacterDetailDialog
-        open={showCharacterPreview}
-        onOpenChange={(open) => {
-          setShowCharacterPreview(open)
-          if (!open) {
-            setIsEditingCharacter(false)
-            setEditedCharacterData(null)
-            setCharacterImageFile(null)
-            setCharacterEditMode('none')
-          }
-        }}
-        onClose={() => setShowCharacterPreview(false)}
-        isEditing={isEditingCharacter}
-        editedData={editedCharacterData}
-        onEditedDataChange={setEditedCharacterData}
-        editMode={characterEditMode}
-        onEditModeChange={setCharacterEditMode}
-        isUploadingImage={isUploadingCharacterImage}
-        imageInputRef={characterImageInputRef}
-        onImageUpload={handleCharacterImageUpload}
-        onImagePaste={handleCharacterImagePaste}
-        onCancelEdit={handleCancelEditCharacter}
-        onShowSaveEditDialog={handleShowSaveEditCharacterDialog}
-      />
-
-      {/* 分镜图详情预览/编辑对话框（components/operate/StoryboardDetailDialog.tsx，拆分 T6，行为与原来一致） */}
-      <StoryboardDetailDialog
-        open={showStoryboardPreview}
-        onOpenChange={(open) => {
-          setShowStoryboardPreview(open)
-          if (!open) {
-            setIsEditingStoryboard(false)
-            setEditingStoryboardIndex(null)
-            setEditedStoryboardData(null)
-          }
-        }}
-        onClose={() => setShowStoryboardPreview(false)}
-        isEditing={isEditingStoryboard}
-        editingIndex={editingStoryboardIndex}
-        editedData={editedStoryboardData}
-        onEditedDataChange={setEditedStoryboardData}
-        editMode={storyboardEditMode}
-        onEditModeChange={setStoryboardEditMode}
-        isUploadingImage={isUploadingStoryboardImage}
-        imageInputRef={storyboardImageInputRef}
-        onImageUpload={handleStoryboardImageUpload}
-        onImagePaste={handleStoryboardImagePaste}
-        onCancelEdit={handleCancelEditStoryboard}
-        onShowSaveEditDialog={handleShowSaveEditStoryboardDialog}
+      {/* 购买/限额/详情编辑/确认/登录弹窗（components/operate/operate-dialogs.tsx，拆分 T9，行为与原来一致） */}
+      <OverlayDialogMounts
+        showPurchaseDialog={showPurchaseDialog}
+        setShowPurchaseDialog={setShowPurchaseDialog}
+        purchaseDialogType={purchaseDialogType}
+        currentPoints={currentPoints}
+        showFileSizeLimitDialog={showFileSizeLimitDialog}
+        setShowFileSizeLimitDialog={setShowFileSizeLimitDialog}
+        fileSizeLimitMB={fileSizeLimitMB}
+        showStorageLimitDialog={showStorageLimitDialog}
+        setShowStorageLimitDialog={setShowStorageLimitDialog}
+        storageLimitInfo={storageLimitInfo}
+        showMediaValidationDialog={showMediaValidationDialog}
+        setShowMediaValidationDialog={setShowMediaValidationDialog}
+        mediaValidationMessage={mediaValidationMessage}
+        setMediaValidationMessage={setMediaValidationMessage}
+        pricingDialogTriggerRef={pricingDialogTriggerRef}
+        showCharacterPreview={showCharacterPreview}
+        setShowCharacterPreview={setShowCharacterPreview}
+        isEditingCharacter={isEditingCharacter}
+        setIsEditingCharacter={setIsEditingCharacter}
+        editedCharacterData={editedCharacterData}
+        setEditedCharacterData={setEditedCharacterData}
+        characterImageFile={characterImageFile}
+        setCharacterImageFile={setCharacterImageFile}
+        characterEditMode={characterEditMode}
+        setCharacterEditMode={setCharacterEditMode}
+        isUploadingCharacterImage={isUploadingCharacterImage}
+        characterImageInputRef={characterImageInputRef}
+        handleCharacterImageUpload={handleCharacterImageUpload}
+        handleCharacterImagePaste={handleCharacterImagePaste}
+        handleCancelEditCharacter={handleCancelEditCharacter}
+        handleShowSaveEditCharacterDialog={handleShowSaveEditCharacterDialog}
+        showStoryboardPreview={showStoryboardPreview}
+        setShowStoryboardPreview={setShowStoryboardPreview}
+        isEditingStoryboard={isEditingStoryboard}
+        setIsEditingStoryboard={setIsEditingStoryboard}
+        editingStoryboardIndex={editingStoryboardIndex}
+        setEditingStoryboardIndex={setEditingStoryboardIndex}
+        editedStoryboardData={editedStoryboardData}
+        setEditedStoryboardData={setEditedStoryboardData}
+        storyboardEditMode={storyboardEditMode}
+        setStoryboardEditMode={setStoryboardEditMode}
+        isUploadingStoryboardImage={isUploadingStoryboardImage}
+        storyboardImageInputRef={storyboardImageInputRef}
+        storyboardImageFile={storyboardImageFile}
+        handleStoryboardImageUpload={handleStoryboardImageUpload}
+        handleStoryboardImagePaste={handleStoryboardImagePaste}
+        handleCancelEditStoryboard={handleCancelEditStoryboard}
+        handleShowSaveEditStoryboardDialog={handleShowSaveEditStoryboardDialog}
         storyboardImages={storyboardImages}
         scriptData={scriptData}
-      />
-
-      {/* 剧情视频详情预览/编辑对话框 */}
-      <Dialog open={showSceneVideoPreview} onOpenChange={(open) => {
-        setShowSceneVideoPreview(open)
-        if (!open) {
-          setIsEditingSceneVideo(false)
-          setEditingSceneVideoIndex(null)
-          setEditedSceneVideoData(null)
-        }
-      }}>
-        <DialogContent className="w-full max-w-4xl max-h-[80vh] overflow-y-auto p-4">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">
-              {isEditingSceneVideo ? t("editSceneVideo") : t("sceneVideoDetails")}
-            </DialogTitle>
-          </DialogHeader>
-          {(isEditingSceneVideo ? editedSceneVideoData : (editingSceneVideoIndex !== null ? sceneVideos[editingSceneVideoIndex] : null)) && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                {/* 场景视频 */}
-                <div className="flex-1">
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">{t("sceneVideo")}</div>
-                    {(() => {
-                      const originalVideo = sceneVideos[editingSceneVideoIndex!]
-                      const editedVideo = editedSceneVideoData
-                      const videoUrl = isEditingSceneVideo ? (originalVideo?.videoUrl || editedVideo?.videoUrl) : originalVideo?.videoUrl
-                      const thumbnailUrl = isEditingSceneVideo ? (originalVideo?.thumbnailUrl || editedVideo?.thumbnailUrl) : originalVideo?.thumbnailUrl
-
-                      return videoUrl ? (
-                        <video
-                          src={videoUrl}
-                          controls
-                          className="w-full rounded-lg"
-                          poster={thumbnailUrl}
-                        />
-                      ) : (
-                        <div className="w-full h-48 bg-muted/30 flex items-center justify-center rounded-lg">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120" className="w-full max-w-xs h-28 text-muted-foreground">
-                            <rect x="2" y="2" width="196" height="116" rx="8" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.06" />
-                            <g stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none">
-                              <path d="M20 20 L180 100" opacity="0.12" />
-                              <path d="M20 100 L180 20" opacity="0.08" />
-                            </g>
-                          </svg>
-                        </div>
-                      )
-                    })()}
-                  </div>
-                </div>
-
-                {/* 场景信息 */}
-                <div className="w-full sm:w-80 space-y-4">
-                  {(() => {
-                    const originalData = sceneVideos[editingSceneVideoIndex!]
-                    const sceneIndex = originalData?.sceneIndex ?? editingSceneVideoIndex
-                    return (
-                      <div>
-                        <div>
-                          <div className="text-sm font-medium mb-2">{t("sceneInfo")}</div>
-                          <div className="p-3 rounded-lg bg-muted/50 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">{t("sceneNumberLabel")}</span>
-                              <span className="text-sm font-medium">
-                                {t("sceneNumber", { number: (sceneIndex ?? 0) + 1 })}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">{t("durationLabel2")}</span>
-                              <span className="text-sm font-medium">
-                                {originalData?.duration}{t("seconds")}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">{t("aspectRatioLabel3")}</span>
-                              <span className="text-sm font-medium">
-                                {String(originalData?.aspectRatio ?? aspectRatio ?? '')}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 剧情描述 */}
-                        {Boolean(scriptData?.scenes?.[sceneIndex ?? 0]) && (
-                          <div>
-                            <div className="text-sm font-medium mb-2">{t("sceneDescriptionLabel")}</div>
-                            <div className="p-3 rounded-lg bg-muted/50">
-                              <p className="text-sm text-muted-foreground">
-                                {String(scriptData?.scenes?.[sceneIndex ?? 0]?.plot ?? '')}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 场景旁白 */}
-                        {Boolean(scriptData?.scenes?.[sceneIndex ?? 0]?.narration) && (
-                          <div>
-                            <div className="text-sm font-medium mb-2">{t("sceneNarration")}</div>
-                            <div className="p-3 rounded-lg bg-muted/50">
-                              <p className="text-sm text-muted-foreground italic">
-                                &quot;{String(scriptData?.scenes?.[sceneIndex ?? 0]?.narration ?? '')}&quot;
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })()}
-                </div>
-              </div>
-
-              {/* 编辑区域 */}
-              {isEditingSceneVideo && (
-                <div className="pt-4 border-t border-border">
-                  {/* 提示词输入 */}
-                  <div>
-                    <div className="text-sm font-medium mb-2">{t("prompt")}</div>
-                    <Textarea
-                      value={editedSceneVideoData?.prompt || ''}
-                      onChange={(e) => setEditedSceneVideoData({
-                        ...editedSceneVideoData,
-                        prompt: e.target.value
-                      })}
-                      placeholder={t("promptPlaceholder")}
-                      className="min-h-[80px] resize-none"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* 操作按钮 */}
-              <div className="flex gap-2 pt-4 border-t border-border">
-                {isEditingSceneVideo ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={handleCancelEditSceneVideo}
-                      className="flex-1"
-                    >
-                      {t("cancel")}
-                    </Button>
-                    <Button
-                      onClick={handleShowSaveEditSceneVideoDialog}
-                      className="flex-1"
-                    >
-                      {t("saveChanges")}
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    onClick={() => setShowSceneVideoPreview(false)}
-                    className="flex-1"
-                  >
-                    {t("close")}
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* 单个主角重新生成确认弹窗 */}
-      <RegenerateCharacterConfirmDialog
-        open={showRegenerateCharacterDialog}
-        onOpenChange={setShowRegenerateCharacterDialog}
-        characterName={characterToRegenerate?.name}
-        onConfirm={handleConfirmRegenerateCharacter}
-      />
-
-      {/* 编辑主角保存确认弹窗 */}
-      <SaveEditCharacterConfirmDialog
-        open={showSaveEditCharacterDialog}
-        onOpenChange={setShowSaveEditCharacterDialog}
-        editedCharacterData={editedCharacterData}
-        characterData={characterData}
-        hasNewImageFile={Boolean(characterImageFile)}
-        onConfirm={handleConfirmSaveEditedCharacter}
-      />
-
-      {/* 分镜图重新生成确认弹窗 */}
-      <RegenerateStoryboardConfirmDialog
-        open={showRegenerateStoryboardDialog}
-        onOpenChange={setShowRegenerateStoryboardDialog}
-        sceneIndex={storyboardToRegenerate}
-        sceneExists={storyboardToRegenerate !== null && Boolean(scriptData?.scenes?.[storyboardToRegenerate])}
-        onConfirm={handleConfirmRegenerateStoryboard}
-      />
-
-      {/* 编辑分镜图保存确认弹窗 */}
-      <SaveEditStoryboardConfirmDialog
-        open={showSaveEditStoryboardDialog}
-        onOpenChange={setShowSaveEditStoryboardDialog}
-        editedStoryboardData={editedStoryboardData}
-        sceneIndex={editingStoryboardIndex}
-        originalStoryboard={editingStoryboardIndex !== null ? storyboardImages[editingStoryboardIndex] : null}
-        hasNewImageFile={Boolean(storyboardImageFile)}
-        onConfirm={handleConfirmSaveEditedStoryboard}
-      />
-
-      {/* 重新生成全部剧情确认弹窗 */}
-      <RegenerateScriptConfirmDialog
-        open={showRegenerateScriptDialog}
-        onOpenChange={setShowRegenerateScriptDialog}
-        onConfirm={handleConfirmRegenerateScript}
-      />
-
-      {/* 剧情视频重新生成确认弹窗 */}
-      <RegenerateSceneVideoConfirmDialog
-        open={showRegenerateSceneVideoDialog}
-        onOpenChange={setShowRegenerateSceneVideoDialog}
-        sceneIndex={sceneVideoToRegenerate}
-        sceneExists={sceneVideoToRegenerate !== null && Boolean(scriptData?.scenes?.[sceneVideoToRegenerate])}
-        estimatedPoints={estimateSceneVideoPoints(sceneVideoToRegenerate ?? undefined)}
-        onConfirm={handleConfirmRegenerateSceneVideo}
-      />
-
-      {/* 编辑剧情视频保存确认弹窗 */}
-      <SaveEditSceneVideoConfirmDialog
-        open={showSaveEditSceneVideoDialog}
-        onOpenChange={setShowSaveEditSceneVideoDialog}
+        showSceneVideoPreview={showSceneVideoPreview}
+        setShowSceneVideoPreview={setShowSceneVideoPreview}
+        isEditingSceneVideo={isEditingSceneVideo}
+        setIsEditingSceneVideo={setIsEditingSceneVideo}
+        editingSceneVideoIndex={editingSceneVideoIndex}
+        setEditingSceneVideoIndex={setEditingSceneVideoIndex}
         editedSceneVideoData={editedSceneVideoData}
-        sceneIndex={editingSceneVideoIndex}
-        originalSceneVideo={editingSceneVideoIndex !== null ? sceneVideos[editingSceneVideoIndex] : null}
-        onConfirm={handleConfirmSaveEditedSceneVideo}
+        setEditedSceneVideoData={setEditedSceneVideoData}
+        sceneVideos={sceneVideos}
+        aspectRatio={aspectRatio}
+        handleCancelEditSceneVideo={handleCancelEditSceneVideo}
+        handleShowSaveEditSceneVideoDialog={handleShowSaveEditSceneVideoDialog}
+        showRegenerateCharacterDialog={showRegenerateCharacterDialog}
+        setShowRegenerateCharacterDialog={setShowRegenerateCharacterDialog}
+        characterToRegenerate={characterToRegenerate}
+        handleConfirmRegenerateCharacter={handleConfirmRegenerateCharacter}
+        showSaveEditCharacterDialog={showSaveEditCharacterDialog}
+        setShowSaveEditCharacterDialog={setShowSaveEditCharacterDialog}
+        characterData={characterData}
+        handleConfirmSaveEditedCharacter={handleConfirmSaveEditedCharacter}
+        showRegenerateStoryboardDialog={showRegenerateStoryboardDialog}
+        setShowRegenerateStoryboardDialog={setShowRegenerateStoryboardDialog}
+        storyboardToRegenerate={storyboardToRegenerate}
+        handleConfirmRegenerateStoryboard={handleConfirmRegenerateStoryboard}
+        showSaveEditStoryboardDialog={showSaveEditStoryboardDialog}
+        setShowSaveEditStoryboardDialog={setShowSaveEditStoryboardDialog}
+        handleConfirmSaveEditedStoryboard={handleConfirmSaveEditedStoryboard}
+        showRegenerateScriptDialog={showRegenerateScriptDialog}
+        setShowRegenerateScriptDialog={setShowRegenerateScriptDialog}
+        handleConfirmRegenerateScript={handleConfirmRegenerateScript}
+        showRegenerateSceneVideoDialog={showRegenerateSceneVideoDialog}
+        setShowRegenerateSceneVideoDialog={setShowRegenerateSceneVideoDialog}
+        sceneVideoToRegenerate={sceneVideoToRegenerate}
+        estimateSceneVideoPoints={estimateSceneVideoPoints}
+        handleConfirmRegenerateSceneVideo={handleConfirmRegenerateSceneVideo}
+        showSaveEditSceneVideoDialog={showSaveEditSceneVideoDialog}
+        setShowSaveEditSceneVideoDialog={setShowSaveEditSceneVideoDialog}
+        handleConfirmSaveEditedSceneVideo={handleConfirmSaveEditedSceneVideo}
+        isSignInDialogOpen={isSignInDialogOpen}
+        setIsSignInDialogOpen={setIsSignInDialogOpen}
       />
-
-      <SignInDialog open={isSignInDialogOpen} onOpenChange={setIsSignInDialogOpen} />
     </div>
   )
 }

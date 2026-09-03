@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatBytes, computeFileSizeLimit } from './format'
+import { formatBytes, computeFileSizeLimit, getFileType } from './format'
 
 describe('formatBytes', () => {
   it('负数显示为无限制', () => {
@@ -35,5 +35,17 @@ describe('computeFileSizeLimit', () => {
   it('未知计划回退 10MB', () => {
     expect(computeFileSizeLimit('free')).toBe(10 * 1024 * 1024)
     expect(computeFileSizeLimit('whatever')).toBe(10 * 1024 * 1024)
+  })
+})
+
+describe('getFileType', () => {
+  it('按 MIME 前缀归类 image/audio/video', () => {
+    expect(getFileType(new File([], 'a.png', { type: 'image/png' }))).toBe('image')
+    expect(getFileType(new File([], 'a.mp3', { type: 'audio/mpeg' }))).toBe('audio')
+    expect(getFileType(new File([], 'a.mp4', { type: 'video/mp4' }))).toBe('video')
+  })
+  it('未命中 MIME 前缀时默认当作图片', () => {
+    expect(getFileType(new File([], 'a.bin', { type: 'application/octet-stream' }))).toBe('image')
+    expect(getFileType(new File([], 'a', { type: '' }))).toBe('image')
   })
 })
