@@ -1,6 +1,6 @@
 "use client"
 
-/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any -- 函数体逐字搬移自 operate.tsx 的存量弱类型(拆分 T16);逐处改类型将淹没「只移动不改行为」的 diff 证明,随后续清理票收敛 */
+/* eslint-disable @typescript-eslint/no-explicit-any -- 函数体逐字搬移自 operate.tsx 的存量弱类型(拆分 T16);逐处改类型将淹没「只移动不改行为」的 diff 证明,随后续清理票收敛 */
 
 import { useTranslations } from "next-intl"
 import { useSession } from "next-auth/react"

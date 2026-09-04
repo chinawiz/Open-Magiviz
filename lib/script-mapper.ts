@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- 映射逻辑逐字取自 operate.tsx 存量弱类型(批次6 T21a),随清理票收敛 */
 import type { CharacterItem } from "@/lib/types"
 
 type ScriptMapperT = (key: string, values?: Record<string, string | number>) => string

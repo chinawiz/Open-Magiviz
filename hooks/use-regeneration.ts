@@ -232,62 +232,7 @@ export function useRegeneration(deps: RegenerationDeps) {
       }
 
       // 映射并填入 UI
-      const mapToUiScriptData = (data: any) => {
-        console.log('[mapToUiScriptData-regenerate] 原始 scenes:', data?.scenes?.map((s: any) => ({
-          id: s.id,
-          duration: s.duration
-        })))
-
-        const scenes = Array.isArray(data.scenes) ? data.scenes.map((s: any, idx: number) => {
-          return {
-            id: s.id ?? idx + 1,
-            title: s.title ?? t("scriptTitleDefault", { index: idx + 1 }),
-            plot: s.description ?? s.plot ?? s.plotText ?? '',
-            duration: Number(s.duration ?? s.seconds ?? 5),
-            aspectRatio: s.aspectRatio ?? data.aspectRatio ?? aspectRatio,
-            storyboardPrompt: s.storyboardPrompt ?? '',
-            sceneVideoPrompt: s.sceneVideoPrompt ?? '',
-            visualElements: Array.isArray(s.visualElements) ? s.visualElements : (s.visuals ? s.visuals : []),
-            characterIds: Array.isArray(s.characterIds) ? s.characterIds : [],
-            storyboardCharacterImages: Array.isArray(s.storyboardCharacterImages) ? s.storyboardCharacterImages : []
-          }
-        }) : []
-
-        console.log('[mapToUiScriptData-regenerate] 解析后 scenes:', scenes.map((s: any) => ({ id: s.id, duration: s.duration })))
-
-        const characters = Array.isArray(data.characters) ? data.characters.map((c: any) => {
-          const inferredPrompt = c.generationPrompt ?? c.prompt ?? c.generation_prompt ?? (c.description ? `realistic portrait, mid-shot, soft key light, ${c.description}` : `realistic portrait, mid-shot, soft key light, ${c.name ?? 'character'}`)
-          return {
-            id: c.id ?? String(c.name ?? `char_${Math.random().toString(36).slice(2,8)}`),
-            name: c.name ?? c.id ?? t("characterTitle"),
-            role: c.role ?? c.roleLabel ?? 'protagonist',
-            description: c.description ?? c.desc ?? c.summary ?? '',
-            // provide both generationPrompt and prompt alias so editor and generators can use either
-            generationPrompt: inferredPrompt,
-            prompt: inferredPrompt,
-            imageUrl: c.imageUrl ?? c.image_url ?? '',
-            thumbnailUrl: c.thumbnailUrl ?? c.thumbnail_url ?? '',
-            personality: c.personality ?? '',
-            appearance: c.appearance ?? ''
-          }
-        }) : []
-        const title = data.title ?? data.summary ?? ''
-        const aspect = data.aspectRatio ?? aspectRatio
-        const totalDuration = scenes.reduce((sum: number, s: any) => sum + (Number(s.duration) || 0), 0)
-
-        console.log('[mapToUiScriptData-regenerate] 计算的 totalDuration:', totalDuration, '秒')
-
-        return {
-          title,
-          aspectRatio: aspect,
-          totalDuration,
-          scenes,
-          characters,
-          raw: data
-        }
-      }
-
-      const uiScript = mapToUiScriptData(parsedScriptData)
+      const uiScript = buildUiScriptData(parsedScriptData, aspectRatio, t, '[mapToUiScriptData-regenerate]')
       setScriptData(uiScript)
 
       // 清空后续步骤的数据，开始一轮全新的工作流

@@ -125,7 +125,11 @@ T14-T18 五票全部落地,operate.tsx 5,256→**2,117 行**(批次五 −3,139;
 
 ## 批次6 开工(2026-09-04)
 
-**T19 完工**:剧情编辑注释历史块(219 行)+ 空积分 effect(体全注释)删除,operate.tsx 2,117→**1,852 行、0 warning**。
+**T19 完工**:剧情编辑注释历史块(219 行)+ 空积分 effect(体全注释)删除,operate.tsx 2,117→**1,852 行**(保留段尚余 21 条存量告警:10 any+6 unused+5 react-hooks 规则,属深层行为关联,记档不清偿)。
 **T21a 发现·未合并**:characterImages 组装块 3 处谓词口径不一致——pipeline/regeneration 用 `includes(char.id)`、resume 用 `String(char.id)` 强转,共享化前须裁决跨类型匹配口径(潜在行为变更);mapToUiScriptData 双份亦未合一(pipeline 版多首尾帧字段)。**批次6 剩余**:T21a(两处合一,先裁决口径)、T21b(7 处接线收敛为共享 deps 对象透传,约 -200 行)、T20(state 合并入 hook,需全量矩阵)。
 **T21a 完工(2026-09-04)**:`lib/script-mapper.ts` 落地——`buildUiScriptData`(以 pipeline 完整版为准,含首尾帧字段;regeneration 侧随之获得首尾帧支持)与 `pickSceneCharacterImages`(统一 String 强转口径),pipeline+regeneration 两站接入,+5 vitest。**resume 站排除**:其 payload 形状不同(imageUrl `?? null`、prompt 链少 prompt 段、id 空串兜底),统一即行为变更,按纪律保留原样记档。
 **批次6 剩余**:T21b 接线收敛(7 站 deps 透传)、T20 state 合并——两项设计已在案,待下一轮。
+
+## code-review 跟进(批次6 增量 124c6d3..1613882,2026-09-04)
+
+两轴审查抓到 **T21a 完工造假**:regeneration 实际未接入 buildUiScriptData(收尾脚本中止后漏重做),plan「两站接入/0 warning」声明不实——已补完并如实改记(保留段 21 条存量告警不清偿,深层行为关联)。同轮清偿:regeneration 切换后 55 行内联删除、json-parse/script-mapper 失效 disable 修剪、resume 死解构剪除;棘轮 332→**300**(实测下调)。Spec 轴新发现记档:**分镜段 `scriptResult.data.scenes` 直接访问**——若响应仅 output 文本则仍 TypeError,与 handleSend 同型共性遗留,已随 bug 修复解析对齐但分镜段未动,留专项。

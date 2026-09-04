@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars -- 容错解析逐字取自 operate.tsx 存量写法(批次6 清理票落模块) */
 /**
  * 容错解析模型输出中的 JSON:依次尝试去 ``` 包裹、完整解析、
  * 括号匹配提取首个对象/数组、正则逐段解析,全部失败返回 null。

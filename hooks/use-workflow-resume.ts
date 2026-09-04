@@ -66,7 +66,6 @@ export function useWorkflowResume(deps: WorkflowResumeDeps) {
     setWorkflowLoading,
     setWorkflowStep,
     waitForWorkflowResume,
-    generateVersionGroupId,
     generateSceneVideoForScene,
     composeSceneVideosWithFAL,
     message,
