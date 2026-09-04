@@ -52,3 +52,12 @@
 
 - 动供应商相关路由代码之前，先用 `poc/one-sentence-video.mjs` 打通全链路：`--mock` 模式离线零成本回归编排形状；真跑用最小参数 `--scenes 1 --duration 4`。视频是成本大头，Kie 免费额度只够一次最小真跑——**没有 mock 开关的 POC 很快会变得不敢跑**。
 - 最小可行管线只需要 2–3 个平台（脚本 + 视频 + 对象存储）；现已接通 11 个服务端平台才是成品态。扩展平台顺序应由成本/风险决定，不由「看起来完整」驱动。
+
+## 自建模型接入一期（2026-09-04 落地，本地提交未部署）
+
+- **架构定型（ADR-0001，七条裁决）**：运营全局无感（后台切生效模型，用户侧 UI/计费同价不变）；统一契约（文本/图像=OpenAI 兼容 chat completions + images generations，视频二期=submit/poll 异步任务契约）；自动云端回退（自建失败/超时/形状不符→该步云端默认模型，funnel 事件 `fallbackApplied` 标记），**不做 fail-closed**——moderation 人质教训的镜像应用；key 存 DB 掩码返回；一期只做手动「测试连接」；全量切不灰度；两期走（一期文本两步+图像，合成步本就自托管）。
+- **接缝事实**：`provider_routes` 的 `provider='local'`+`region='local'` 是建库时（迁移0011注释）就预留的自托管插拔位，一期真正用上。`self_hosted_endpoints` 启用行是「该步自建生效」的**唯一事实源**，provider_routes 的 local 行（id=`local_<capability>`）由 `lib/providers/endpoints.ts` sync 函数派生维护，任何变更以 `invalidateRouteCache()` 收尾（60s 缓存热更新，绕过缓存靠测试里的「预热+双 modelId」守卫）。capability 新增 `storyboard_text`（分镜剧情文本）——剧本与分镜可指不同自建端点。
+- **key 制度**：`toPublicEndpoint` 单点掩码映射（只露末4位）+ 审计 `SENSITIVE_KEYS` 增 apiKey 双保险 + 路由级契约测试守「任何响应字节不含完整 key」。admin 敏感列泄漏 P0 的制度性回应。改 key 即时生效不重部署。
+- **补偿安全用法（可复用模式）**：自建同步调用落任务行用 `generate_character_local`/`generate_storyboard_local` 后缀 taskType——**故意不登记 TASK_PROVIDER**，复用补偿任务「未知 taskType 跳过」语义（settleStaleTask 首行短路已核实）避免同步任务被异步补偿误结算。
+- **图像自建链路特有**：端点产出 b64/局域网 URL 必须经 R2 转存公网直链（`lib/r2-upload.ts`，下游图生视频要公网可达），转存失败视同自建失败回退；img2img（参考图/角色一致性图）与 webhook 模式一期保留云端。超时口径：文本 60s、图像 120s。
+- **遗留与后继**：迁移 0016 未上生产（部署时先跑）；DGX 生产暴露方式未定（家宽→Cloudflare Tunnel 候选，base_url 可配不阻塞）；GUI 亮暗×中英×桌面/移动全矩阵待 admin 凭据补跑；**视频二期动工前**：重读本文件「供应商怪癖」三条（响应形状/分辨率档位/webhook 优先级）+ 解决时长/分辨率计费口径在自建契约下的映射（video-pricing 唯一事实源不许旁路）+ DGX 单机并发=全站容量上限（回退率是容量观察指标）。锚点：`docs/adr/0001-self-hosted-models.md`、`.scratch/self-hosted-models/`（spec+T1-T5 票）、`lib/providers/{local,chat-active,image-active,endpoints,route-cache}.ts`、`app/api/admin/models/`。
