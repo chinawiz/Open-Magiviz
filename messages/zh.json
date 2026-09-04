@@ -767,7 +767,9 @@
         "finance": "财务查询",
         "finance_desc": "按邮箱查询支付记录与积分流水（只读）",
         "growth": "增长运营",
-        "growth_desc": "推荐系统与推广返利运营、提现审批"
+        "growth_desc": "推荐系统与推广返利运营、提现审批",
+        "models": "模型配置",
+        "models_desc": "登记自建模型端点，切换各步生效模型（自建↔云端）"
       },
       "overview": {
         "title": "系统概览",
@@ -1325,6 +1327,64 @@
         "confirm_title": "确认调减？",
         "confirm_description": "将为 {email} 调减 {points} 积分（购买积分类型），操作写入审计日志且不可自动撤销。"
       }
+    },
+    "models": {
+      "capability": {
+        "script": "剧本生成",
+        "storyboard_text": "分镜剧情",
+        "image": "图像生成"
+      },
+      "protocol": {
+        "openai-chat": "OpenAI 兼容 Chat",
+        "openai-images": "OpenAI 兼容 Images"
+      },
+      "active_model": "生效模型",
+      "cloud_default": "云端默认",
+      "self_hosted": "自建端点",
+      "enabled": "启用中",
+      "disabled": "已停用",
+      "base_url": "端点地址（含到 /v1）",
+      "base_url_placeholder": "http://dgx:8000/v1",
+      "model_id": "模型 ID",
+      "model_id_placeholder": "如 glm-5 / flux2-local",
+      "api_key": "API Key",
+      "api_key_hint": "编辑时留空表示不修改；保存后只显示掩码",
+      "timeout": "超时（毫秒）",
+      "note": "备注",
+      "add": "登记自建端点",
+      "edit": "编辑",
+      "save": "保存",
+      "cancel": "取消",
+      "delete": "删除",
+      "enable": "启用",
+      "disable": "停用",
+      "test_connection": "测试连接",
+      "testing": "测试中…",
+      "test_ok": "连接成功（{latency}ms）",
+      "test_fail": "连接失败",
+      "last_test": "最近测试",
+      "never": "从未",
+      "confirm_delete_title": "删除自建端点？",
+      "confirm_delete_description": "删除后该步立即回落云端默认模型，此操作写入审计日志。",
+      "fallback_title": "近 7 日自建回退统计",
+      "fallback_desc": "自建失败自动回退云端的次数；回退率抬升 = 容量或健康信号",
+      "fallback_stage": "环节",
+      "fallback_count": "回退次数",
+      "fallback_last": "最近回退",
+      "fallback_none": "近 7 日无回退，自建链路健康",
+      "messages": {
+        "load_failed": "加载失败",
+        "saved": "已保存，配置即时生效",
+        "save_failed": "保存失败",
+        "updated": "已更新，配置即时生效",
+        "update_failed": "更新失败",
+        "deleted": "已删除，该步回落云端",
+        "delete_failed": "删除失败",
+        "switched": "已切换生效模型",
+        "switch_failed": "切换失败"
+      },
+      "test_pass": "通过",
+      "step": "生效步骤"
     }
   },
   "unauthorized": {

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { BarChart3, UserCog, ListChecks, DollarSign, TrendingUp, MailOpen } from 'lucide-react'
+import { BarChart3, UserCog, ListChecks, DollarSign, TrendingUp, MailOpen, Cpu } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const ITEMS = [
@@ -13,6 +13,7 @@ const ITEMS = [
   { href: '/admin/finance', labelKey: 'menu.finance', icon: DollarSign },
   { href: '/admin/growth', labelKey: 'menu.growth', icon: TrendingUp },
   { href: '/admin/newsletter', labelKey: 'menu.newsletter', icon: MailOpen },
+  { href: '/admin/models', labelKey: 'menu.models', icon: Cpu },
 ] as const
 
 export function AdminSidebar() {

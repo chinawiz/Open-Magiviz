@@ -767,7 +767,9 @@
         "finance": "Finance",
         "finance_desc": "Look up payments and points ledger by email (read-only)",
         "growth": "Growth",
-        "growth_desc": "Referral & affiliate operations, withdrawal approval"
+        "growth_desc": "Referral & affiliate operations, withdrawal approval",
+        "models": "Model Config",
+        "models_desc": "Register self-hosted model endpoints and switch active models (self-hosted ↔ cloud)"
       },
       "overview": {
         "title": "System Overview",
@@ -1325,6 +1327,64 @@
         "confirm_title": "Confirm deduction?",
         "confirm_description": "This will deduct {points} points from {email} (purchased type). The action is audited and cannot be auto-undone."
       }
+    },
+    "models": {
+      "capability": {
+        "script": "Script",
+        "storyboard_text": "Storyboard Plot",
+        "image": "Image"
+      },
+      "protocol": {
+        "openai-chat": "OpenAI-compatible Chat",
+        "openai-images": "OpenAI-compatible Images"
+      },
+      "active_model": "Active model",
+      "cloud_default": "Cloud default",
+      "self_hosted": "Self-hosted endpoint",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "base_url": "Base URL (incl. /v1)",
+      "base_url_placeholder": "http://dgx:8000/v1",
+      "model_id": "Model ID",
+      "model_id_placeholder": "e.g. glm-5 / flux2-local",
+      "api_key": "API Key",
+      "api_key_hint": "Leave blank on edit to keep the current key; only a mask is shown after saving",
+      "timeout": "Timeout (ms)",
+      "note": "Note",
+      "add": "Register self-hosted endpoint",
+      "edit": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "enable": "Enable",
+      "disable": "Disable",
+      "test_connection": "Test connection",
+      "testing": "Testing…",
+      "test_ok": "Connected ({latency}ms)",
+      "test_fail": "Connection failed",
+      "last_test": "Last test",
+      "never": "Never",
+      "confirm_delete_title": "Delete this self-hosted endpoint?",
+      "confirm_delete_description": "After deletion this step falls back to the cloud default immediately. The action is audited.",
+      "fallback_title": "Fallbacks (last 7 days)",
+      "fallback_desc": "Times self-hosted failed over to cloud; a rising rate signals capacity or health issues",
+      "fallback_stage": "Step",
+      "fallback_count": "Fallbacks",
+      "fallback_last": "Last fallback",
+      "fallback_none": "No fallbacks in the last 7 days — self-hosted link is healthy",
+      "messages": {
+        "load_failed": "Failed to load",
+        "saved": "Saved and effective immediately",
+        "save_failed": "Failed to save",
+        "updated": "Updated and effective immediately",
+        "update_failed": "Failed to update",
+        "deleted": "Deleted; this step falls back to cloud",
+        "delete_failed": "Failed to delete",
+        "switched": "Active model switched",
+        "switch_failed": "Failed to switch"
+      },
+      "test_pass": "OK",
+      "step": "Applies to"
     }
   },
   "unauthorized": {
