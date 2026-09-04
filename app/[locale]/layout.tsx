@@ -8,6 +8,7 @@ import { Manrope } from 'next/font/google'
 import { Toaster as SonnerToaster } from 'sonner'
 import { Toaster } from "@/components/ui/toaster"
 import { AnalyticsProvider, PostHogPageView } from "@/components/analytics"
+import { HtmlLangSync, ScrollToTopOnNavigate } from "@/components/route-effects"
 
 // 全站首个真正落地的标题字体：此前 font-headline 在 tailwind 中未定义，一直是 no-op（UI 审计 P2）
 const manrope = Manrope({
@@ -40,7 +41,7 @@ export async function generateMetadata({
   return {
     title: {
       default: t('title'),
-      template: `%s | ${t('title')}`
+      template: `%s | MeiHao`
     },
     description: t('description'),
     keywords: locale === 'zh'
@@ -139,6 +140,8 @@ export default async function LocaleLayout({
   return (
     <NextIntlClientProvider messages={messages} locale={locale}>
       <AnalyticsProvider>
+        <HtmlLangSync locale={locale} />
+        <ScrollToTopOnNavigate />
         <div data-locale={locale} className={manrope.variable}>
           {children}
         </div>

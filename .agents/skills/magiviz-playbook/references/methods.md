@@ -44,6 +44,8 @@
 F11 清理折扣宣称时修了 README 却漏了 `messages/zh.json` + `en.json` 里的同款文案，代码审查和 43 个单测都没抓到，最后是在 live 域名上走真实 UI 流程才发现的（`dd15776`）。
 **规则**：凡改面向用户的文案，必须同时 grep `messages/*.json`（zh/en 双语两份）；凡宣称功能行为的地方（README/i18n/页面），以代码实况为准逐一对账。
 
+**补充（2026-09-04 纯 GUI 黑盒冒烟的三条工具局限，断言必须与 DOM 交叉验证）**：① IAB/CDP 截图**捕获不了原生 HTML5 校验气泡**（非 DOM 渲染）——空表单提交/无效邮箱在截图里看似「零反馈」，判据应看 DOM 结构（input `required` + `button[type=submit]` + `noValidate=false` + 焦点跳到首个无效字段），别凭截图下「静默无反馈」结论；② fullPage 截图对 pinned/动画 hero 会拼接出整屏重复内容（实测 hero 连续 8 遍），真实用户滚动完全正常——先逐屏滚动验证再定性，别当 bug 报；③ next-intl 会把全部消息 JSON 内联进 body `<script>`，用 `document.body.textContent` 断言文案会误中未渲染的键——用过滤 SCRIPT/STYLE 的 TreeWalker 查可见文本节点。本次冒烟还抓到 signup 副标题「开启SaaS开发之旅」模板残留（`messages/*.json` auth 节，已同批修复双语）；upgrade/购买文案仍有 `upgrade_benefits_1`/`points_usage_ai_service`/`success_toast*` 四处 SaaS 模版措辞，待产品定稿后清理。
+
 ## 7. 测试当门槛，容忍基建混乱
 
 整个部署折腾期（锁文件、CI 网络、OOM、签名头）43 个 vitest 始终全绿。原则：基建层的反复折腾不代表可以破业务逻辑的红线；反过来，测试绿也不代表基建没问题（见 methods #6 的盲区）——两者互补而非互替。

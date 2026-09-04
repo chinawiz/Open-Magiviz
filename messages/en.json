@@ -3,19 +3,19 @@
     "title": "MeiHao - Creativity to Film in One Click, Unleash Infinite Cinematic Imagination",
     "description": "MeiHao is an AI-powered intelligent video creation platform. From concept to finished product in one click. Support Hollywood films, anime, story plots, advertisements, and educational videos. Let everyone become a filmmaker with AI-powered creative tools.",
     "terms": {
-      "title": "Terms of Service - MeiHao",
+      "title": "Terms of Service",
       "description": "View MeiHao's Terms of Service for video creation platform usage, understanding usage rules, license agreement and user rights and responsibilities."
     },
     "privacy": {
-      "title": "Privacy Policy - MeiHao",
+      "title": "Privacy Policy",
       "description": "Learn how MeiHao handles user data and privacy protection to ensure your personal information and creative content security."
     },
     "cookies": {
-      "title": "Cookie Policy - MeiHao",
+      "title": "Cookie Policy",
       "description": "Learn how MeiHao uses cookies and related technologies to optimize video creation experience and website performance."
     },
     "pricing": {
-      "title": "Pricing - MeiHao",
+      "title": "Pricing",
       "description": "View MeiHao subscription plans and pricing. Choose the plan that fits your AI video creation needs. Start with a free trial or upgrade to premium for unlimited video generation."
     }
   },
@@ -336,7 +336,7 @@
     "title": "Email Verification",
     "description": "Verify your email address to complete account registration",
     "meta_title": "Email Verification",
-    "meta_description": "Verify your meihao account email to complete account activation",
+    "meta_description": "Verify your MeiHao account email to complete account activation",
     "verifying": "Verifying your email...",
     "success": "Email verification successful!",
     "failed": "Email verification failed",
@@ -350,11 +350,11 @@
     "back_to_login": "Back to Login"
   },
   "auth": {
-    "meta_title": "Authentication - meihao",
+    "meta_title": "Authentication",
     "signin_title": "Sign In",
-    "signin_description": "Sign in to your meihao account to start using modern SaaS templates",
+    "signin_description": "Sign in to your MeiHao account",
     "signup_title": "Sign Up",
-    "signup_description": "Create your meihao account and start your SaaS development journey",
+    "signup_description": "Create your MeiHao account and start your creative journey",
     "error_title": "Authentication Error",
     "error_description": "An error occurred during authentication, please try again or contact technical support",
     "error_page_title": "Sign In Failed",
@@ -383,7 +383,7 @@
       "default": "Unknown error occurred during authentication, please try again"
     },
     "welcome_back": "Welcome Back",
-    "login_description": "Sign in to your meihao account",
+    "login_description": "Sign in to your MeiHao account",
     "email": "Email Address",
     "password": "Password",
     "email_placeholder": "Enter your email address",
@@ -437,7 +437,7 @@
     "title": "Forgot Password",
     "description": "Enter your email address and we'll send you a link to reset your password",
     "meta_title": "Forgot Password",
-    "meta_description": "Recover your meihao account password by resetting it via email",
+    "meta_description": "Recover your MeiHao account password by resetting it via email",
     "email_label": "Email Address",
     "email_placeholder": "Enter your email address",
     "send_reset_link": "Send Reset Link",
@@ -455,7 +455,7 @@
     "title": "Reset Password",
     "description": "Enter your new password",
     "meta_title": "Reset Password",
-    "meta_description": "Reset your meihao account password and set a new secure password",
+    "meta_description": "Reset your MeiHao account password and set a new secure password",
     "password_label": "New Password",
     "password_placeholder": "Enter your new password",
     "confirm_password_label": "Confirm Password",
@@ -694,18 +694,18 @@
     "plan_starter_description": "Entry plan for light creators: 110 credits monthly"
   },
   "create_page": {
-    "title": "Explore Video - MeiHao",
+    "title": "Explore Video",
     "description": "Use AI-powered intelligent video creation tools to generate professional videos with one click. Support Hollywood films, anime, story plots and more video types, making creativity easy to film."
   },
   "projects_page": {
-    "title": "My Projects - MeiHao",
+    "title": "My Projects",
     "description": "Manage all your video creation projects, view creation history, edit and share your works."
   },
   "dashboard": {
     "payment_success": {
       "title": "Purchase Successful!",
-      "subtitle": "Welcome to meihao",
-      "subtitle_with_plan": "Welcome to meihao {plan}",
+      "subtitle": "Welcome to MeiHao",
+      "subtitle_with_plan": "Welcome to MeiHao {plan}",
       "processing_title": "Processing Payment Result",
       "processing_description": "Please wait while we confirm your purchase status...",
       "verifying_title": "Verifying Purchase Status",
@@ -745,7 +745,7 @@
   },
   "admin": {
     "dashboard": {
-      "meta_title": "Admin Dashboard - meihao",
+      "meta_title": "Admin Dashboard",
       "meta_description": "Admin dashboard for unified management of users, newsletter subscriptions, system settings, and more.",
       "title": "Admin Dashboard",
       "sidebar": {
@@ -833,7 +833,7 @@
       }
     },
     "newsletter": {
-      "meta_title": "Newsletter Statistics - meihao",
+      "meta_title": "Newsletter Statistics",
       "meta_description": "View and manage newsletter subscription statistics, including subscriber counts, language distribution, and more.",
       "title": "Newsletter Statistics",
       "stats": {
@@ -876,7 +876,7 @@
       }
     },
     "users": {
-      "meta_title": "User Management - meihao",
+      "meta_title": "User Management",
       "meta_description": "View and manage all registered users' detailed information, including user statistics, role management, points adjustment, and more.",
       "title": "User Management",
       "stats": {
