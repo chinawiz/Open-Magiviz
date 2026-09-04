@@ -4,7 +4,7 @@ import { sanitizeAuditSnapshot } from '@/lib/admin-audit'
 // 审计快照脱敏守卫（docs/admin-plan.md 制度②）：
 // 敏感列绝不进审计账本——审计表本身只允许白名单业务字段进 before/after。
 describe('sanitizeAuditSnapshot', () => {
-  it('剥离 password / resetToken / cardFingerprint 等敏感键', () => {
+  it('剥离 password / resetToken / cardFingerprint / apiKey 等敏感键', () => {
     const input = {
       points: 100,
       password: '$2a$10$secret',
@@ -12,6 +12,7 @@ describe('sanitizeAuditSnapshot', () => {
       cardFingerprint: 'fp_xyz',
       stripeCustomerId: 'cus_123',
       passwordHash: 'hash',
+      apiKey: 'sk-local-full-key',
     }
     expect(sanitizeAuditSnapshot(input)).toEqual({ points: 100 })
   })

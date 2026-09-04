@@ -565,7 +565,7 @@ export const adminAuditLogs = pgTable('admin_audit_logs', {
   id: text('id').primaryKey(),
   adminUserId: text('adminUserId').notNull(),  // 执行操作的管理员（users.id 快照，不 FK）
   action: text('action').notNull(),            // adjust_points | update_role | update_subscription | ban_user | unban_user | settle_task
-  targetType: text('targetType').notNull(),    // user | task | withdrawal
+  targetType: text('targetType').notNull(),    // user | task | withdrawal | model_config
   targetId: text('targetId').notNull(),        // 目标对象 ID
   before: jsonb('before'),                     // 变更前快照（白名单字段，禁止 password/resetToken/cardFingerprint）
   after: jsonb('after'),                       // 变更后快照（同上）

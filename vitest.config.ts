@@ -8,6 +8,6 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['lib/**/*.test.ts', 'components/**/*.test.ts', 'hooks/**/*.test.ts'],
+    include: ['lib/**/*.test.ts', 'components/**/*.test.ts', 'hooks/**/*.test.ts', 'app/**/*.test.ts'],
   },
 })

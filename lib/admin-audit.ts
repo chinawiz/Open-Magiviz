@@ -16,6 +16,7 @@ const SENSITIVE_KEYS = new Set([
   'resetToken',
   'cardFingerprint',
   'stripeCustomerId',
+  'apiKey', // 自建端点密钥（ADR-0001）：审计账本只允许掩码形态
 ])
 
 export function sanitizeAuditSnapshot(
@@ -34,7 +35,7 @@ export function sanitizeAuditSnapshot(
 export type AdminAuditInput = {
   adminUserId: string
   action: string
-  targetType: 'user' | 'task' | 'withdrawal'
+  targetType: 'user' | 'task' | 'withdrawal' | 'model_config'
   targetId: string
   before?: Record<string, unknown> | null
   after?: Record<string, unknown> | null
