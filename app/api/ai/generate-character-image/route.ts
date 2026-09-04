@@ -3,6 +3,7 @@ import { getAuthedSession, jsonError } from '@/lib/api'
 import { trackFunnelEvent } from '@/lib/observability/track'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { computeImagePoints } from '@/lib/video-pricing'
+import { attemptLocalImages } from '@/lib/providers/image-active'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
@@ -53,10 +54,59 @@ async function generateSingleCharacter(
   versionId?: string,
   versionGroupId?: string,
   referenceImage?: string   // 新增：用户上传的参考图URL（图生图模式）
-): Promise<{ success: boolean; images?: GeneratedImage[]; requestId?: string; error?: string }> {
+): Promise<{
+  success: boolean
+  images?: GeneratedImage[]
+  requestId?: string
+  error?: string
+  provider?: string
+  model?: string
+  fallbackApplied?: boolean
+  localError?: string
+}> {
   if (!prompt || !prompt.trim()) {
     return { success: false, error: "Prompt is required" }
   }
+
+  // ── 生效模型路由（ADR-0001）：自建端点排首；带参考图的 img2img 一期保留云端（自建契约仅文生图）；webhook 模式语义不适用自建 ──
+  const localAttempt = await attemptLocalImages(prompt, { skip: !!referenceImage || !!(webhookUrl || WEBHOOK_URL) })
+  if (localAttempt.status === 'ok') {
+    // 同步完成：落 *_local 任务行（补偿任务按未知 taskType 跳过）+ 直接扣点（对齐轮询模式语义）
+    const localTaskId = uuidv4()
+    const points = computeImagePoints(1)
+    if (userId) {
+      try {
+        await db.insert(aiGenerationTasks).values({
+          id: uuidv4(),
+          taskId: localTaskId,
+          userId: userId,
+          taskType: 'generate_character_local',
+          model: localAttempt.model,
+          pointsAmount: points,
+          pointsDeducted: true,
+          status: 'success',
+          projectId: projectId || null,
+          versionId: versionId || null,
+          itemId: itemId || null,
+          versionGroupId: versionGroupId || null,
+          newVersionId: null,
+        })
+        await deductPoints(userId, points, undefined, PointsAction.GENERATE_CHARACTER)
+        console.log('[generate-character-image] 自建链路：生成成功并扣除1积分')
+      } catch (localAccountingError) {
+        console.error('[generate-character-image] 自建链路落账失败（不影响返回）:', localAccountingError)
+      }
+    }
+    return {
+      success: true,
+      images: localAttempt.images,
+      requestId: localTaskId,
+      provider: 'local',
+      model: localAttempt.model,
+      fallbackApplied: false,
+    }
+  }
+  const localError = localAttempt.status === 'failed' ? localAttempt.localError : undefined
 
   // 构建 Kie.ai API 请求体
   const kieRequestBody: KieRequestBody = {
@@ -137,7 +187,7 @@ async function generateSingleCharacter(
   }
 
   if (useWebhookMode) {
-    return { success: true, requestId: taskId }
+    return { success: true, requestId: taskId, provider: 'kieai', model: 'nano-banana-2' }
   }
 
   // 轮询模式：后端轮询任务状态直到完成
@@ -165,7 +215,7 @@ async function generateSingleCharacter(
               const resultData = JSON.parse(taskData.resultJson)
               taskResult = resultData
               break
-            } catch (parseError) {
+            } catch {
               return { success: false, error: "Invalid result format" }
             }
           } else if (taskData.state === 'fail') {
@@ -183,14 +233,14 @@ async function generateSingleCharacter(
   }
 
   if (!taskResult) {
-    return { success: false, error: "AI generation timeout" }
+    return { success: false, error: "AI generation timeout", fallbackApplied: !!localError, localError }
   }
 
   const resultUrls = taskResult.resultUrls || []
   const images = resultUrls.map((url: string) => ({ url }))
 
   if (images.length === 0) {
-    return { success: false, error: "No images generated" }
+    return { success: false, error: "No images generated", fallbackApplied: !!localError, localError }
   }
 
   // 轮询模式：任务已完成，立即扣除积分
@@ -219,7 +269,7 @@ async function generateSingleCharacter(
     }
   }
 
-  return { success: true, images, requestId: taskId }
+  return { success: true, images, requestId: taskId, provider: 'kieai', model: 'nano-banana-2', fallbackApplied: !!localError, localError }
 }
 
 export async function POST(request: NextRequest) {
@@ -297,7 +347,7 @@ export async function POST(request: NextRequest) {
         }
 
         const result = await generateSingleCharacter(promptText, undefined, session.user.id, body.projectId, characterId ?? undefined, body.versionId, body.versionGroupId, referenceImage)
-        trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: body.projectId ?? null, success: result.success, provider: 'kieai', model: 'nano-banana-2', taskId: result.requestId, error: result.error })
+        trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: body.projectId ?? null, success: result.success, provider: result.provider ?? 'kieai', model: result.model ?? 'nano-banana-2', fallbackApplied: result.fallbackApplied ?? false, taskId: result.requestId, error: [result.localError, result.error].filter(Boolean).join(' | ') || undefined })
 
         if (result.success) {
           console.log('[generate-character-image] character generated:', { characterId, requestId: result.requestId, imageCount: result.images?.length })
@@ -325,7 +375,7 @@ export async function POST(request: NextRequest) {
     console.log('[generate-character-image] single request:', { promptLength: prompt?.length, aspectRatio, hasWebhook: !!webhookUrl, projectId, versionId, versionGroupId, hasReferenceImage: !!referenceImage })
 
     const result = await generateSingleCharacter(prompt ?? '', webhookUrl, session.user.id, projectId, itemId, versionId, versionGroupId, referenceImage)
-    trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: 'kieai', model: 'nano-banana-2', taskId: result.requestId, error: result.error })
+    trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: result.provider ?? 'kieai', model: result.model ?? 'nano-banana-2', fallbackApplied: result.fallbackApplied ?? false, taskId: result.requestId, error: [result.localError, result.error].filter(Boolean).join(' | ') || undefined })
 
     if (!result.success) {
       console.error('[generate-character-image] generation failed:', { error: result.error })

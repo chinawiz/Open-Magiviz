@@ -153,3 +153,57 @@ export async function probeEndpoint(
     return { ok: false, latencyMs: Date.now() - startedAt, error: (err as Error).message }
   }
 }
+
+// ── OpenAI 兼容 images 协议（图像自建，ADR-0001 一期：仅文生图）──
+
+export interface LocalImagesInput {
+  prompt: string
+  n?: number
+}
+
+export interface LocalImageResult {
+  /** 网关返回 b64_json 时的解码前内容 */
+  b64?: string
+  /** 网关直接返回 URL 时（可能是局域网地址，调用方需转存） */
+  url?: string
+}
+
+/** 调自建端点的 images generations（同步文生图），返回归一化的图像结果列表 */
+export async function localImagesGenerate(
+  endpoint: LocalEndpointConfig,
+  input: LocalImagesInput,
+  fetchImpl: FetchLike = fetch,
+): Promise<LocalImageResult[]> {
+  const url = `${normalizeBaseUrl(endpoint.baseUrl)}/images/generations`
+  const res = await fetchWithTimeout(
+    fetchImpl,
+    url,
+    {
+      method: 'POST',
+      headers: authHeaders(endpoint.apiKey),
+      body: JSON.stringify({
+        model: endpoint.modelId,
+        prompt: input.prompt,
+        n: input.n ?? 1,
+      }),
+    },
+    endpoint.timeoutMs,
+  )
+
+  if (!res.ok) {
+    const errorText = await res.text()
+    throw new LocalProviderError('http', `自建端点 HTTP ${res.status}: ${url}`, res.status, errorText)
+  }
+
+  const data = (await res.json()) as { data?: Array<{ b64_json?: unknown; url?: unknown }> }
+  const items = Array.isArray(data?.data) ? data.data : []
+  const results: LocalImageResult[] = []
+  for (const item of items) {
+    if (typeof item?.b64_json === 'string') results.push({ b64: item.b64_json })
+    else if (typeof item?.url === 'string') results.push({ url: item.url })
+  }
+  if (results.length === 0) {
+    throw new LocalProviderError('shape', `自建端点响应形状不符（data 中无 b64_json/url）: ${url}`)
+  }
+  return results
+}

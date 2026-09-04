@@ -3,11 +3,12 @@ import { getAuthedSession, jsonError } from '@/lib/api'
 import { trackFunnelEvent } from '@/lib/observability/track'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { computeImagePoints } from '@/lib/video-pricing'
+import { attemptLocalImages } from '@/lib/providers/image-active'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
 import { eq } from 'drizzle-orm'
-import type { KieRequestBody, KieApiResponse, GeneratedImage, BatchResultItem } from '@/lib/ai-types'
+import type { KieRequestBody, KieApiResponse, BatchResultItem } from '@/lib/ai-types'
 
 /**
  * POST /api/ai/generate-storyboard-image
@@ -77,6 +78,10 @@ async function generateFrameImage(
   requestId?: string
   error?: string
   useWebhook?: boolean
+  provider?: string
+  model?: string
+  fallbackApplied?: boolean
+  localError?: string
 }> {
   if (!prompt || !prompt.trim()) {
     return { success: false, error: "Prompt is required" }
@@ -85,6 +90,22 @@ async function generateFrameImage(
   if (!['16:9', '9:16'].includes(aspectRatio)) {
     return { success: false, error: "aspectRatio 只支持 '16:9' 或 '9:16'" }
   }
+
+  // ── 生效模型路由（ADR-0001）：纯文生图才走自建（带参考图/角色图的 img2img 保留云端）；webhook 模式语义不适用自建 ──
+  const skipLocal = !!(webhookUrl || WEBHOOK_URL) || !!options?.referenceImage || (Array.isArray(characterImages) && characterImages.length > 0)
+  const localAttempt = await attemptLocalImages(prompt, { skip: skipLocal })
+  if (localAttempt.status === 'ok') {
+    // 帧图扣点在上游（单帧/首尾帧层）按既有惯例进行，此处不扣
+    return {
+      success: true,
+      images: { default: localAttempt.images[0] },
+      requestId: uuidv4(),
+      provider: 'local',
+      model: localAttempt.model,
+      fallbackApplied: false,
+    }
+  }
+  const localError = localAttempt.status === 'failed' ? localAttempt.localError : undefined
 
   const kieRequestBody: KieRequestBody = {
     model: "nano-banana-2",
@@ -214,7 +235,7 @@ async function generateFrameImage(
               const resultData = JSON.parse(taskData.resultJson)
               taskResult = resultData
               break
-            } catch (parseError) {
+            } catch {
               return { success: false, error: "Invalid result format" }
             }
           } else if (taskData.state === 'fail') {
@@ -232,17 +253,17 @@ async function generateFrameImage(
   }
 
   if (!taskResult) {
-    return { success: false, error: "AI generation timeout" }
+    return { success: false, error: "AI generation timeout", fallbackApplied: !!localError, localError }
   }
 
   const resultUrls = taskResult.resultUrls || []
   const images = resultUrls.map((url: string) => ({ url }))
 
   if (images.length === 0) {
-    return { success: false, error: "No images generated" }
+    return { success: false, error: "No images generated", fallbackApplied: !!localError, localError }
   }
 
-  return { success: true, images: { default: images[0] }, requestId: taskId }
+  return { success: true, images: { default: images[0] }, requestId: taskId, provider: 'kieai', model: 'nano-banana-2', fallbackApplied: !!localError, localError }
 }
 
 /**
@@ -275,6 +296,10 @@ async function generateSingleStoryboard(
   requestId?: string
   requestIds?: string[]  // 首尾帧模式返回两个 taskId
   error?: string
+  provider?: string
+  model?: string
+  fallbackApplied?: boolean
+  localError?: string
 }> {
 
   // 如果指定了 regenerateFrameType，只生成单个帧
@@ -318,13 +343,18 @@ async function generateSingleStoryboard(
         },
         requestId: frameResult.requestId,
         // 返回单个 taskId
-        requestIds: [frameResult.requestId].filter(Boolean) as string[]
+        requestIds: [frameResult.requestId].filter(Boolean) as string[],
+        provider: frameResult.provider,
+        model: frameResult.model,
+        fallbackApplied: frameResult.fallbackApplied,
+        localError: frameResult.localError,
       }
     }
 
     // 轮询模式：直接返回结果
-    const imageUrl = (frameResult.images as any)?.[0]?.url
-    
+    // 修复存量 bug：images 形状是 {default:{url}}，原按数组下标取值恒为 undefined（单帧重生成轮询模式永远判失败）
+    const imageUrl = (frameResult.images as { default?: { url: string } } | undefined)?.default?.url
+
     if (imageUrl) {
       // 扣除积分（单张图，单价事实源 lib/video-pricing.ts）
       if (userId) {
@@ -340,19 +370,27 @@ async function generateSingleStoryboard(
           console.error('[generate-storyboard-image] 扣除积分失败:', deductError)
         }
       }
-      
-      return { 
-        success: true, 
+
+      return {
+        success: true,
         images: {
           [options.regenerateFrameType === 'first' ? 'firstFrame' : 'lastFrame']: { url: imageUrl }
         },
-        requestId: frameResult.requestId
+        requestId: frameResult.requestId,
+        provider: frameResult.provider ?? 'kieai',
+        model: frameResult.model ?? 'nano-banana-2',
+        fallbackApplied: frameResult.fallbackApplied,
+        localError: frameResult.localError,
       }
     }
-    
-    return { 
-      success: false, 
-      error: frameResult.error || 'Failed to generate frame'
+
+    return {
+      success: false,
+      error: frameResult.error || 'Failed to generate frame',
+      provider: frameResult.provider,
+      model: frameResult.model,
+      fallbackApplied: frameResult.fallbackApplied,
+      localError: frameResult.localError,
     }
   }
   
@@ -385,18 +423,23 @@ async function generateSingleStoryboard(
         },
         // 返回两个 taskId，前端需要等待两个 Pusher 结果
         requestId: firstFrameResult.requestId,
-        requestIds: [firstFrameResult.requestId, lastFrameResult.requestId].filter(Boolean) as string[]
+        requestIds: [firstFrameResult.requestId, lastFrameResult.requestId].filter(Boolean) as string[],
+        provider: firstFrameResult.provider ?? lastFrameResult.provider,
+        model: firstFrameResult.model ?? lastFrameResult.model,
+        fallbackApplied: firstFrameResult.fallbackApplied || lastFrameResult.fallbackApplied,
+        localError: [firstFrameResult.localError, lastFrameResult.localError].filter(Boolean).join(' | ') || undefined,
       }
     }
 
     const images: Record<string, { url: string }> = {}
 
-    if (firstFrameResult.success && (firstFrameResult.images as unknown as Array<{ url: string }> | undefined)?.[0]?.url) {
-      images.firstFrame = { url: (firstFrameResult.images as unknown as Array<{ url: string }>)[0].url }
+    // 修复存量 bug：原按数组下标取 {default:{url}} 对象，恒为 undefined（首尾帧轮询模式永远判失败）
+    if (firstFrameResult.success && firstFrameResult.images?.default?.url) {
+      images.firstFrame = { url: firstFrameResult.images.default.url }
     }
 
-    if (lastFrameResult.success && (lastFrameResult.images as unknown as Array<{ url: string }> | undefined)?.[0]?.url) {
-      images.lastFrame = { url: (lastFrameResult.images as unknown as Array<{ url: string }>)[0].url }
+    if (lastFrameResult.success && lastFrameResult.images?.default?.url) {
+      images.lastFrame = { url: lastFrameResult.images.default.url }
     }
     
     // 至少要有一个成功
@@ -416,17 +459,25 @@ async function generateSingleStoryboard(
         }
       }
       
-      return { 
-        success: true, 
+      return {
+        success: true,
         images,
-        requestId: firstFrameResult.requestId || lastFrameResult.requestId
+        requestId: firstFrameResult.requestId || lastFrameResult.requestId,
+        provider: firstFrameResult.provider ?? lastFrameResult.provider ?? 'kieai',
+        model: firstFrameResult.model ?? lastFrameResult.model ?? 'nano-banana-2',
+        fallbackApplied: firstFrameResult.fallbackApplied || lastFrameResult.fallbackApplied,
+        localError: [firstFrameResult.localError, lastFrameResult.localError].filter(Boolean).join(' | ') || undefined,
       }
     }
-    
+
     // 两个都失败
-    return { 
-      success: false, 
-      error: firstFrameResult.error || lastFrameResult.error || 'Failed to generate frames'
+    return {
+      success: false,
+      error: firstFrameResult.error || lastFrameResult.error || 'Failed to generate frames',
+      provider: firstFrameResult.provider ?? lastFrameResult.provider ?? 'kieai',
+      model: firstFrameResult.model ?? lastFrameResult.model ?? 'nano-banana-2',
+      fallbackApplied: firstFrameResult.fallbackApplied || lastFrameResult.fallbackApplied,
+      localError: [firstFrameResult.localError, lastFrameResult.localError].filter(Boolean).join(' | ') || undefined,
     }
   }
   
@@ -451,11 +502,19 @@ async function generateSingleStoryboard(
       images: {
         default: (result.images as { default?: { url: string } }).default ?? { url: '' } // 兼容模式：使用 default 作为默认图片
       },
-      requestId: result.requestId
+      requestId: result.requestId,
+      provider: result.provider ?? 'kieai',
+      model: result.model ?? 'nano-banana-2',
+      fallbackApplied: result.fallbackApplied,
+      localError: result.localError,
     }
   }
-  
-  return result
+
+  return {
+    ...result,
+    provider: result.provider ?? 'kieai',
+    model: result.model ?? 'nano-banana-2',
+  }
 }
 
 /**
@@ -481,6 +540,10 @@ async function generateSingleStoryboardOriginal(
   }
   requestId?: string
   error?: string
+  provider?: string
+  model?: string
+  fallbackApplied?: boolean
+  localError?: string
 }> {
   if (!storyboardPrompt || !storyboardPrompt.trim()) {
     return { success: false, error: "Prompt is required" }
@@ -490,6 +553,46 @@ async function generateSingleStoryboardOriginal(
   if (!['16:9', '9:16'].includes(aspectRatio)) {
     return { success: false, error: "aspectRatio 只支持 '16:9' 或 '9:16'" }
   }
+
+  // ── 生效模型路由（ADR-0001）：纯文生图才走自建（带参考图/角色图的 img2img 保留云端）；webhook 模式语义不适用自建 ──
+  const skipLocal = !!(webhookUrl || WEBHOOK_URL) || !!referenceImage || (Array.isArray(characterImages) && characterImages.length > 0)
+  const localAttempt = await attemptLocalImages(storyboardPrompt, { skip: skipLocal })
+  if (localAttempt.status === 'ok') {
+    // 同步完成：落 *_local 任务行（补偿任务按未知 taskType 跳过）+ 直接扣点（对齐本函数轮询模式语义）
+    const localTaskId = uuidv4()
+    if (userId) {
+      try {
+        await db.insert(aiGenerationTasks).values({
+          id: uuidv4(),
+          taskId: localTaskId,
+          userId: userId,
+          taskType: 'generate_storyboard_local',
+          model: localAttempt.model,
+          pointsAmount: computeImagePoints(1),
+          pointsDeducted: true,
+          status: 'success',
+          projectId: projectId || null,
+          versionId: versionId || null,
+          itemId: itemId || null,
+          versionGroupId: versionGroupId || null,
+          newVersionId: null,
+        })
+        await deductPoints(userId, computeImagePoints(1), undefined, PointsAction.GENERATE_STORYBOARD)
+        console.log('[generate-storyboard-image] 自建链路：生成成功并扣除1积分')
+      } catch (localAccountingError) {
+        console.error('[generate-storyboard-image] 自建链路落账失败（不影响返回）:', localAccountingError)
+      }
+    }
+    return {
+      success: true,
+      images: { default: localAttempt.images[0] },
+      requestId: localTaskId,
+      provider: 'local',
+      model: localAttempt.model,
+      fallbackApplied: false,
+    }
+  }
+  const localError = localAttempt.status === 'failed' ? localAttempt.localError : undefined
 
   // 构建 Kie.ai API 请求体
   const kieRequestBody: KieRequestBody = {
@@ -617,7 +720,7 @@ async function generateSingleStoryboardOriginal(
               const resultData = JSON.parse(taskData.resultJson)
               taskResult = resultData
               break
-            } catch (parseError) {
+            } catch {
               return { success: false, error: "Invalid result format" }
             }
           } else if (taskData.state === 'fail') {
@@ -635,14 +738,14 @@ async function generateSingleStoryboardOriginal(
   }
 
   if (!taskResult) {
-    return { success: false, error: "AI generation timeout" }
+    return { success: false, error: "AI generation timeout", fallbackApplied: !!localError, localError }
   }
 
   const resultUrls = taskResult.resultUrls || []
   const images = resultUrls.length > 0 ? { default: { url: resultUrls[0] } } : undefined
 
   if (!images) {
-    return { success: false, error: "No images generated" }
+    return { success: false, error: "No images generated", fallbackApplied: !!localError, localError }
   }
 
   // 轮询模式：任务已完成，立即扣除积分
@@ -671,7 +774,7 @@ async function generateSingleStoryboardOriginal(
     }
   }
 
-  return { success: true, images, requestId: taskId }
+  return { success: true, images, requestId: taskId, provider: 'kieai', model: 'nano-banana-2', fallbackApplied: !!localError, localError }
 }
 
 export async function POST(request: NextRequest) {
@@ -775,7 +878,7 @@ export async function POST(request: NextRequest) {
           { firstFramePrompt, lastFramePrompt, referenceImage }
         )
 
-        trackFunnelEvent({ stage: 'storyboard', userId: session.user.id, projectId: body.projectId ?? null, success: result.success, provider: 'kieai', model: 'nano-banana-2', taskId: result.requestId, error: result.error })
+        trackFunnelEvent({ stage: 'storyboard', userId: session.user.id, projectId: body.projectId ?? null, success: result.success, provider: result.provider ?? 'kieai', model: result.model ?? 'nano-banana-2', fallbackApplied: result.fallbackApplied ?? false, taskId: result.requestId, error: [result.localError, result.error].filter(Boolean).join(' | ') || undefined })
 
         if (result.success) {
           console.log('[generate-storyboard-image] scene generated:', { 
@@ -847,7 +950,7 @@ export async function POST(request: NextRequest) {
       { firstFramePrompt, lastFramePrompt, regenerateFrameType, referenceImage }
     )
 
-    trackFunnelEvent({ stage: 'storyboard', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: 'kieai', model: 'nano-banana-2', taskId: result.requestId, error: result.error })
+    trackFunnelEvent({ stage: 'storyboard', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: result.provider ?? 'kieai', model: result.model ?? 'nano-banana-2', fallbackApplied: result.fallbackApplied ?? false, taskId: result.requestId, error: [result.localError, result.error].filter(Boolean).join(' | ') || undefined })
 
     if (!result.success) {
       console.error('[generate-storyboard-image] generation failed:', { error: result.error })

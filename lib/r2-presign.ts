@@ -14,7 +14,8 @@ const DEFAULT_EXPIRES_SEC = 300
 
 let s3Client: S3Client | null = null
 
-function getS3Client(): S3Client {
+/** R2 S3 客户端（r2-upload 与预签名共用；WHEN_REQUIRED 校验为 R2 签名兼容所需） */
+export function getS3Client(): S3Client {
   if (!s3Client) {
     s3Client = new S3Client({
       region: process.env.R2_REGION || 'auto',
