@@ -9,6 +9,8 @@ import type { Capability, RouteEntry } from './types'
 export function getStaticDefaultRoutes(): Record<Capability, RouteEntry[]> {
   return {
     script: [{ provider: 'zenmux', modelKey: 'google/gemini-3-flash-preview', priority: 0 }],
+    // 分镜剧情文本（ADR-0001 新增 capability；云端默认与路由表 script seed 同源）
+    storyboard_text: [{ provider: 'zenmux', modelKey: 'google/gemini-3-flash-preview', priority: 0 }],
     image: [{ provider: 'kieai', modelKey: 'nano-banana-2', priority: 0 }],
     // video 的模型级选择（veo3_lite/seedance 等）由调用方经 lib/video-pricing 决定，
     // 路由表只决定供应商级 primary/降级

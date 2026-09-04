@@ -512,12 +512,12 @@ export const providerRoutes = pgTable('provider_routes', {
   capRegionIdx: index('provider_routes_cap_region').on(table.capability, table.region),
 }))
 
-// ========== 自建端点（ADR-0001，一期 capability 限 script/image，视频二期）==========
+// ========== 自建端点（ADR-0001，一期 capability 限 script/storyboard_text/image，视频二期）==========
 // protocol: openai-chat | openai-images；baseUrl 约定包含到 /v1（如 http://dgx:8000/v1）。
 // apiKey 仅服务端持有——任何 API 响应只允许掩码（末 4 位），admin 敏感列泄漏前科的教训。
 export const selfHostedEndpoints = pgTable('self_hosted_endpoints', {
   id: text('id').primaryKey(),
-  capability: text('capability').notNull(),          // script | image
+  capability: text('capability').notNull(),          // script | storyboard_text | image
   protocol: text('protocol').notNull(),              // openai-chat | openai-images
   baseUrl: text('baseUrl').notNull(),
   apiKey: text('apiKey').notNull(),

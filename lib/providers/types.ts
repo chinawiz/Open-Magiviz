@@ -3,12 +3,13 @@
  *
  * 设计原则（承接系统设计 §3.2.M2 与 2026-08-24 修正）：
  * - 进程内模块边界，不暴露 /internal HTTP 端点；
- * - capability 四分：script / image / video / compose；
+ * - capability：script（剧本）/ storyboard_text（分镜剧情文本）/ image / video / compose；
+ *   storyboard_text 为自建接入（ADR-0001）新增的文本细分——剧本与分镜可指向不同自建端点；
  * - 供应商侧差异（端点、响应形状）收敛在 provider 实现内，调用方只认
  *   capability / taskType / 归一化的 PollResult。
  */
 
-export type Capability = 'script' | 'image' | 'video' | 'compose'
+export type Capability = 'script' | 'storyboard_text' | 'image' | 'video' | 'compose'
 
 export type ProviderId = 'kieai' | 'zenmux' | 'fal' | 'local'
 

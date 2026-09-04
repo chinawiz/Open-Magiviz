@@ -6,6 +6,9 @@ import { db } from '@/lib/db'
 import { projectData } from '@/lib/schema'
 import { eq, desc } from 'drizzle-orm'
 import { ZENMUX_API_URL } from '@/lib/llm'
+import { resolveActiveRoutes } from '@/lib/providers/router'
+import { localChatCompletion } from '@/lib/providers/local'
+import { pickLocalEntry, toEndpointConfig, normalizeLocalError } from '@/lib/providers/chat-active'
 import type { StoryGenerationResult, SceneDataItem } from '@/lib/ai-types'
 
 /**
@@ -49,7 +52,6 @@ async function analyzeUserImages(
   model: string
 ): Promise<Array<{ index: number; url: string; type: string; desc: string }>> {
   const zenMuxUrl = ZENMUX_API_URL
-  const results: Array<{ index: number; url: string; type: string; desc: string }> = []
 
   // 并行调用 Gemini 视觉模型识别每张图片
   const tasks = imageUrls.map(async (url, index) => {
@@ -145,10 +147,8 @@ export async function POST(request: NextRequest) {
 
     trackFunnelEvent({ stage: 'idea', userId: session.user.id, projectId: body.projectId ?? null })
 
-    const apiKey = process.env.ZENMUX_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({ error: 'ZenMux API key not configured (ZENMUX_API_KEY)' }, { status: 500 })
-    }
+    // 云端凭据仅在云端路径需要；自建端点生效时不强依赖（ADR-0001：云端回退仍需它）
+    const cloudApiKey = process.env.ZENMUX_API_KEY
 
     // 保持重构前行为：本路由使用专属模型，不随 lib/llm.ts 的 DEFAULT_MODEL 变更
     const model = 'google/gemini-3.5-flash'
@@ -163,11 +163,12 @@ export async function POST(request: NextRequest) {
       : []
 
     // 识别结果：[{ index, url, type: 'character' | 'scene' | 'unknown', desc }]
+    // 视觉识别保留云端（自建文本模型普遍无视觉能力），无云端凭据时跳过不阻塞主生成
     let imageAnalysis: Array<{ index: number; url: string; type: string; desc: string }> = []
 
-    if (userImages.length > 0) {
+    if (userImages.length > 0 && cloudApiKey) {
       try {
-        imageAnalysis = await analyzeUserImages(userImages, apiKey, model)
+        imageAnalysis = await analyzeUserImages(userImages, cloudApiKey, model)
         console.log('[generate-story-details] 用户图片识别结果:', imageAnalysis)
       } catch (e) {
         console.error('[generate-story-details] 用户图片识别失败（继续生成剧情）:', e)
@@ -320,9 +321,7 @@ export async function POST(request: NextRequest) {
 - Design enough scenes so the total duration approaches the target. Use varied scene lengths naturally to match narrative pacing.`
 
     // 构建 chat completion 请求体（ZenMux 兼容 OpenAI Chat 接口）
-    const payload = {
-      model,
-      messages: [
+    const scriptMessages: Array<{ role: 'system' | 'user'; content: string }> = [
         {
           role: 'system',
           content: `You are an assistant that expands a short creative prompt into detailed, structured story information used to drive downstream generation (high-fidelity storyboard images, image-to-video scene generation, and character assets).
@@ -531,42 +530,87 @@ Assignment rules (IMPORTANT):
 
 Output format: include "userImageUrl" field at the top level of each character or scene object that should be regenerated using the user image as a reference.`
   : ''}` }
-      ],
+    ]
+    const payload = {
+      model,
+      messages: scriptMessages,
       max_tokens: maxTokens,
-      temperature
+      temperature,
     }
 
-    // Use ZenMux API - OpenAI-compatible endpoint
-    const zenMuxUrl = ZENMUX_API_URL
+    // ── 生效模型路由（ADR-0001）：自建端点排首，失败/超时自动回退云端 ──
+    const activeRoutes = await resolveActiveRoutes('script')
+    const localEntry = pickLocalEntry(activeRoutes)
 
-    // 直接使用 ZenMux HTTP 接口
-    const headers = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
-    }
-
-    const doRequest = async (tokens: number) => {
-      const bodyPayload = { ...payload, max_tokens: tokens }
-      const r = await fetch(zenMuxUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(bodyPayload)
-      })
-      const j = await r.json()
-      return { res: r, json: j }
-    }
-
-    // 第一次请求使用传入的 maxTokens
     const scriptStartedAt = Date.now()
-    const { res, json: respJson } = await doRequest(maxTokens)
+    let provider = 'zenmux'
+    let fallbackApplied = false
+    let localError: string | undefined
 
-    if (!res.ok) {
-      console.error('ZenMux error:', respJson)
-      trackFunnelEvent({ stage: 'script', userId: session.user.id, projectId: body.projectId ?? null, success: false, durationMs: Date.now() - scriptStartedAt, provider: 'zenmux', model, error: JSON.stringify(respJson).slice(0, 200) })
-      return NextResponse.json({ error: 'ZenMux request failed', details: respJson }, { status: 502 })
+    type ChatJson = {
+      choices?: Array<{ message?: { content?: unknown }; text?: unknown }>
+      output?: unknown
+    }
+    // 两个路径必有一条赋值（local 成功 / 云端成功或提前 return）；空对象初始化仅为定赋值分析兜底
+    let respJson: ChatJson = {}
+
+    if (localEntry) {
+      try {
+        const content = await localChatCompletion(toEndpointConfig(localEntry), {
+          messages: scriptMessages,
+          maxTokens,
+          temperature,
+        })
+        provider = 'local'
+        respJson = { choices: [{ message: { content } }] }
+      } catch (err) {
+        localError = normalizeLocalError(err)
+        console.error('[generate-story-details] 自建端点失败，回退云端:', localError)
+        fallbackApplied = true
+      }
     }
 
-    // 不再进行基于 max_tokens 的重试，使用首次返回结果
+    if (provider !== 'local') {
+      // 云端路径（保持重构前行为：直接 ZenMux HTTP，raw 透传给客户端）
+      if (!cloudApiKey) {
+        return NextResponse.json({ error: 'ZenMux API key not configured (ZENMUX_API_KEY)' }, { status: 500 })
+      }
+
+      const zenMuxUrl = ZENMUX_API_URL
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cloudApiKey}`,
+      }
+      const doRequest = async (tokens: number) => {
+        const bodyPayload = { ...payload, max_tokens: tokens }
+        const r = await fetch(zenMuxUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(bodyPayload),
+        })
+        const j = await r.json()
+        return { res: r, json: j as ChatJson }
+      }
+
+      // 第一次请求使用传入的 maxTokens；不做基于 max_tokens 的重试，使用首次返回结果
+      const attempt = await doRequest(maxTokens)
+      if (!attempt.res.ok) {
+        console.error('ZenMux error:', attempt.json)
+        trackFunnelEvent({
+          stage: 'script',
+          userId: session.user.id,
+          projectId: body.projectId ?? null,
+          success: false,
+          durationMs: Date.now() - scriptStartedAt,
+          provider: 'zenmux',
+          model,
+          fallbackApplied,
+          error: [localError, JSON.stringify(attempt.json).slice(0, 200)].filter(Boolean).join(' | '),
+        })
+        return NextResponse.json({ error: 'ZenMux request failed', details: attempt.json }, { status: 502 })
+      }
+      respJson = attempt.json
+    }
 
     // 尝试从响应中提取文本（兼容不同返回结构），并解析为 JSON 数据
     let generatedText: string | null = null
@@ -589,7 +633,7 @@ Output format: include "userImageUrl" field at the top level of each character o
       const cleaned = generatedText.trim().replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
       try {
         parsedData = JSON.parse(cleaned)
-      } catch (e) {
+      } catch {
         // 解析失败，回退为原始文本（后续会再次尝试解析）
         parsedData = cleaned as unknown as StoryGenerationResult
       }
@@ -602,7 +646,7 @@ Output format: include "userImageUrl" field at the top level of each character o
     if (typeof parsedData === 'string') {
       try {
         parsedData = JSON.parse(parsedData)
-      } catch (e) {
+      } catch {
         // leave as string
       }
     }
@@ -830,7 +874,8 @@ Output format: include "userImageUrl" field at the top level of each character o
       }
     }
 
-    trackFunnelEvent({ stage: 'script', userId: session.user.id, projectId: body.projectId ?? null, success: true, durationMs: Date.now() - scriptStartedAt, provider: 'zenmux', model })
+    const modelUsed = provider === 'local' ? localEntry?.endpoint?.modelId ?? model : model
+    trackFunnelEvent({ stage: 'script', userId: session.user.id, projectId: body.projectId ?? null, success: true, durationMs: Date.now() - scriptStartedAt, provider, model: modelUsed, fallbackApplied, error: localError })
 
     // 返回与 /api/video/generate-workflow 模拟格式一致的结构，便于前端统一解析
     return NextResponse.json({

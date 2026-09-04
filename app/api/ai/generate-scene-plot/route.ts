@@ -1,8 +1,12 @@
 import { getAuthedSession, jsonError, jsonOk } from '@/lib/api'
 import { callChatCompletion, parseJsonFromContent, LLMError } from '@/lib/llm'
+import { callChatCompletionActive, type RoutedChatResult, type RoutedMetaCarrier } from '@/lib/providers/chat-active'
+import { trackFunnelEvent } from '@/lib/observability/track'
 
 // ── 常量配置 ───────────────────────────────────────────────
 const MODEL = 'google/gemini-3-flash-preview'
+const SYSTEM_HINT =
+  'You are a creative story assistant. Always respond with valid JSON only. If you cannot generate JSON, return an object with an "error" field.'
 const DEFAULT_ASPECT_RATIO = '16:9'
 const DEFAULT_DURATION = 5
 const LOG_PREFIX = '[generate-scene-plot]'
@@ -150,18 +154,31 @@ export async function POST(request: Request) {
       history,
     })
 
-    // 3. 调用模型
-    let content: string
+    // 3. 调用模型（生效模型路由 ADR-0001：自建端点排首，失败/超时自动回退云端）
+    const startedAt = Date.now()
+    let routed: RoutedChatResult
     try {
-      content = await callChatCompletion({
-        model: MODEL,
-        system:
-          'You are a creative story assistant. Always respond with valid JSON only. If you cannot generate JSON, return an object with an "error" field.',
-        user: prompt,
+      routed = await callChatCompletionActive({
+        capability: 'storyboard_text',
+        cloudProvider: 'zenmux',
+        cloudModel: MODEL,
+        input: { system: SYSTEM_HINT, user: prompt },
+        callCloud: () => callChatCompletion({ model: MODEL, system: SYSTEM_HINT, user: prompt }),
       })
     } catch (apiError) {
       if (apiError instanceof LLMError) {
+        const meta = (apiError as unknown as RoutedMetaCarrier).routedMeta
         console.error(`${LOG_PREFIX} ZenMux API error:`, apiError.details ?? apiError.message)
+        trackFunnelEvent({
+          stage: 'storyboard',
+          userId: session.user.id,
+          success: false,
+          durationMs: Date.now() - startedAt,
+          provider: 'zenmux',
+          model: MODEL,
+          fallbackApplied: meta?.fallbackApplied ?? false,
+          error: [meta?.localError, String(apiError.details ?? apiError.message).slice(0, 200)].filter(Boolean).join(' | '),
+        })
         return jsonError(
           apiError.status,
           apiError.message,
@@ -170,6 +187,32 @@ export async function POST(request: Request) {
       }
       throw apiError
     }
+
+    const content: string = routed.content
+    if (!content) {
+      trackFunnelEvent({
+        stage: 'storyboard',
+        userId: session.user.id,
+        success: false,
+        durationMs: Date.now() - startedAt,
+        provider: routed.provider,
+        model: routed.model,
+        fallbackApplied: routed.fallbackApplied,
+        error: routed.localError ?? 'empty content',
+      })
+      return jsonError(500, 'Invalid response from AI service')
+    }
+
+    trackFunnelEvent({
+      stage: 'storyboard',
+      userId: session.user.id,
+      success: true,
+      durationMs: Date.now() - startedAt,
+      provider: routed.provider,
+      model: routed.model,
+      fallbackApplied: routed.fallbackApplied,
+      error: routed.localError,
+    })
 
     if (!content) {
       return jsonError(500, 'Invalid response from AI service')

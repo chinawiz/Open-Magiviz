@@ -1,4 +1,5 @@
--- 自建端点（ADR-0001）：一期 capability 限 script/image（文本两步 + 图像走 OpenAI 兼容统一契约），视频二期。
+-- 自建端点（ADR-0001）：一期 capability 限 script/storyboard_text/image（文本两步+图像走 OpenAI 兼容统一契约），视频二期。
+-- storyboard_text 为分镜剧情文本的独立配置位——剧本与分镜可指向不同自建端点。
 -- endpoint 启用行是「该 capability 自建生效」的唯一事实源；provider_routes 的 region='local'
 -- 行由 lib/providers/endpoints.ts 的 sync 函数联动维护（本迁移不 seed 端点）。
 -- baseUrl 约定包含到 /v1（如 http://dgx:8000/v1）。

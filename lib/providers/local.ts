@@ -31,9 +31,16 @@ export interface LocalEndpointConfig {
   timeoutMs: number
 }
 
+export interface LocalChatMessage {
+  role: 'system' | 'user'
+  content: string
+}
+
 export interface LocalChatInput {
   system?: string
-  user: string
+  user?: string
+  /** 完整消息形态（OpenAI 兼容 messages 的文本子集）；提供时忽略 system/user 单槽 */
+  messages?: LocalChatMessage[]
   maxTokens?: number
   temperature?: number
 }
@@ -83,6 +90,15 @@ export async function localChatCompletion(
   fetchImpl: FetchLike = fetch,
 ): Promise<string> {
   const url = `${normalizeBaseUrl(endpoint.baseUrl)}/chat/completions`
+  const messages =
+    input.messages ??
+    [
+      ...(input.system ? [{ role: 'system' as const, content: input.system }] : []),
+      ...(input.user ? [{ role: 'user' as const, content: input.user }] : []),
+    ]
+  if (messages.length === 0) {
+    throw new LocalProviderError('shape', 'localChatCompletion 需要至少一条消息（system/user/messages）')
+  }
   const res = await fetchWithTimeout(
     fetchImpl,
     url,
@@ -91,10 +107,7 @@ export async function localChatCompletion(
       headers: authHeaders(endpoint.apiKey),
       body: JSON.stringify({
         model: endpoint.modelId,
-        messages: [
-          ...(input.system ? [{ role: 'system', content: input.system }] : []),
-          { role: 'user', content: input.user },
-        ],
+        messages,
         max_tokens: input.maxTokens ?? DEFAULT_MAX_TOKENS,
         temperature: input.temperature ?? DEFAULT_TEMPERATURE,
       }),

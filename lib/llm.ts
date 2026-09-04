@@ -33,6 +33,8 @@ export interface ChatCompletionOptions {
   temperature?: number
   /** 允许覆盖默认 API Key（测试/多租户场景） */
   apiKey?: string
+  /** 允许覆盖默认端点（自建路由测试/兼容网关场景）；缺省 ZenMux */
+  baseUrl?: string
 }
 
 /** 调用 ZenMux 聊天补全接口，返回首个 message 的文本内容 */
@@ -52,7 +54,7 @@ export async function callChatCompletion(opts: ChatCompletionOptions): Promise<s
     temperature: opts.temperature ?? DEFAULT_TEMPERATURE,
   }
 
-  const response = await fetch(ZENMUX_API_URL, {
+  const response = await fetch(opts.baseUrl ?? ZENMUX_API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
