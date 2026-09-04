@@ -512,6 +512,30 @@ export const providerRoutes = pgTable('provider_routes', {
   capRegionIdx: index('provider_routes_cap_region').on(table.capability, table.region),
 }))
 
+// ========== 自建端点（ADR-0001，一期 capability 限 script/image，视频二期）==========
+// protocol: openai-chat | openai-images；baseUrl 约定包含到 /v1（如 http://dgx:8000/v1）。
+// apiKey 仅服务端持有——任何 API 响应只允许掩码（末 4 位），admin 敏感列泄漏前科的教训。
+export const selfHostedEndpoints = pgTable('self_hosted_endpoints', {
+  id: text('id').primaryKey(),
+  capability: text('capability').notNull(),          // script | image
+  protocol: text('protocol').notNull(),              // openai-chat | openai-images
+  baseUrl: text('baseUrl').notNull(),
+  apiKey: text('apiKey').notNull(),
+  modelId: text('modelId').notNull(),
+  timeoutMs: integer('timeoutMs').notNull().default(60000),
+  enabled: boolean('enabled').notNull().default(true),
+  lastTestAt: timestamp('lastTestAt', { mode: 'date' }),
+  lastTestOk: boolean('lastTestOk'),
+  note: text('note'),
+  createdAt: timestamp('createdAt', { mode: 'date' }).defaultNow(),
+  updatedAt: timestamp('updatedAt', { mode: 'date' }).defaultNow(),
+}, (table) => ({
+  // 每 capability 至多一条启用端点：全量切、与路由 local 行一对一的语义由唯一部分索引兜底
+  capEnabledUnique: uniqueIndex('self_hosted_endpoints_cap_enabled')
+    .on(table.capability)
+    .where(sql`enabled = true`),
+}))
+
 // ========== N1 漏斗埋点 ==========
 // 创意→成片六阶段事件（lib/observability/track.ts 写入）：
 // 支撑 V1 降级成功率（provider/model/fallbackApplied）与 V4 漏斗转化度量。

@@ -42,3 +42,6 @@ poc/output/
 .wrangler
 .dev.vars*
 !.dev.vars.example
+
+# agent 工单（本地 issue tracker，见 docs/agents/issue-tracker.md，不推送）
+.scratch/

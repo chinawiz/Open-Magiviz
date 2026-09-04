@@ -6,8 +6,8 @@
 
 export const ZENMUX_API_URL = 'https://zenmux.ai/api/v1/chat/completions'
 export const DEFAULT_MODEL = 'google/gemini-3-flash-preview'
-const DEFAULT_MAX_TOKENS = 4096
-const DEFAULT_TEMPERATURE = 0.7
+export const DEFAULT_MAX_TOKENS = 4096
+export const DEFAULT_TEMPERATURE = 0.7
 
 /** 模型调用失败时的统一错误类型，携带 HTTP 状态与原始错误文本 */
 export class LLMError extends Error {
