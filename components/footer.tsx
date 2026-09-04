@@ -217,14 +217,12 @@ export function Footer() {
             <p className="text-muted-foreground text-sm">
               © {currentYear} {t("copyright")}
             </p>
-            {/* Creem 审核（清单第 8 项）：支持邮箱必须展示在公开网站上 */}
             <a
               href="mailto:support@mhhao.com"
               className="text-muted-foreground text-sm hover:text-primary transition-colors"
             >
               support@mhhao.com
             </a>
-            {/* Creem 审核（2026-09-02 要求邮件）：Privacy/Terms 链接必须在公开 UI 可见 */}
             <Link href={getLocalizedPath("/terms")} className="text-muted-foreground text-sm hover:text-primary transition-colors">
               {t("legal.terms")}
             </Link>

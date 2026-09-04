@@ -9,6 +9,12 @@
 - 复活路径（需求变化才启用）：升级 CF Workers Paid → 重跑 `cf-deploy.yml`。此前不必重议。
 - 供应商出清要连带 SDK 出清：换掉/弃用供应商时，`package.json` 里的 SDK 是化石高发区——2026-08-28 依赖审计一次性卸下 33 个零引用包（tencentcloud-sdk、cos-nodejs-sdk-v5、openai、ws/postgres、15 个 radix、8 个 shadcn 生态件等，全是历史 POC/模板遗产）。注意区分两件事：**FAL 是"账号保留、SDK 继续用"**（`@fal-ai/client` 仍是 compose 的回退路径），不能看记忆里的"移出 active set"就删 SDK；反过来 SDK 零 import 也不代表供应商决策变了。判据只有一条：全仓精确 import 图谱。
 
+## 支付通道与 MoR 选型（2026-09）
+
+- **Creem 终拒（2026-09-04，不可申诉）**：2026-09-02 返修 6 项（页脚法务链接、support 邮箱统一、ToS NSFW 禁令、Moderation API 强制集成、店名对齐 MeiHao）全部落地上线后复审，仍被判「unacceptable level of risk」终拒；「established 产品流水证明」一项以诚实回信 + 主动风控缓解（rolling reserve/低额度/长放款期）回应，未救回。
+- 可迁移教训：**MoR 风控的裁决变量是「主体画像」，不是「合规整改」**。AIGC 品类欺诈高发 + 零流水新店 + 大陆个人主体（Alipay KYC）构成高风险画像；页脚、条款、审核集成这类整改只影响内容合规维度，对主体风险维度权重≈0。正确顺序是**先用最小提交探「主体资格」这道存在性门槛，确认能过再投入技术整改**——本次反了：先做完 5 项整改 + 1 次全量审核集成，才撞上终拒。
+- 去路（2026-09-04 状态）：repo checkout 本就是 Stripe（`app/api/stripe/`，含验卡 setup 模式），切轨道几乎零代码，但无真实 Stripe 账号（占位 key，Stripe 不收大陆个人）。主路径 = 注册港主体 → 港银行账户 → Stripe HK（确定性最高，2–4 周）；Paddle/Lemon Squeezy/Polar 同为 MoR，对同款画像大概率同判，可零成本并行申请但不作指望。
+
 ## 免费层硬事实（2026-08-26/27 核实）
 
 - Supabase 免费项目**闲置 7 天自动暂停**——作为唯一平台直接出局。
@@ -33,7 +39,7 @@
 - `.env.local` 里 key 带着引号粘贴会导致 401/403——出现过两次的用户习惯性坑，录入 key 时留意 strip 引号。
 - **Kie 同一端点按模型返回不同响应形状**（2026-09-02 实证，`kie.ts`）：`jobs/get` 多数模型返回 `taskStatus`/`result.resultUrls`，但 MiniMax H3 返回 Veo 式 `successFlag`/`response.videoUrl`——补偿任务最初按 taskStatus 解析，读不到 minimax 终态，只能等 24h 僵尸关闭；HappyHorse 还会返回 `completed` 状态与单值 `result.videoUrl`。归一层要按「响应字段存在性」分支，不能按端点假设形状。
 - **Kie 分辨率档位按模型而异**（2026-09-02 官方文档口径）：360P 无任何模型提供；Seedance 系（2.5/2/2-fast/2-mini）最低 **480p**（2.5 另有 1080p）；Veo 系/Wan 2.7/HappyHorse 1.1 为 720p/1080p；Kling 3.0 分辨率跟模式走（std=720p/pro=1080p）；MiniMax H3 为 768p/1080p；GeminiOmni 固定 1080p。Veo 有官方 **get-1080p-video / get-4k-video 升级端点**（对已生成视频做真超分）。我们的两维定价实现：`lib/video-pricing.ts` getVideoUnitPointsFor（720p=现行默认价，480p=0.6×，1080p=≥像素比 2.25×成本底线，estimated 待账单校准可下调）+ submit 注册表 supportedResolutions + 合成输出跟随档位（不再一律假放大 1080p）。
-- **Creem Moderation API 是 AI 图像/视频产品的过审强制项**（2026-09-02 集成，`lib/content-moderation.ts`）：`POST {base}/v1/moderation/prompt`，`x-api-key` 头，同步返回 `decision: allow|flag|deny`。三条硬规则：**flag 必须与 deny 同待遇拦截**；**超时/5xx/生产缺 key 一律 fail-closed（fail-open 视为政策违规）**；只审用户自由文本、别把模板塞进去。计费 $0.30/千 units（1 unit=1000 字符，近期重复 prompt 缓存 0 units）。我们的口径：5 个 prompt 入口全挂（story-details/scene-plot/character/storyboard/story-video，单发+批量双路径）；生产缺 key fail-closed、非生产放行告警；sandbox 阶段用 `CREEM_MODERATION_API_BASE=https://test-api.creem.io` + test key。上线 checklist：每条生成路径都过审核、deny/flag 拦截实测、故障演练、生产 key 确认。
+- **Creem Moderation API（2026-09-02 集成 → 2026-09-04 随终拒整体出清；考古走 git log -- lib/content-moderation.ts）**：曾以 fail-closed 前置闸挂在全部 5 个 prompt 生成入口（flag=deny 同待遇、超时/5xx/缺 key 拒绝生成），2026-09-04 随 Creem 出局连同 7 处接线一并删除，内容安全政策执法回到 ToS NSFW 禁令 + 上游供应商（Kie/Veo）自带过滤。可迁移教训保留：**为供应商过审而接入的该供应商私有服务，过审失败即从「加分项」变成「人质」**——fail-closed 语义下 key 被禁 = 生成全断，且越「合规」的集成绑得越死。未来若新支付方再要求内容审核，重建时选平台无关实现（如 OpenAI moderation 免费接口），不绑任何单一 MoR 的私有 API。
 - 各模型 webhook 优先级历史上不一致（Kling/Seedance/Wan 环境变量优先；minimaxH3/geminiOmni/happyHorse 调用方优先）——生产客户端从不传 webhookUrl，行为等价；2026-09-02 统一为**环境变量优先**（`lib/providers/submit.ts`），happyHorse 保留 `NEXT_PUBLIC_APP_URL` self-URL 兜底（带 projectId 场景定位参数）。
 
 ## 密钥与安全卫生（流程，不是一次性事实）
