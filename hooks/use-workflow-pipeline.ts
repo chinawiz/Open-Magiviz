@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast"
 import { validateSeedanceMedia } from "@/components/operate/seedance-media"
 import { MEDIA_COMPATIBLE_VIDEO_MODELS } from "@/lib/providers/video-models"
 import { tryParsePossiblyMalformedJson } from "@/lib/json-parse"
+import { buildUiScriptData, pickSceneCharacterImages } from "@/lib/script-mapper"
 import type {
   WorkflowGenerationDeps,
 } from "@/hooks/use-workflow-generation-deps"
@@ -275,67 +276,7 @@ export function useWorkflowPipeline(deps: WorkflowPipelineDeps) {
       }
 
       // 将解析后的数据映射到 UI 所需结构，并填充到相应区域（剧情、主角、分镜等）
-      const mapToUiScriptData = (data: any) => {
-        console.log('[mapToUiScriptData] 原始数据中的 scenes:', data?.scenes?.map((s: any) => ({
-          id: s.id,
-          duration: s.duration,
-          seconds: s.seconds
-        })))
-        
-        const scenes = Array.isArray(data.scenes) ? data.scenes.map((s: any, idx: number) => {
-          const sceneDuration = Number(s.duration ?? s.seconds ?? 5)
-          return {
-            id: s.id ?? idx + 1,
-            title: s.title ?? t("scriptTitleDefault", { index: idx + 1 }),
-            plot: s.description ?? s.plot ?? s.plotText ?? '',
-            duration: sceneDuration,
-            aspectRatio: s.aspectRatio ?? data.aspectRatio ?? aspectRatio,
-            storyboardPrompt: s.storyboardPrompt ?? '',
-            sceneVideoPrompt: s.sceneVideoPrompt ?? '',
-            visualElements: Array.isArray(s.visualElements) ? s.visualElements : (s.visuals ? s.visuals : []),
-            characterIds: Array.isArray(s.characterIds) ? s.characterIds : [],
-            storyboardCharacterImages: Array.isArray(s.storyboardCharacterImages) ? s.storyboardCharacterImages : [],
-            firstFramePrompt: s.firstFramePrompt ?? s.first_framePrompt ?? '',
-            lastFramePrompt: s.lastFramePrompt ?? s.last_framePrompt ?? '',
-          }
-        }) : []
-
-        console.log('[mapToUiScriptData] 解析后的 scenes:', scenes.map((s: any) => ({ id: s.id, duration: s.duration })))
-        
-        const characters = Array.isArray(data.characters) ? data.characters.map((c: any) => {
-          const inferredPrompt = c.generationPrompt ?? c.prompt ?? c.generation_prompt ?? (c.description ? `realistic portrait, mid-shot, soft key light, ${c.description}` : `realistic portrait, mid-shot, soft key light, ${c.name ?? 'character'}`)
-          return {
-            id: c.id ?? String(c.name ?? `char_${Math.random().toString(36).slice(2,8)}`),
-            name: c.name ?? c.id ?? t("characterTitle"),
-            role: c.role ?? c.roleLabel ?? 'protagonist',
-            description: c.description ?? c.desc ?? c.summary ?? '',
-            // provide both generationPrompt and prompt alias so editor and generators can use either
-            generationPrompt: inferredPrompt,
-            prompt: inferredPrompt,
-            imageUrl: c.imageUrl ?? c.image_url ?? '',
-            thumbnailUrl: c.thumbnailUrl ?? c.thumbnail_url ?? '',
-            personality: c.personality ?? '',
-            appearance: c.appearance ?? ''
-          }
-        }) : []
-
-        const title = data.title ?? data.summary ?? ''
-        const aspect = data.aspectRatio ?? aspectRatio
-        const totalDuration = scenes.reduce((sum: number, s: any) => sum + (Number(s.duration) || 0), 0)
-
-        console.log('[mapToUiScriptData] 计算的总时长:', totalDuration, '秒')
-
-        return {
-          title,
-          aspectRatio: aspect,
-          totalDuration,
-          scenes,
-          characters,
-          raw: data
-        }
-      }
-
-      const uiScript = mapToUiScriptData(parsedScriptData)
+      const uiScript = buildUiScriptData(parsedScriptData, aspectRatio, t)
       setScriptData(uiScript)
 
       // 填充主角区域
@@ -395,28 +336,10 @@ export function useWorkflowPipeline(deps: WorkflowPipelineDeps) {
 
         const storyboardPromises = scriptResult.data.scenes.map(async (scene: any, index: number) => {
           // 根据场景的 characterIds 筛选角色，确保只传递该场景实际出现的角色
-          const sceneCharacterIds = (scene.characterIds && scene.characterIds.length > 0) ? scene.characterIds : []
-          console.log(`[handleSend] 分镜图 ${index + 1} - sceneCharacterIds:`, sceneCharacterIds)
-
-          // 使用已生成的 mergedChars 主角数据，而不是依赖 characterData state
-          const mergedCharacterData = mergedChars
-          console.log(`[handleSend] 分镜图 ${index + 1} - mergedCharacterData count:`, mergedCharacterData.length)
-
-          // 只筛选出场景中实际出现的角色，如果没有指定角色则不传递任何主角
-          const relevantCharacters = sceneCharacterIds.length > 0
-            ? mergedCharacterData.filter((char: any) => sceneCharacterIds.includes(char.id))
-            : []
+          const { relevantCharacters, characterImages } = pickSceneCharacterImages(scene, mergedChars)
 
           console.log(`[handleSend] 分镜图 ${index + 1} - relevantCharacters:`, relevantCharacters.map((c: any) => ({ id: c.id, imageUrl: c.imageUrl })))
 
-          // 构建角色图片数组，包含 imageUrl 和 imagePrompt
-          const characterImages = relevantCharacters.length > 0
-            ? relevantCharacters.map((char: any) => ({
-                characterId: char.id,
-                imageUrl: char.imageUrl,
-                imagePrompt: char.generationPrompt || char.prompt || char.description || ''
-              }))
-            : []
 
           console.log(`[handleSend] 分镜图 ${index + 1} - characterImages:`, characterImages)
 

@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl"
 import { useToast } from "@/hooks/use-toast"
 import type { Dispatch, SetStateAction } from "react"
 import { tryParsePossiblyMalformedJson } from "@/lib/json-parse"
+import { buildUiScriptData, pickSceneCharacterImages } from "@/lib/script-mapper"
 import type { CharacterItem, StoryScene, StoryboardItem } from "@/lib/types"
 import type { CharacterImageRef } from "@/lib/types"
 import type {
@@ -339,27 +340,12 @@ export function useRegeneration(deps: RegenerationDeps) {
 
       const storyboardPromises = scriptResult.data.scenes.map(async (scene: any, index: number) => {
         // 根据场景的 characterIds 筛选角色，确保只传递该场景实际出现的角色
-        const sceneCharacterIds = (scene.characterIds && scene.characterIds.length > 0) ? scene.characterIds : []
-        console.log(`[handleRegenerateScript] 分镜图 ${index + 1} - sceneCharacterIds:`, sceneCharacterIds)
-
         // 使用已生成的 finalCharacterData 主角数据
         console.log(`[handleRegenerateScript] 分镜图 ${index + 1} - finalCharacterData count:`, finalCharacterData.length)
 
-        // 只筛选出场景中实际出现的角色，如果没有指定角色则不传递任何主角
-        const relevantCharacters = sceneCharacterIds.length > 0
-          ? finalCharacterData.filter((char: any) => sceneCharacterIds.includes(char.id))
-          : []
+        const { relevantCharacters, characterImages } = pickSceneCharacterImages(scene, finalCharacterData)
 
         console.log(`[handleRegenerateScript] 分镜图 ${index + 1} - relevantCharacters:`, relevantCharacters.map((c: any) => ({ id: c.id, imageUrl: c.imageUrl })))
-
-        // 构建角色图片数组，包含 imageUrl 和 imagePrompt
-        const characterImages = relevantCharacters.length > 0
-          ? relevantCharacters.map((char: any) => ({
-              characterId: char.id,
-              imageUrl: char.imageUrl,
-              imagePrompt: char.generationPrompt || char.prompt || char.description || ''
-            }))
-          : []
 
         console.log(`[handleRegenerateScript] 分镜图 ${index + 1} - characterImages:`, characterImages)
 
