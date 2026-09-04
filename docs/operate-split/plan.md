@@ -122,3 +122,8 @@ T14-T18 五票全部落地,operate.tsx 5,256→**2,117 行**(批次五 −3,139;
 ## 清理票完成(2026-09-04)
 
 孤儿函数 3 个(handleAutoRegenerateAfterSave ~194 行/handleShowRegenerateSingleFrame/handleCharacterImageUrl)、storyboard-saved 死事件派发、getFileSizeExceededMessage/VIDEO_STYLE_MAP/isGeneratingScenePlot 死代码——已全部删除;**resumeVideoSynthesis 经核实有内部调用保留**(立项日误判,领票盘点纪律再次生效)。tryParsePossiblyMalformedJson 落为 lib/json-parse.ts 纯模块+4 用例(军规补课)。operate.tsx 死导入清偿后 **0 warning**。178 tests 全绿。
+
+## 批次6 开工(2026-09-04)
+
+**T19 完工**:剧情编辑注释历史块(219 行)+ 空积分 effect(体全注释)删除,operate.tsx 2,117→**1,852 行、0 warning**。
+**T21a 发现·未合并**:characterImages 组装块 3 处谓词口径不一致——pipeline/regeneration 用 `includes(char.id)`、resume 用 `String(char.id)` 强转,共享化前须裁决跨类型匹配口径(潜在行为变更);mapToUiScriptData 双份亦未合一(pipeline 版多首尾帧字段)。**批次6 剩余**:T21a(两处合一,先裁决口径)、T21b(7 处接线收敛为共享 deps 对象透传,约 -200 行)、T20(state 合并入 hook,需全量矩阵)。
