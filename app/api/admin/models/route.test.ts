@@ -120,6 +120,8 @@ describe('POST /api/admin/models', () => {
       body: JSON.stringify({ capability: 'script', protocol: 'openai-chat', baseUrl: 'http://y/v1', modelId: 'm', apiKey: fullKey, enabled: true }),
     }))
     expect(res.status).toBe(409)
+    const text = await res.text()
+    expect(text).not.toContain(fullKey)
   })
 
   it('admin 创建成功 → 响应只含掩码', async () => {

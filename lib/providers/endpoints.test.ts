@@ -66,6 +66,13 @@ describe('validateEndpointPayload', () => {
     expect(result.value?.baseUrl).toBe('http://dgx:8000/v1')
   })
 
+  it('timeoutMs 缺省按 capability：图像 120s、文本 60s（spec 口径）', () => {
+    const image = validateEndpointPayload({ capability: 'image', protocol: 'openai-images', baseUrl: 'http://dgx:8000/v1', modelId: 'flux2', apiKey: 'sk-1' })
+    expect(image.value?.timeoutMs).toBe(120000)
+    const script = validateEndpointPayload({ capability: 'script', protocol: 'openai-chat', baseUrl: 'http://dgx:8000/v1', modelId: 'glm-5', apiKey: 'sk-1' })
+    expect(script.value?.timeoutMs).toBe(60000)
+  })
+
   it('非法 capability/protocol/baseUrl/缺失 modelId 拒绝', () => {
     expect(validateEndpointPayload({ capability: 'video', protocol: 'openai-chat', baseUrl: 'http://x/v1', modelId: 'm' }).ok).toBe(false)
     expect(validateEndpointPayload({ capability: 'script', protocol: 'comfy', baseUrl: 'http://x/v1', modelId: 'm' }).ok).toBe(false)

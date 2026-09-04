@@ -21,7 +21,7 @@
 ### 2. 提交前
 - 跑 `npm run check`,必须全绿。
 - 涉及定价/积分 → 加跑 `npx vitest run lib/video-pricing.test.ts`(月度成本对账同款,DEPLOY-CHECKLIST §8)。
-- **warning 棘轮**:lint script 带 `--max-warnings 419`(2026-09-03 基准,随 T1 抽离自 430 下调)——新增任何 warning 直接红。清偿后**必须手动把该数字调低到新的实测值**,只降不升。
+- **warning 棘轮**:lint script 带 `--max-warnings 300`(2026-09-04 随自建接入清偿自 419/430 下调,实测 292)——新增任何 warning 直接红。清偿后**必须手动把该数字调低到新的实测值**,只降不升。
 
 ## 童子军军规(带牙齿,2026-09-03 共识)
 
@@ -59,6 +59,6 @@ T1-T18+批次6(T19 死代码终清/T21a mapper 合一/T21b 接线收敛)全部�
 ## Lint 规则口径(2026-09-03 分诊)
 
 - 拦门禁:error 级全部。
-- 降为 warn(存量债,419 条,由 `--max-warnings 419` 棘轮冻结):`@typescript-eslint/no-explicit-any`、`react-hooks/set-state-in-effect`、`react-hooks/immutability`、`react-hooks/purity`、未用变量、`no-img-element` 等。
+- 降为 warn(存量债,实测 292 条,由 `--max-warnings 300` 棘轮冻结):`@typescript-eslint/no-explicit-any`、`react-hooks/set-state-in-effect`、`react-hooks/immutability`、`react-hooks/purity`、未用变量、`no-img-element` 等。
 - 工具版本注意:**ESLint 必须用 9.x**——eslint-plugin-react 7.37 只支持到 eslint ^9.7,装 10 会在 react 规则上崩溃。
 - Next 16 已移除 `next lint` 命令,lint script 是 `eslint .`(flat config `eslint.config.mjs`,原生 extends `eslint-config-next/core-web-vitals` + `/typescript`,无需 FlatCompat)。

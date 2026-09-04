@@ -865,6 +865,7 @@ export async function POST(request: NextRequest) {
           continue
         }
 
+        const itemStartedAt = Date.now()
         const result = await generateSingleStoryboard(
           storyboardPrompt,
           aspectRatio,
@@ -878,7 +879,7 @@ export async function POST(request: NextRequest) {
           { firstFramePrompt, lastFramePrompt, referenceImage }
         )
 
-        trackFunnelEvent({ stage: 'storyboard', userId: session.user.id, projectId: body.projectId ?? null, success: result.success, provider: result.provider ?? 'kieai', model: result.model ?? 'nano-banana-2', fallbackApplied: result.fallbackApplied ?? false, taskId: result.requestId, error: [result.localError, result.error].filter(Boolean).join(' | ') || undefined })
+        trackFunnelEvent({ stage: 'storyboard', userId: session.user.id, projectId: body.projectId ?? null, success: result.success, durationMs: Date.now() - itemStartedAt, provider: result.provider ?? 'kieai', model: result.model ?? 'nano-banana-2', fallbackApplied: result.fallbackApplied ?? false, taskId: result.requestId, error: [result.localError, result.error].filter(Boolean).join(' | ') || undefined })
 
         if (result.success) {
           console.log('[generate-storyboard-image] scene generated:', { 
@@ -937,6 +938,7 @@ export async function POST(request: NextRequest) {
       hasReferenceImage: !!referenceImage
     })
 
+    const resultStartedAt = Date.now()
     const result = await generateSingleStoryboard(
       storyboardPrompt ?? '',
       aspectRatio || '16:9',
@@ -950,7 +952,7 @@ export async function POST(request: NextRequest) {
       { firstFramePrompt, lastFramePrompt, regenerateFrameType, referenceImage }
     )
 
-    trackFunnelEvent({ stage: 'storyboard', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: result.provider ?? 'kieai', model: result.model ?? 'nano-banana-2', fallbackApplied: result.fallbackApplied ?? false, taskId: result.requestId, error: [result.localError, result.error].filter(Boolean).join(' | ') || undefined })
+    trackFunnelEvent({ stage: 'storyboard', userId: session.user.id, projectId: projectId ?? null, success: result.success, durationMs: Date.now() - resultStartedAt, provider: result.provider ?? 'kieai', model: result.model ?? 'nano-banana-2', fallbackApplied: result.fallbackApplied ?? false, taskId: result.requestId, error: [result.localError, result.error].filter(Boolean).join(' | ') || undefined })
 
     if (!result.success) {
       console.error('[generate-storyboard-image] generation failed:', { error: result.error })

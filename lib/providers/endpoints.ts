@@ -116,7 +116,9 @@ export function validateEndpointPayload(
   if (!modelId) {
     return { ok: false, error: 'modelId 是必需的' }
   }
-  const rawTimeout = typeof payload.timeoutMs === 'number' ? payload.timeoutMs : 60000
+  const rawTimeout = typeof payload.timeoutMs === 'number'
+    ? payload.timeoutMs
+    : capability === 'image' ? 120_000 : 60_000 // spec 口径：图像 120s、文本 60s
   const timeoutMs = Math.min(600000, Math.max(1000, Math.round(rawTimeout)))
 
   const apiKey = typeof payload.apiKey === 'string' ? payload.apiKey.trim() : ''

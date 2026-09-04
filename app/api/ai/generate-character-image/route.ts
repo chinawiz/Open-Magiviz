@@ -346,8 +346,9 @@ export async function POST(request: NextRequest) {
           continue
         }
 
+        const itemStartedAt = Date.now()
         const result = await generateSingleCharacter(promptText, undefined, session.user.id, body.projectId, characterId ?? undefined, body.versionId, body.versionGroupId, referenceImage)
-        trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: body.projectId ?? null, success: result.success, provider: result.provider ?? 'kieai', model: result.model ?? 'nano-banana-2', fallbackApplied: result.fallbackApplied ?? false, taskId: result.requestId, error: [result.localError, result.error].filter(Boolean).join(' | ') || undefined })
+        trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: body.projectId ?? null, success: result.success, durationMs: Date.now() - itemStartedAt, provider: result.provider ?? 'kieai', model: result.model ?? 'nano-banana-2', fallbackApplied: result.fallbackApplied ?? false, taskId: result.requestId, error: [result.localError, result.error].filter(Boolean).join(' | ') || undefined })
 
         if (result.success) {
           console.log('[generate-character-image] character generated:', { characterId, requestId: result.requestId, imageCount: result.images?.length })
@@ -374,8 +375,9 @@ export async function POST(request: NextRequest) {
     const { prompt, aspectRatio, webhookUrl, projectId, itemId, versionId, versionGroupId, referenceImage } = body
     console.log('[generate-character-image] single request:', { promptLength: prompt?.length, aspectRatio, hasWebhook: !!webhookUrl, projectId, versionId, versionGroupId, hasReferenceImage: !!referenceImage })
 
+    const resultStartedAt = Date.now()
     const result = await generateSingleCharacter(prompt ?? '', webhookUrl, session.user.id, projectId, itemId, versionId, versionGroupId, referenceImage)
-    trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: projectId ?? null, success: result.success, provider: result.provider ?? 'kieai', model: result.model ?? 'nano-banana-2', fallbackApplied: result.fallbackApplied ?? false, taskId: result.requestId, error: [result.localError, result.error].filter(Boolean).join(' | ') || undefined })
+    trackFunnelEvent({ stage: 'character', userId: session.user.id, projectId: projectId ?? null, success: result.success, durationMs: Date.now() - resultStartedAt, provider: result.provider ?? 'kieai', model: result.model ?? 'nano-banana-2', fallbackApplied: result.fallbackApplied ?? false, taskId: result.requestId, error: [result.localError, result.error].filter(Boolean).join(' | ') || undefined })
 
     if (!result.success) {
       console.error('[generate-character-image] generation failed:', { error: result.error })

@@ -214,10 +214,6 @@ export async function POST(request: Request) {
       error: routed.localError,
     })
 
-    if (!content) {
-      return jsonError(500, 'Invalid response from AI service')
-    }
-
     // 4. 解析并返回
     try {
       const parsedContent = parseJsonFromContent(content)
