@@ -68,8 +68,8 @@ async function generateSingleCharacter(
     return { success: false, error: "Prompt is required" }
   }
 
-  // ── 生效模型路由（ADR-0001）：自建端点排首；带参考图的 img2img 一期保留云端（自建契约仅文生图）；webhook 模式语义不适用自建 ──
-  const localAttempt = await attemptLocalImages(prompt, { skip: !!referenceImage || !!(webhookUrl || WEBHOOK_URL) })
+  // ── 生效模型路由（ADR-0001）：自建端点排首且恒尝试（t2i；参考图语义由 prompt 近似），失败自动回退 Kie webhook 流；回滚=admin 停用图像自建端点 ──
+  const localAttempt = await attemptLocalImages(prompt)
   if (localAttempt.status === 'ok') {
     // 同步完成：落 *_local 任务行（补偿任务按未知 taskType 跳过）+ 直接扣点（对齐轮询模式语义）
     const localTaskId = uuidv4()
@@ -401,3 +401,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
+
+// 自建模型同步调用需要长函数时长（本地图像 80-285s / 文本 ≤240s），上限对齐 Vercel 300s
+export const maxDuration = 300

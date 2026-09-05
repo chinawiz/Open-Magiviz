@@ -227,3 +227,6 @@ export async function POST(request: Request) {
     return jsonError(500, 'Internal server error')
   }
 }
+
+// 自建模型同步调用需要长函数时长（本地图像 80-285s / 文本 ≤240s），上限对齐 Vercel 300s
+export const maxDuration = 300
