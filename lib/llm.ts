@@ -73,9 +73,10 @@ export async function callChatCompletion(opts: ChatCompletionOptions): Promise<s
   return data?.choices?.[0]?.message?.content
 }
 
-/** 从模型返回文本中解析 JSON（兼容 ```json ... ``` 等包裹） */
+/** 从模型返回文本中解析 JSON（兼容 ```json ... ``` 等包裹；先剥思考型模型的 <think> 块，其内部常复述含花括号的 JSON 导致贪婪匹配抓到无效片段） */
 export function parseJsonFromContent(content: string): unknown {
-  const jsonMatch = content.match(/\{[\s\S]*\}/)
-  const candidate = jsonMatch ? jsonMatch[0] : content
+  const withoutThink = content.replace(/<think>[\s\S]*?<\/think>/gi, '')
+  const jsonMatch = withoutThink.match(/\{[\s\S]*\}/)
+  const candidate = jsonMatch ? jsonMatch[0] : withoutThink
   return JSON.parse(candidate)
 }

@@ -17,6 +17,11 @@ describe('parseJsonFromContent', () => {
     expect(parseJsonFromContent(content)).toEqual({ scenes: [{ title: '第一幕' }] })
   })
 
+  it('剥离思考型模型 <think> 块后解析（自建 qwen 实测输出形状）', () => {
+    const content = '<think>用户要求只输出严格 JSON。需要返回 {"ok":true}。</think>\n\n{"ok":true,"engine":"local"}'
+    expect(parseJsonFromContent(content)).toEqual({ ok: true, engine: 'local' })
+  })
+
   it('非法 JSON 抛出 SyntaxError', () => {
     expect(() => parseJsonFromContent('not json at all')).toThrow(SyntaxError)
   })
