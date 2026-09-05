@@ -51,6 +51,28 @@ describe('localChatCompletion', () => {
     expect(body.messages[0]).toEqual({ role: 'system', content: '你是编剧' })
   })
 
+  it('乱序 messages 归一化：散落的 system 合并置顶（vLLM Qwen 模板硬性要求，生产实测 400）', async () => {
+    const fetchImpl = fetchOk({ choices: [{ message: { content: 'ok' } }] })
+    await localChatCompletion(
+      endpoint,
+      {
+        messages: [
+          { role: 'user', content: '用户想法' },
+          { role: 'system', content: '系统规则 A' },
+          { role: 'user', content: '续写' },
+          { role: 'system', content: '系统规则 B' },
+        ],
+      },
+      fetchImpl,
+    )
+    const body = JSON.parse(String(fetchImpl.mock.calls[0][1]!.body))
+    expect(body.messages[0]).toEqual({ role: 'system', content: '系统规则 A\n\n系统规则 B' })
+    expect(body.messages.slice(1)).toEqual([
+      { role: 'user', content: '用户想法' },
+      { role: 'user', content: '续写' },
+    ])
+  })
+
   it('连接失败 → phase=connect', async () => {
     const fetchImpl = vi.fn(async () => {
       throw new TypeError('fetch failed: ECONNREFUSED')

@@ -83,22 +83,31 @@ async function fetchWithTimeout(
   }
 }
 
-/** 调自建端点的 chat completions，返回首条消息文本（与 lib/llm 的云端语义对齐） */
+/** 调自建端点的 chat completions，返回首条消息文本（与 lib/llm 的云端语义对齐）。
+ * 消息顺序归一化：把 system 消息合并置顶——云端模型（Gemini）容忍乱序/散落的 system，
+ * vLLM 的 Qwen chat 模板则硬性要求 system 在最前（生产实测 400: "System message must be at the beginning."） */
+function normalizeMessageOrder(messages: LocalChatMessage[]): LocalChatMessage[] {
+  const systemTexts = messages.filter(m => m.role === 'system').map(m => m.content)
+  const rest = messages.filter(m => m.role !== 'system')
+  return systemTexts.length > 0 ? [{ role: 'system', content: systemTexts.join('\n\n') }, ...rest] : rest
+}
+
 export async function localChatCompletion(
   endpoint: LocalEndpointConfig,
   input: LocalChatInput,
   fetchImpl: FetchLike = fetch,
 ): Promise<string> {
   const url = `${normalizeBaseUrl(endpoint.baseUrl)}/chat/completions`
-  const messages =
+  const rawMessages =
     input.messages ??
     [
       ...(input.system ? [{ role: 'system' as const, content: input.system }] : []),
       ...(input.user ? [{ role: 'user' as const, content: input.user }] : []),
     ]
-  if (messages.length === 0) {
+  if (rawMessages.length === 0) {
     throw new LocalProviderError('shape', 'localChatCompletion 需要至少一条消息（system/user/messages）')
   }
+  const messages = normalizeMessageOrder(rawMessages)
   const res = await fetchWithTimeout(
     fetchImpl,
     url,
