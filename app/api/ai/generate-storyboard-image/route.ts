@@ -8,6 +8,7 @@ import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
 import { eq } from 'drizzle-orm'
+import { persistLocalImageUrl } from '@/lib/local-persist'
 import type { KieRequestBody, KieApiResponse, BatchResultItem } from '@/lib/ai-types'
 
 /**
@@ -95,6 +96,16 @@ async function generateFrameImage(
   const localAttempt = await attemptLocalImages(prompt)
   if (localAttempt.status === 'ok') {
     // 帧图扣点在上游（单帧/首尾帧层）按既有惯例进行，此处不扣
+    // 服务端落库（对齐 Kie webhook 语义）：帧重生成模式字段位置不同，跳过由调用方处理
+    if (!options?.firstFramePrompt && !options?.lastFramePrompt && !options?.regenerateFrameType) {
+      await persistLocalImageUrl({
+        projectId,
+        versionId,
+        kind: 'storyboard',
+        itemId,
+        imageUrl: localAttempt.images[0]?.url ?? '',
+      })
+    }
     return {
       success: true,
       images: { default: localAttempt.images[0] },
@@ -581,6 +592,14 @@ async function generateSingleStoryboardOriginal(
         console.error('[generate-storyboard-image] 自建链路落账失败（不影响返回）:', localAccountingError)
       }
     }
+    // 服务端落库（对齐 Kie webhook 语义）：同步响应若因页面中断丢失，URL 已在 project_data 不丢
+    await persistLocalImageUrl({
+      projectId,
+      versionId,
+      kind: 'storyboard',
+      itemId,
+      imageUrl: localAttempt.images[0]?.url ?? '',
+    })
     return {
       success: true,
       images: { default: localAttempt.images[0] },

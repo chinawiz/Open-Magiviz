@@ -4,6 +4,7 @@ import { trackFunnelEvent } from '@/lib/observability/track'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { computeImagePoints } from '@/lib/video-pricing'
 import { attemptLocalImages } from '@/lib/providers/image-active'
+import { persistLocalImageUrl } from '@/lib/local-persist'
 import { db } from '@/lib/db'
 import { aiGenerationTasks } from '@/lib/schema'
 import { v4 as uuidv4 } from 'uuid'
@@ -97,6 +98,14 @@ async function generateSingleCharacter(
         console.error('[generate-character-image] 自建链路落账失败（不影响返回）:', localAccountingError)
       }
     }
+    // 服务端落库（对齐 Kie webhook 语义）：同步响应若因页面中断丢失，URL 已在 project_data 不丢
+    await persistLocalImageUrl({
+      projectId,
+      versionId,
+      kind: 'character',
+      itemId: itemId,
+      imageUrl: localAttempt.images[0]?.url ?? '',
+    })
     return {
       success: true,
       images: localAttempt.images,
