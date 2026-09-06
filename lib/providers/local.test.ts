@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { localChatCompletion, probeEndpoint, LocalProviderError, type LocalEndpointConfig } from './local'
+import { localChatCompletion, probeEndpoint, localVideoSubmit, localVideoStatus, LocalProviderError, type LocalEndpointConfig } from './local'
 
 // 自建端点客户端（统一契约：OpenAI 兼容）。测试只测外显行为：
 // 给定端点响应/错误，调用方拿到什么、错误归一到哪个阶段。
@@ -145,5 +145,45 @@ describe('probeEndpoint', () => {
     const result = await probeEndpoint(endpoint, httpErr)
     expect(result.ok).toBe(false)
     expect(result.error).toContain('502')
+  })
+})
+
+describe('localVideoSubmit / localVideoStatus', () => {
+  const fetchOk = (body: unknown) => vi.fn(async (_url: string, _init?: RequestInit) => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify(body),
+    json: async () => body,
+  }))
+
+  it('submit：POST {base}/v1/videos/submit，携带 model/prompt/duration/first_frame_url/seed，返回 taskId', async () => {
+    const fetchImpl = fetchOk({ taskId: 'vid_abc' })
+    const r = await localVideoSubmit(endpoint, { prompt: 'p', duration: 8, firstFrameUrl: 'https://r2/f.png', seed: 7 }, fetchImpl)
+    expect(r.taskId).toBe('vid_abc')
+    const [url, init] = fetchImpl.mock.calls[0]
+    expect(url).toBe('http://dgx:8000/v1/videos/submit')
+    const body = JSON.parse(String(init!.body))
+    expect(body).toMatchObject({ model: 'minimax-h3', prompt: 'p', duration: 8, first_frame_url: 'https://r2/f.png', seed: 7 })
+  })
+
+  it('submit：HTTP 400 → phase=http', async () => {
+    const fetchImpl = fetchHttpError(400, '{"error":"bad"}')
+    const err = await localVideoSubmit(endpoint, { prompt: 'p', duration: 30, firstFrameUrl: 'u' }, fetchImpl).catch(e => e)
+    expect(err).toBeInstanceOf(LocalProviderError)
+    expect(err.phase).toBe('http')
+  })
+
+  it('status：GET {base}/v1/videos/{id}，透传状态与 videoUrl', async () => {
+    const fetchImpl = fetchOk({ status: 'succeeded', videoUrl: 'https://pub/x.mp4' })
+    const r = await localVideoStatus(endpoint, 'vid_abc', fetchImpl)
+    expect(r.status).toBe('succeeded')
+    expect(r.videoUrl).toBe('https://pub/x.mp4')
+  })
+
+  it('status：非法状态 → phase=shape', async () => {
+    const fetchImpl = fetchOk({ status: 'weird' })
+    const err = await localVideoStatus(endpoint, 'vid_abc', fetchImpl).catch(e => e)
+    expect(err).toBeInstanceOf(LocalProviderError)
+    expect(err.phase).toBe('shape')
   })
 })

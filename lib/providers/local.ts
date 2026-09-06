@@ -216,3 +216,96 @@ export async function localImagesGenerate(
   }
   return results
 }
+
+// ── 视频网关契约（P7 T2：submit/poll 异步任务，网关串行队列）──
+
+export interface LocalVideoSubmitInput {
+  prompt: string
+  /** 5-15 整数秒（H3 契约） */
+  duration: number
+  /** 首帧图 URL（分镜图 R2 直链），网关侧下载后作 I2V 首帧 */
+  firstFrameUrl: string
+  seed?: number
+  model?: string
+}
+
+export interface LocalVideoStatus {
+  status: 'queued' | 'running' | 'succeeded' | 'failed'
+  videoUrl?: string
+  error?: string
+}
+
+/** 提交 H3 首帧 I2V 视频任务，返回网关 taskId */
+export async function localVideoSubmit(
+  endpoint: LocalEndpointConfig,
+  input: LocalVideoSubmitInput,
+  fetchImpl: FetchLike = fetch,
+): Promise<{ taskId: string }> {
+  const url = `${normalizeBaseUrl(endpoint.baseUrl)}/videos/submit`
+  const body = {
+    model: input.model ?? 'minimax-h3',
+    prompt: input.prompt,
+    duration: input.duration,
+    first_frame_url: input.firstFrameUrl,
+    ...(input.seed !== undefined ? { seed: input.seed } : {}),
+  }
+  let res: MinimalResponse
+  try {
+    res = await fetchWithTimeout(fetchImpl, url, {
+      method: 'POST',
+      headers: authHeaders(endpoint.apiKey),
+      body: JSON.stringify(body),
+    }, endpoint.timeoutMs)
+  } catch (err) {
+    if (err instanceof LocalProviderError) throw err
+    throw new LocalProviderError('connect', `自建视频端点连接失败: ${(err as Error)?.message ?? err}`)
+  }
+  if (!res.ok) {
+    throw new LocalProviderError('http', `自建视频端点 HTTP ${res.status}: ${url}`)
+  }
+  let data: { taskId?: unknown }
+  try {
+    data = JSON.parse(await res.text())
+  } catch {
+    throw new LocalProviderError('shape', `自建视频端点响应非 JSON: ${url}`)
+  }
+  if (typeof data.taskId !== 'string' || !data.taskId) {
+    throw new LocalProviderError('shape', `自建视频端点未返回 taskId: ${url}`)
+  }
+  return { taskId: data.taskId }
+}
+
+/** 查询视频任务状态；succeeded 时返回网关公网 videoUrl */
+export async function localVideoStatus(
+  endpoint: LocalEndpointConfig,
+  taskId: string,
+  fetchImpl: FetchLike = fetch,
+): Promise<LocalVideoStatus> {
+  const url = `${normalizeBaseUrl(endpoint.baseUrl)}/videos/${encodeURIComponent(taskId)}`
+  let res: MinimalResponse
+  try {
+    res = await fetchWithTimeout(fetchImpl, url, {
+      method: 'GET',
+      headers: authHeaders(endpoint.apiKey),
+    }, endpoint.timeoutMs)
+  } catch (err) {
+    if (err instanceof LocalProviderError) throw err
+    throw new LocalProviderError('connect', `自建视频端点连接失败: ${(err as Error)?.message ?? err}`)
+  }
+  if (!res.ok) {
+    throw new LocalProviderError('http', `自建视频端点 HTTP ${res.status}: ${url}`)
+  }
+  let data: { status?: unknown; videoUrl?: unknown; error?: unknown }
+  try {
+    data = JSON.parse(await res.text())
+  } catch {
+    throw new LocalProviderError('shape', `自建视频端点响应非 JSON: ${url}`)
+  }
+  if (data.status !== 'queued' && data.status !== 'running' && data.status !== 'succeeded' && data.status !== 'failed') {
+    throw new LocalProviderError('shape', `自建视频端点状态非法: ${String(data.status)}`)
+  }
+  const out: LocalVideoStatus = { status: data.status }
+  if (typeof data.videoUrl === 'string') out.videoUrl = data.videoUrl
+  if (typeof data.error === 'string') out.error = data.error
+  return out
+}

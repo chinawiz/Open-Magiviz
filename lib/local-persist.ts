@@ -91,3 +91,39 @@ export async function persistLocalImageUrl(opts: {
     return false
   }
 }
+
+/** 本地视频完成：按场景序号映射 sceneId 后把 R2 URL 写入 sceneVideoData（对齐客户端保存形状）。 */
+export async function persistLocalVideoUrl(opts: {
+  projectId?: string | null
+  versionId?: string | null
+  /** 生成任务行的 sceneIndex（0 起）；据此映射 scriptScenes 的 sceneId */
+  sceneIndex?: number | null
+  videoUrl: string
+}): Promise<boolean> {
+  const { versionId, sceneIndex, videoUrl } = opts
+  if (!versionId || !videoUrl) return false
+  try {
+    const [row] = await db.select().from(projectData).where(eq(projectData.id, versionId)).limit(1)
+    if (!row) return false
+
+    const scriptScenes = safeJsonCopy<Array<{ sceneId?: number | string }>>(row.scriptScenes) || []
+    const entry = scriptScenes[sceneIndex ?? -1]
+    const sceneId = entry?.sceneId != null ? String(entry.sceneId) : String((sceneIndex ?? 0) + 1)
+
+    const sceneVideos = safeJsonCopy<Array<{ sceneId: number | string; videoUrl: string; isTemporary?: boolean }>>(row.sceneVideoData) || []
+    const idx = sceneVideos.findIndex((v) => String(v.sceneId) === sceneId)
+    if (idx >= 0) {
+      sceneVideos[idx] = { ...sceneVideos[idx], videoUrl, isTemporary: true }
+    } else {
+      sceneVideos.push({ sceneId: Number(sceneId) || sceneId, videoUrl, isTemporary: true })
+    }
+    await db
+      .update(projectData)
+      .set({ sceneVideoData: sceneVideos, updatedAt: new Date() })
+      .where(eq(projectData.id, row.id))
+    return true
+  } catch (error) {
+    console.error('[local-persist] 写入 sceneVideoData 失败（不影响返回）:', error)
+    return false
+  }
+}

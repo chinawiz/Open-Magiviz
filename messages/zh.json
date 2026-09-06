@@ -1332,11 +1332,13 @@
       "capability": {
         "script": "剧本生成",
         "storyboard_text": "分镜剧情",
-        "image": "图像生成"
+        "image": "图像生成",
+        "video": "场景视频（H3 自建）"
       },
       "protocol": {
         "openai-chat": "OpenAI 兼容 Chat",
-        "openai-images": "OpenAI 兼容 Images"
+        "openai-images": "OpenAI 兼容 Images",
+        "openai-videos": "OpenAI 兼容 Videos"
       },
       "active_model": "生效模型",
       "cloud_default": "云端默认",

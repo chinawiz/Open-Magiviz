@@ -58,11 +58,11 @@ export async function syncLocalRouteOnDisable(capability: Capability): Promise<v
 
 // ========== 管理端配置操作（ADR-0001：key 存 DB、掩码返回、更新即时热生效）==========
 
-export type EndpointCapability = 'script' | 'storyboard_text' | 'image'
-export type EndpointProtocol = 'openai-chat' | 'openai-images'
+export type EndpointCapability = 'script' | 'storyboard_text' | 'image' | 'video'
+export type EndpointProtocol = 'openai-chat' | 'openai-images' | 'openai-videos'
 
-export const ENDPOINT_CAPABILITIES: EndpointCapability[] = ['script', 'storyboard_text', 'image']
-export const ENDPOINT_PROTOCOLS: EndpointProtocol[] = ['openai-chat', 'openai-images']
+export const ENDPOINT_CAPABILITIES: EndpointCapability[] = ['script', 'storyboard_text', 'image', 'video']
+export const ENDPOINT_PROTOCOLS: EndpointProtocol[] = ['openai-chat', 'openai-images', 'openai-videos']
 
 export interface EndpointPayload {
   capability: EndpointCapability

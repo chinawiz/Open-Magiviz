@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
+import { v4 as uuidv4 } from 'uuid'
 import { getAuthedSession, jsonError } from '@/lib/api'
 import { getUserPoints, deductPoints, PointsAction } from '@/lib/points'
 import { isPaidPlan } from '@/lib/plan-limits'
 import { isKnownVideoModel, computeVideoPointsFor, getStyleFallbackModel, type VideoResolution } from '@/lib/video-pricing'
 import { users as usersTable } from '@/lib/schema'
 import { getVideoFallbackChain } from '@/lib/providers/defaults'
+import { resolveActiveRoutes } from '@/lib/providers/router'
+import { pickLocalEntry, toEndpointConfig } from '@/lib/providers/chat-active'
+import { localVideoSubmit } from '@/lib/providers/local'
 import { submitTask, pollTaskUntilVerdict, resolveBillableSeconds, videoModelLabel, videoModelSupportedResolutions, type SubmitInput, type SubmitMeta } from '@/lib/providers'
 import { claimTaskPointsDeduction, markTaskSuccess } from '@/lib/task-points'
 import { trackFunnelEvent } from '@/lib/observability/track'
@@ -236,6 +240,73 @@ export async function POST(request: NextRequest) {
         { error: `${modelName} 模式需要提供 imageUrl` },
         { status: 400 }
       )
+    }
+
+    // ── 生效模型路由（ADR-0001 视频二期）：H3 + 自建视频端点启用 → 本地 H3 I2V（submit/poll 异步），任何失败自动落入下方 Kie 链 ──
+    if (routeTo === 'minimaxH3') {
+      const activeVideoRoutes = await resolveActiveRoutes('video')
+      const localVideoEntry = pickLocalEntry(activeVideoRoutes)
+      if (localVideoEntry) {
+        if (!imageUrl || !imageUrl.trim()) {
+          return NextResponse.json({ error: '本地 H3 模式需要提供 imageUrl（首帧图）' }, { status: 400 })
+        }
+        const billable = resolveBillableSeconds('minimaxH3', duration)
+        const localPoints = computeVideoPointsFor('minimaxH3', billable)
+        const localUserPoints = await getUserPoints(session.user.id)
+        if (localUserPoints < localPoints) {
+          return NextResponse.json(
+            {
+              error: '积分不足',
+              code: 'INSUFFICIENT_POINTS',
+              currentPoints: localUserPoints,
+              requiredPoints: localPoints
+            },
+            { status: 400 }
+          )
+        }
+        const videoSubmit = await localVideoSubmit(toEndpointConfig(localVideoEntry), {
+          prompt: prompt ?? '',
+          duration: getDurationSeconds(duration),
+          firstFrameUrl: imageUrl,
+          seed: sceneIndex != null ? Number(sceneIndex) * 1000 + 7 : undefined,
+        }).catch((localErr: Error) => ({ submitError: `${localErr.message}`.slice(0, 200) }))
+
+        if ('submitError' in (videoSubmit as object)) {
+          const localError = (videoSubmit as { submitError: string }).submitError
+          console.error('[generate-story-video] 自建视频端点失败，回退 Kie 链:', localError)
+          trackFunnelEvent({ stage: 'video', userId: session.user.id, projectId: projectId ?? null, success: false, provider: 'local', model: 'minimax-h3', fallbackApplied: true, taskId: undefined, error: localError })
+          // 不 return——落入下方 Kie 提交链
+        } else {
+          const localTaskId = (videoSubmit as { taskId: string }).taskId
+          try {
+            await db.insert(aiGenerationTasks).values({
+              id: uuidv4(),
+              taskId: localTaskId,
+              userId: session.user.id,
+              taskType: 'generate_story_video_local',
+              model: 'minimaxH3',
+              pointsAmount: localPoints,
+              pointsDeducted: false,
+              status: 'pending',
+              projectId: projectId || null,
+              versionId: versionId || null,
+              itemId: sceneIndex != null ? String(sceneIndex) : null,
+              versionGroupId: versionGroupId || null,
+              newVersionId: null,
+            })
+          } catch (localRowError) {
+            console.error('[generate-story-video] 本地视频任务行落库失败:', localRowError)
+          }
+          trackFunnelEvent({ stage: 'video', userId: session.user.id, projectId: projectId ?? null, success: true, provider: 'local', model: 'minimax-h3', fallbackApplied: false, taskId: localTaskId })
+          console.log('[generate-story-video] 本地 H3 任务已提交:', { taskId: localTaskId, localPoints, versionId })
+          return NextResponse.json({
+            success: true,
+            data: { videoUrl: '', prompt: body.prompt, requestId: localTaskId },
+            provider: 'local',
+            statusUrl: `/api/ai/video-status?taskId=${localTaskId}`,
+          })
+        }
+      }
     }
 
     // 检查积分是否足够

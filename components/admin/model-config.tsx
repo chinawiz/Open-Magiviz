@@ -25,7 +25,7 @@ import { toast } from 'sonner'
 // 自建端点管理（ADR-0001）：登记/编辑/启停/删除 + 测试连接 + 回退统计。
 // key 只以掩码出现（API 契约守卫），编辑留空 = 保留原 key。
 
-const CAPABILITIES = ['script', 'storyboard_text', 'image'] as const
+const CAPABILITIES = ['script', 'storyboard_text', 'image', 'video'] as const
 
 interface PublicEndpoint {
   id: string

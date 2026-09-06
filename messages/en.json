@@ -1332,11 +1332,13 @@
       "capability": {
         "script": "Script",
         "storyboard_text": "Storyboard Plot",
+        "video": "Video (H3 Local)",
         "image": "Image"
       },
       "protocol": {
         "openai-chat": "OpenAI-compatible Chat",
-        "openai-images": "OpenAI-compatible Images"
+        "openai-images": "OpenAI-compatible Images",
+        "openai-videos": "OpenAI-compatible Videos"
       },
       "active_model": "Active model",
       "cloud_default": "Cloud default",
