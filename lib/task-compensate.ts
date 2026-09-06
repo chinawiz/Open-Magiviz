@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm"
 import { deductPoints, PointsAction } from "@/lib/points"
 import { claimTaskPointsDeduction, releaseTaskPointsClaim, markTaskSuccess } from "@/lib/task-points"
 import { pollTask, isKnownTaskType } from "@/lib/providers"
+import { pollAndSettleLocalVideo } from "@/lib/local-video-settle"
 
 /**
  * 补偿结算语义的唯一实现（docs/admin-plan.md tasks 页 + F10 漏回调补偿共用）。
@@ -48,6 +49,15 @@ export async function settleStaleTask(
   if (!isKnownTaskType(t.taskType)) {
     console.warn(`[task-compensate] 未知 taskType，跳过: ${t.taskType} (${t.taskId})`)
     return 'skippedUnknown'
+  }
+
+  // 本地 H3 视频（P7）：终态副作用（R2 中转+sceneVideoData 落库）在共享结算里完成；
+  // pending/端点停用 → stillProcessing（僵尸 24h 规则兜底）
+  if (t.taskType === 'generate_story_video_local') {
+    const r = await pollAndSettleLocalVideo(t)
+    if (r.state === 'succeeded') return t.pointsDeducted ? 'markedSuccess' : 'compensated'
+    if (r.state === 'failed') return 'markedFailed'
+    return 'stillProcessing'
   }
 
   let verdict: string

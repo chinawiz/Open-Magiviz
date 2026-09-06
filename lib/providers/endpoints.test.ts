@@ -74,7 +74,7 @@ describe('validateEndpointPayload', () => {
   })
 
   it('非法 capability/protocol/baseUrl/缺失 modelId 拒绝', () => {
-    expect(validateEndpointPayload({ capability: 'video', protocol: 'openai-chat', baseUrl: 'http://x/v1', modelId: 'm' }).ok).toBe(false)
+    expect(validateEndpointPayload({ capability: 'audio', protocol: 'openai-chat', baseUrl: 'http://x/v1', modelId: 'm' }).ok).toBe(false)
     expect(validateEndpointPayload({ capability: 'script', protocol: 'comfy', baseUrl: 'http://x/v1', modelId: 'm' }).ok).toBe(false)
     expect(validateEndpointPayload({ capability: 'script', protocol: 'openai-chat', baseUrl: 'ftp://x', modelId: 'm' }).ok).toBe(false)
     expect(validateEndpointPayload({ capability: 'script', protocol: 'openai-chat', baseUrl: 'http://x/v1', modelId: '' }).ok).toBe(false)

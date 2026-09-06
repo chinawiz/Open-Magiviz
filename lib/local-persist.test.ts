@@ -8,7 +8,6 @@ vi.hoisted(() => {
 import {
   applyImageUrlToCharacters,
   applyImageUrlToStoryboards,
-  persistLocalImageUrl,
 } from './local-persist'
 
 const charRow = { id: 'char_1', name: '主角', imageUrl: '' }

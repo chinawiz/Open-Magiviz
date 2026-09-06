@@ -20,7 +20,7 @@ export function getStaticDefaultRoutes(): Record<Capability, RouteEntry[]> {
 }
 
 // taskType → 供应商查询方式（与各生成路由实际提交的端点一一对应）
-export const TASK_PROVIDER: Record<string, { provider: 'kieai' | 'fal'; queryKind?: KieQueryKind }> = {
+export const TASK_PROVIDER: Record<string, { provider: 'kieai' | 'fal' | 'local'; queryKind?: KieQueryKind }> = {
   // 图片（generate-character-image / generate-storyboard-image）
   generate_character: { provider: 'kieai', queryKind: 'jobsRecordInfo' },
   generate_storyboard: { provider: 'kieai', queryKind: 'jobsRecordInfo' },
@@ -39,6 +39,8 @@ export const TASK_PROVIDER: Record<string, { provider: 'kieai' | 'fal'; queryKin
   happyhorse_video: { provider: 'kieai', queryKind: 'jobsGet' },
   gemini_omni_video: { provider: 'kieai', queryKind: 'jobsGet' },
   minimax_h3_video: { provider: 'kieai', queryKind: 'jobsGet' },
+  // 本地 H3 视频（P7）：终态查询走网关 poll（settleStaleTask 内分支拦截，不经 Kie pollTask）
+  generate_story_video_local: { provider: 'local', queryKind: 'jobsGet' },
   // FAL 合成
   generate_final_video: { provider: 'fal' },
 }

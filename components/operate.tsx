@@ -41,6 +41,31 @@ import { useUploadItems } from "@/hooks/use-upload-items"
 import { useStoryboardGeneration } from "@/hooks/use-storyboard-generation"
 import { useCharacterGeneration } from "@/hooks/use-character-generation"
 
+
+// 本地视频任务轮询（P7 T4）：模块级实现——Date.now/setTimeout 不进组件闭包，规避 render 纯净性告警
+async function pollLocalVideoStatus(
+  statusUrl: string,
+  signal: AbortSignal | undefined,
+  timeoutMinutes = 50,
+): Promise<{ videoUrl: string } | { error: string } | { aborted: true }> {
+  const deadline = Date.now() + timeoutMinutes * 60 * 1000
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 20000))
+    try {
+      const res = await fetch(statusUrl, { signal })
+      if (res.ok) {
+        const st = await res.json()
+        if (st.status === 'succeeded') return { videoUrl: String(st.videoUrl) }
+        if (st.status === 'failed') return { error: String(st.error || 'generation failed') }
+      }
+    } catch (e) {
+      if ((e as Error)?.name === 'AbortError') return { aborted: true }
+      // 暂态网络错误（H3 采样期 ComfyUI 忙）继续轮询
+    }
+  }
+  return { error: 'generation timed out' }
+}
+
 interface AIFunctionProps {
   onSend?: (message: string) => void
   onImageUpload?: (file: File) => void
@@ -547,6 +572,53 @@ export function AIFunction({
       })()
     )
 
+    // ========== 本地任务分支（P7）：轮询 statusUrl（网关串行队列，单段 13-25 分钟）==========
+    const localSubmit = sceneResult as { provider?: string; statusUrl?: string; data?: Record<string, unknown> }
+    if (localSubmit.provider === 'local' && localSubmit.statusUrl) {
+      const pollResult = await pollLocalVideoStatus(localSubmit.statusUrl, abortControllerRef.current?.signal)
+      if ('aborted' in pollResult) {
+        return {
+          ...(localSubmit.data || {}),
+          videoUrl: '',
+          sceneId: scene.id,
+          sceneIndex,
+          storyboardImage,
+          prompt: (localSubmit.data?.prompt as string) || basePrompt,
+        }
+      }
+      if ('error' in pollResult) {
+        const errorResult = {
+          ...(localSubmit.data || {}),
+          videoUrl: '',
+          sceneId: scene.id,
+          sceneIndex,
+          storyboardImage,
+          error: pollResult.error,
+          prompt: (localSubmit.data?.prompt as string) || basePrompt,
+        }
+        setSceneVideos((prev: any[]) => {
+          const newItems = [...prev]
+          newItems[sceneIndex] = errorResult
+          return newItems
+        })
+        return errorResult
+      }
+      const videoItem = {
+        ...(localSubmit.data || {}),
+        videoUrl: pollResult.videoUrl,
+        sceneId: scene.id,
+        sceneIndex,
+        storyboardImage,
+        prompt: (localSubmit.data?.prompt as string) || basePrompt,
+      }
+      // ========== 实时更新：本场景视频完成即更新状态 ==========
+      setSceneVideos((prev: any[]) => {
+        const newItems = [...prev]
+        newItems[sceneIndex] = { ...videoItem, error: undefined }
+        return newItems
+      })
+      return videoItem
+    }
     // ========== Pusher 模式处理 ==========
     let videoUrl = sceneResult.data?.videoUrl || sceneResult.data?.url
 
