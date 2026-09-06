@@ -45,3 +45,7 @@ poc/output/
 
 # agent 工单（本地 issue tracker，见 docs/agents/issue-tracker.md，不推送）
 .scratch/
+
+# 本地测试截图与本地产物
+gui-test-screenshots/
+.zcode/
