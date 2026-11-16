@@ -82,7 +82,7 @@ npx trigger.dev@latest login   # 确认对 proj_hycyyzkdnebddnffoaak 有访问�
 npm run trigger:deploy         # 发布 compensate-missed-webhooks + compose-final-video + 原迁移任务
 ```
 
-- [ ] 控制台 → Schedules → 为 `compensate-missed-webhooks` 添加 cron（每 10 分钟）
+- [ ] 控制台 → Schedules → 为 `compensate-missed-webhooks` 添加 cron（每 30 分钟；2026-11-16 由 */10 降频，Neon CU-hour 治理，见 trigger/compensate-missed-webhooks.ts 注释）
 - [ ] 观察本次构建是否成功（ffmpeg 已由 `ffmpeg()` 构建扩展 apt 安装，无 ffmpeg-static postinstall 下载风险）
 
 ## 4. 代码部署（Vercel）
@@ -139,6 +139,15 @@ SELECT model, fallbackApplied, COUNT(*) FROM funnel_events
 2. **线上失败率与毛利**：管理员访问 `/api/admin/pricing-health?days=30`。
    带 `warning` 的模型：失败损耗 >1.7× → 换模型或上调底线倍率；预估毛利 <100% → 重订单价。
    注意：2026-08-28 之前的任务无 model 字段，归在 unknown 桶，新数据会自动归位。
+3. **免费层配额月检（2026-11-16 起；CLI/API 查不到的只能人工扫 dashboard）**：
+   - **Neon**（最要命）：Usage & Limits 页看 CU-hours（免费 100 CU-h/项目/月，**超限 compute 挂起到下个账期=全站 DB 断电**）。
+     治理纪律：凡"周期性打 DB"的东西（拨测、cron、轮询）都要过一遍 CU-hour 账——
+     免费档最小挂起 300s，每次唤醒保底 ~5 分钟活跃，唤醒次数×5min 就是月度活跃时长的下限。
+     已落地：readyz DB 探测缓存 60min（`app/api/readyz/route.ts`）、补偿 cron */30（2026-11-16）。
+   - **Trigger.dev**：Usage 看 $5 免费额度消耗（compose medium-1x 是大头，cron 其次）。
+   - **Vercel**：Usage 看带宽（Hobby 100GB/月；媒体必须走 R2 直链/presigned，不许过 Vercel 域名）。
+   - **Sentry**（5k 错误/月，防错误刷屏吃额度）、**Resend**（3k 封/月）、**PostHog**（1M 事件/月）扫一眼即可。
+   - R2 无需盯：10GB 存储 + egress 免费，当前 ~69MB。
 
 ## 9. 监控三件套（2026-08-31 批次；三件均已激活并验证 ✅，本节转为日常参考）
 
@@ -158,13 +167,13 @@ SELECT model, fallbackApplied, COUNT(*) FROM funnel_events
      会话内可直接查线上 issue/堆栈/trace 并标记 resolve。
 2. **Better Stack（在线监控+状态页，免费 10 监控/3 分钟间隔）**
    - betterstack.com 建 3 个 monitor：`https://mhhao.com`（期望 200）、
-     `https://mhhao.com/api/readyz`（探 DB，200=ok/503=摘流）、`https://mhhao.com/api/healthz`（liveness）。
+     `https://mhhao.com/api/readyz`（探 DB，200=ok/503=摘流；2026-11-16 起 DB 探测结果缓存 60 分钟，响应含 `cached:true`——为治理 Neon CU-hour，拨测不再每次真连 DB，DB 故障检测延迟由补偿 cron 的 healthchecks /fail 兜底）、`https://mhhao.com/api/healthz`（liveness）。
    - 报警渠道先只发邮件；状态页可选挂 status.mhhao.com（需再加 DNS CNAME）。
 3. **healthchecks.io（定时任务心跳，免费 20 check）**
-   - 建 check：schedule = cron `*/10 * * * *`，宽限 30 分钟。
+   - 建 check：schedule = cron `*/30 * * * *`，宽限 60 分钟（2026-11-16 随补偿 cron 降频同步；**cron 频率再改时此处必须联动**，否则误报"迟到"）。
    - 复制 ping URL（形如 `https://hc-ping.com/<uuid>`）→ 填到 **Trigger.dev 项目环境变量**
      `HEALTHCHECKS_PING_URL`（任务跑在 Trigger 云，不是 Vercel）→ `gh workflow run trigger-deploy.yml -R chinawiz/Open-Magiviz` 重部任务。
-   - 验证：Trigger 手动跑一次任务，healthchecks check 变绿；超过 40 分钟无心跳即邮件告警。
+   - 验证：Trigger 手动跑一次任务，healthchecks check 变绿；超过 90 分钟无心跳即邮件告警。
 4. **复核免费层配额**：三个服务的免费档数额以官网当期为准（2026-08-31 审计快照见
    `docs/free-for-dev-audit-2026-08.md`）。
 

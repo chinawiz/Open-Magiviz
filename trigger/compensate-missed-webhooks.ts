@@ -11,7 +11,7 @@ import { settleStaleTask, zombieCutoff } from "@/lib/task-compensate"
  * 定时扫描 ai_generation_tasks 中超过阈值仍未达终态（status='pending'）的任务，
  * 主动查询供应商终态并对"已完成未扣费"补扣、对"已失败"关闭。
  *
- * 定时配置：SDK scheduled task 部署即注册（每 10 分钟）。
+ * 定时配置：SDK scheduled task 部署即注册（每 30 分钟）。
  */
 
 const STALE_MINUTES = 20 // 超过该时长未终态才进入补偿（webhook 正常送达窗口）
@@ -47,8 +47,13 @@ const RESULT_KEYS = [
 
 export const compensateMissedWebhooks = schedules.task({
   id: "compensate-missed-webhooks",
-  // 每 10 分钟自动运行（scheduled task 部署即注册，无需控制台手动挂载）
-  cron: "*/10 * * * *",
+  // 每 30 分钟自动运行（scheduled task 部署即注册，无需控制台手动挂载）。
+  // 2026-11-16 由 */10 降频：每次运行查库都会把 Neon compute 从挂起唤醒，
+  // 免费档最小挂起 300s → 每次运行保底 ~5 分钟活跃，*/10 单独就 ≈90 CU-h/月，
+  // 逼近 100 CU-h 免费额度（超限 compute 挂起到下个账期）。
+  // 本任务是漏回调兜底而非主路径（webhook 实时送达才是），最坏结算延迟 20→50 分钟可接受。
+  // 改频率必须同步更新 healthchecks.io 的 check 调度与宽限（cron */30、宽限 ≥60 分钟）。
+  cron: "*/30 * * * *",
   run: async () => {
     try {
       const staleBefore = new Date(Date.now() - STALE_MINUTES * 60 * 1000)
